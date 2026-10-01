@@ -61,6 +61,25 @@ export interface Health {
   redis: { ok: boolean; latencyMs: number; error?: string };
 }
 
+export interface GalleryItem {
+  jobId: string;
+  jobTitle: string;
+  jobType: JobKind;
+  moduleId: ModuleId;
+  workflowId: string;
+  artifactId: string;
+  name: string;
+  path: string;
+  kind: Artifact["kind"];
+  role: Artifact["role"];
+  createdAt: string;
+  prompt?: string;
+  model?: string;
+  size?: string;
+  seed?: number;
+  steps?: number;
+}
+
 export interface SparkStatus {
   ok: boolean;
   generatedAt: string;

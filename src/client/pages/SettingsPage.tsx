@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Image as ImageIcon, Languages, LoaderCircle, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
 import { api } from "../api";
 import { cn } from "../components/ui";
 import { SearchSelect } from "../components/SearchSelect";
 import { useToast } from "../components/ToastProvider";
 import { announceSettingsUpdated } from "../settings-events";
+import { applyTheme, type ThemePreference } from "../theme";
 import type { EndpointHealth, EndpointKind, ModelInputCapability, PromptPreset, Settings } from "../types";
 
 type SettingsServiceKind = EndpointKind | "system-status";
@@ -27,10 +28,16 @@ const systemStatusMeta = {
 };
 
 const settingsSections = [
-  { key: "general" as const, label: "General", title: "General", description: "Regional preferences", icon: Clock3 },
+  { key: "general" as const, label: "General", title: "General", description: "Appearance and region", icon: Clock3 },
   { key: "services" as const, label: "Services", title: "Model services", description: "Endpoints and models", icon: Server },
   { key: "processing" as const, label: "Processing", title: "Processing", description: "Jobs and recovery", icon: SlidersHorizontal },
   { key: "prompts" as const, label: "Prompts", title: "Prompt presets", description: "Reusable instructions", icon: FileCog },
+];
+
+const themeChoices: Array<{ value: ThemePreference; label: string; icon: typeof Sun }> = [
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "auto", label: "System", icon: Monitor },
 ];
 
 const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -83,6 +90,7 @@ export function SettingsPage() {
   const [selectedService, setSelectedService] = useState<SettingsServiceKind>();
   const [editingPrompt, setEditingPrompt] = useState<PromptPreset>();
   const toast = useToast();
+  const savedTheme = useRef<ThemePreference | undefined>(undefined);
   const activeSection = settingsSections.find((section) => section.key === tab)!;
   const selectedServiceMeta = selectedService === "system-status" ? systemStatusMeta : selectedService ? endpointMeta[selectedService] : undefined;
 
@@ -93,8 +101,10 @@ export function SettingsPage() {
   }
 
   useEffect(() => {
-    Promise.all([api.settings(), api.prompts()]).then(([loadedSettings, loadedPrompts]) => { setSettings(loadedSettings); setPrompts(loadedPrompts); }).catch((value) => setError(value.message));
+    Promise.all([api.settings(), api.prompts()]).then(([loadedSettings, loadedPrompts]) => { savedTheme.current = loadedSettings.ui.theme; setSettings(loadedSettings); setPrompts(loadedPrompts); }).catch((value) => setError(value.message));
   }, []);
+  // The theme previews live while choosing; leaving without saving restores the saved one.
+  useEffect(() => () => { if (savedTheme.current) applyTheme(savedTheme.current); }, []);
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow;
     const previousRootOverflow = document.documentElement.style.overflow;
@@ -127,6 +137,7 @@ export function SettingsPage() {
     setError("");
     try {
       const savedSettings = await api.saveSettings(settings);
+      savedTheme.current = savedSettings.ui.theme;
       setSettings(savedSettings);
       announceSettingsUpdated(savedSettings);
       toast.success("Settings saved", "Your changes are now active.");
@@ -188,6 +199,9 @@ export function SettingsPage() {
           {error && <div className="error-card settings-error"><CircleAlert size={18} />{error}</div>}
           {!settings ? <div className="settings-loading"><div className="skeleton h-40" /><div className="skeleton h-40" /></div> : <div className="settings-panel-body">
           {tab === "general" && <section>
+            <div className="settings-section-block"><h3>Appearance</h3><div className="settings-group settings-value-group">
+              <div className="settings-value-row"><span><strong>Theme</strong><small>Dark graphite, a light variant, or follow this device.</small></span><span className="theme-choice" role="radiogroup" aria-label="Theme">{themeChoices.map(({ value, label, icon: Icon }) => <button key={value} type="button" role="radio" aria-checked={settings.ui.theme === value} className={cn(settings.ui.theme === value && "active")} onClick={() => { setSettings({ ...settings, ui: { ...settings.ui, theme: value } }); applyTheme(value); }}><Icon size={15} />{label}</button>)}</span></div>
+            </div></div>
             <div className="settings-section-block"><h3>Region and time</h3><div className="settings-group settings-value-group">
               <div className="settings-value-row"><span><strong>Time zone</strong><small>Used for displayed dates and times, and when naming new job and conversation folders. Existing work is not renamed.</small></span><span className="timezone-setting-control"><SearchSelect value={settings.ui.timezone} onChange={(timezone) => setSettings({ ...settings, ui: { ...settings.ui, timezone } })} options={[...(!["UTC", ...timezoneOptions].includes(settings.ui.timezone) ? [{ value: settings.ui.timezone, label: settings.ui.timezone.replaceAll("_", " ") }] : []), { value: "UTC", label: "UTC" }, ...timezoneOptions.filter((timezone) => timezone !== "UTC").map((timezone) => ({ value: timezone, label: timezone.replaceAll("_", " ") }))]} searchPlaceholder="Search time zones" emptyMessage="No time zones found" ariaLabel="Time zone" /><button className="button-secondary compact" onClick={() => setSettings({ ...settings, ui: { ...settings.ui, timezone: browserTimezone } })}>Use device time zone</button></span></div>
             </div><p className="settings-footnote">This device reports <strong>{browserTimezone.replaceAll("_", " ")}</strong>.</p></div>

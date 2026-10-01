@@ -24,6 +24,8 @@ services:
       TRANSLATION_PORT: "8334"
       GROUNDING_PORT: "8335"
       IMAGE_GENERATION_PORT: "8336"
+      OCR_VLM_PORT: "8342"
+      IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8330/health', timeout=2)"]
       interval: 15s

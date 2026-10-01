@@ -24,3 +24,7 @@ data/
 .vscode/
 *.swp
 *.swo
+
+# Python bytecode from adapter tests
+__pycache__/
+scripts/spark-switch.env

@@ -93,10 +93,72 @@ export async function chatCompletion(
   return content;
 }
 
+export interface OcrBlock {
+  label: string;
+  /** Pixel box on the page image: x1, y1, x2, y2. */
+  bbox: [number, number, number, number];
+  text: string;
+}
+
+export interface OcrPage {
+  markdown: string;
+  width?: number;
+  height?: number;
+  blocks: OcrBlock[];
+}
+
+export type OcrProfile = "unlimited-ocr" | "paddleocr-vl";
+
+/**
+ * OCR models differ in prompt, transport and output format, so each has a profile chosen by the
+ * configured model id. Unlimited-OCR stays the default for unknown ids.
+ */
+export function ocrProfile(model: string): OcrProfile {
+  return /paddleocr/i.test(model) ? "paddleocr-vl" : "unlimited-ocr";
+}
+
+export async function ocrPage(endpoint: EndpointConfig, file: string, pageLabel: string, signal?: AbortSignal): Promise<OcrPage> {
+  if (ocrProfile(endpoint.model) === "paddleocr-vl") return paddleOcrPage(endpoint, file, pageLabel, signal);
+  return { markdown: await unlimitedOcrPage(endpoint, file, pageLabel, signal), blocks: [] };
+}
+
 export async function ocrImage(endpoint: EndpointConfig, file: string, pageLabel: string, signal?: AbortSignal) {
-  const bytes = await fs.readFile(file);
+  return (await ocrPage(endpoint, file, pageLabel, signal)).markdown;
+}
+
+function imageMime(file: string) {
   const extension = path.extname(file).slice(1).toLowerCase();
-  const mime = extension === "jpg" || extension === "jpeg" ? "image/jpeg" : extension === "webp" ? "image/webp" : "image/png";
+  return extension === "jpg" || extension === "jpeg" ? "image/jpeg" : extension === "webp" ? "image/webp" : "image/png";
+}
+
+/** PaddleOCR-VL runs behind services/dgx-models/paddleocr-vl, which adds layout detection and returns Markdown plus blocks. */
+async function paddleOcrPage(endpoint: EndpointConfig, file: string, pageLabel: string, signal?: AbortSignal): Promise<OcrPage> {
+  const bytes = await fs.readFile(file);
+  const form = new FormData();
+  form.append("image", new Blob([bytes], { type: imageMime(file) }), path.basename(file));
+  const serviceRoot = endpoint.baseUrl.replace(/\/v1\/?$/, "").replace(/\/$/, "");
+  const response = await fetch(`${serviceRoot}/v1/ocr`, {
+    method: "POST",
+    headers: headers(endpoint, false),
+    body: form,
+    signal: requestSignal(10 * 60_000, signal),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  const payload = (await response.json()) as { markdown?: unknown; width?: unknown; height?: unknown; blocks?: unknown };
+  const markdown = typeof payload.markdown === "string" ? payload.markdown.trim() : "";
+  if (!markdown) throw new Error(`The OCR endpoint returned no text for ${pageLabel}`);
+  const dimension = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined);
+  const blocks = (Array.isArray(payload.blocks) ? payload.blocks : []).flatMap((block): OcrBlock[] => {
+    const { label, bbox, text } = (block || {}) as { label?: unknown; bbox?: unknown; text?: unknown };
+    if (!Array.isArray(bbox) || bbox.length !== 4 || !bbox.every((value) => typeof value === "number" && Number.isFinite(value))) return [];
+    return [{ label: typeof label === "string" ? label : "text", bbox: bbox as OcrBlock["bbox"], text: typeof text === "string" ? text : "" }];
+  });
+  return { markdown, width: dimension(payload.width), height: dimension(payload.height), blocks };
+}
+
+async function unlimitedOcrPage(endpoint: EndpointConfig, file: string, pageLabel: string, signal?: AbortSignal) {
+  const bytes = await fs.readFile(file);
+  const mime = imageMime(file);
   const output = await chatCompletion(
     endpoint,
     [
@@ -211,6 +273,49 @@ export interface GeneratedImageResult {
   mimeType: "image/png" | "image/jpeg" | "image/webp";
   extension: ".png" | ".jpg" | ".webp";
   revisedPrompt?: string;
+  /** Reported by the server when it can, so the gallery records what actually produced the image. */
+  model?: string;
+  seed?: number;
+  steps?: number;
+}
+
+export interface ImageSizeOption { value: string; label: string; ratio: string; quality: "standard" | "high" }
+
+export interface ImageCapabilities {
+  model?: string;
+  sizes: ImageSizeOption[];
+  defaultSteps?: number;
+  maxSteps?: number;
+  /** False when the endpoint does not describe itself and these are SparklingKit's defaults. */
+  reported: boolean;
+}
+
+export const DEFAULT_IMAGE_SIZES: ImageSizeOption[] = [
+  { value: "1024x1024", label: "Square", ratio: "1:1", quality: "standard" },
+  { value: "1536x1024", label: "Landscape", ratio: "3:2", quality: "standard" },
+  { value: "1024x1536", label: "Portrait", ratio: "2:3", quality: "standard" },
+];
+
+/** Reads the SparklingKit image adapter's /v1/capabilities; other OpenAI-compatible servers get the defaults. */
+export async function imageCapabilities(endpoint: EndpointConfig, signal?: AbortSignal): Promise<ImageCapabilities> {
+  const fallback: ImageCapabilities = { sizes: DEFAULT_IMAGE_SIZES, reported: false };
+  try {
+    const response = await fetch(url(endpoint.baseUrl, "capabilities"), { headers: headers(endpoint, false), signal: requestSignal(5000, signal) });
+    if (!response.ok) return fallback;
+    const payload = (await response.json()) as { model?: unknown; sizes?: unknown; defaultSteps?: unknown; maxSteps?: unknown };
+    const sizes = (Array.isArray(payload.sizes) ? payload.sizes : []).flatMap((size): ImageSizeOption[] => {
+      const { value, label, ratio, quality } = (size || {}) as Record<string, unknown>;
+      return typeof value === "string" && /^\d{3,4}x\d{3,4}$/.test(value)
+        ? [{ value, label: typeof label === "string" ? label : value, ratio: typeof ratio === "string" ? ratio : "", quality: quality === "high" ? "high" : "standard" }]
+        : [];
+    });
+    if (!sizes.length) return fallback;
+    const integer = (value: unknown) => (typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined);
+    return { model: typeof payload.model === "string" ? payload.model : undefined, sizes, defaultSteps: integer(payload.defaultSteps), maxSteps: integer(payload.maxSteps), reported: true };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return fallback;
+  }
 }
 
 function imageFormat(bytes: Buffer, advertised?: string | null): Pick<GeneratedImageResult, "mimeType" | "extension"> {
@@ -224,17 +329,25 @@ function imageFormat(bytes: Buffer, advertised?: string | null): Pick<GeneratedI
 export async function generateImage(
   endpoint: EndpointConfig,
   prompt: string,
-  options: { size?: string } = {},
+  options: { size?: string; seed?: number; steps?: number } = {},
   signal?: AbortSignal,
 ): Promise<GeneratedImageResult> {
   const response = await fetch(url(endpoint.baseUrl, "images/generations"), {
     method: "POST",
     headers: headers(endpoint),
-    body: JSON.stringify({ model: endpoint.model, prompt, n: 1, size: options.size || "1024x1024", response_format: "b64_json" }),
+    body: JSON.stringify({
+      model: endpoint.model,
+      prompt,
+      n: 1,
+      size: options.size || "1024x1024",
+      response_format: "b64_json",
+      ...(options.seed !== undefined ? { seed: options.seed } : {}),
+      ...(options.steps !== undefined ? { steps: options.steps } : {}),
+    }),
     signal: requestSignal(30 * 60_000, signal),
   });
   if (!response.ok) throw new Error(await responseError(response));
-  const payload = (await response.json()) as { data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }> };
+  const payload = (await response.json()) as { data?: Array<{ b64_json?: string; url?: string; revised_prompt?: string }>; model?: unknown; seed?: unknown; steps?: unknown };
   const item = payload.data?.[0];
   if (!item) throw new Error("The image endpoint returned no image");
   let bytes: Buffer;
@@ -255,7 +368,15 @@ export async function generateImage(
     throw new Error("The image endpoint returned neither image data nor an image URL");
   }
   if (!bytes.length) throw new Error("The image endpoint returned an empty image");
-  return { bytes, ...imageFormat(bytes, advertised), revisedPrompt: item.revised_prompt };
+  const integer = (value: unknown) => (typeof value === "number" && Number.isInteger(value) ? value : undefined);
+  return {
+    bytes,
+    ...imageFormat(bytes, advertised),
+    revisedPrompt: item.revised_prompt,
+    model: typeof payload.model === "string" ? payload.model : undefined,
+    seed: integer(payload.seed),
+    steps: integer(payload.steps),
+  };
 }
 
 export interface GroundingBox {

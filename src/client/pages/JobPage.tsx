@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
 import { ArrowLeft, ArrowRight, AudioLines, Bot, Braces, Check, ChevronDown, CircleStop, Code2, Combine, Copy, Download, ExternalLink, File, FileAudio, FileInput, FileJson, FileText, FileVideo, FolderOpen, GitBranch, Image as ImageIcon, Languages, LoaderCircle, MessageCircle, Network, PanelLeft, Pencil, Save, ScanSearch, ScanText, Split, Square, Subtitles, Trash2, TriangleAlert } from "lucide-react";
@@ -8,6 +8,7 @@ import { ConfirmDialog, JobIcon, Progress, RenameDialog, StatusBadge, cn, format
 import { SearchSelect } from "../components/SearchSelect";
 import { MarkdownRenderer } from "../components/MarkdownRenderer";
 import { MindMapViewer, parseMindMap } from "../components/MindMapViewer";
+import { DocumentOutline, ImageViewer, parseTranscriptSegments, RunTimeline, TranscriptViewer, type TranscriptSegment } from "../components/Viewers";
 import { useToast } from "../components/ToastProvider";
 import { compatibleModuleContracts, moduleHandoffUrl } from "../../shared/module-router";
 import { nodeTitle, workflowAcceptsArtifact } from "../../shared/workflows";
@@ -51,6 +52,8 @@ export function JobPage() {
   const [linkedChats, setLinkedChats] = useState<Chat[]>([]);
   const [flowRun, setFlowRun] = useState<FlowRun>();
   const observedOutputFiles = useRef<{ jobId: string; files: string[] }>({ jobId: "", files: [] });
+  const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
   const navigate = useNavigate();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -134,6 +137,15 @@ export function JobPage() {
     }).then((value) => { if (active) setPreview(value); }).catch((value) => { if (active) setError(value.message); }).finally(() => { if (active) setLoadingPreview(false); });
     return () => { active = false; };
   }, [id, selectedFile, selectedScope, job?.updatedAt]);
+  // A Markdown transcript has a JSON sibling with timed segments; load it for the timeline view.
+  const transcriptData = selectedScope === "output" && job?.type === "audio" && /transcript[^/]*\.md$/i.test(selectedFile) ? selectedFile.replace(/\.md$/i, ".json") : "";
+  useEffect(() => {
+    setTranscriptSegments([]);
+    if (!transcriptData || !outputFiles.includes(transcriptData)) return;
+    let active = true;
+    fetch(fileUrl(id, transcriptData)).then((response) => (response.ok ? response.text() : "")).then((content) => { if (active) setTranscriptSegments(parseTranscriptSegments(content)); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [id, transcriptData, outputFiles]);
   useEffect(() => () => window.clearTimeout(copyResetTimer.current), []);
 
   if (error && !job) return <div className="page-wrap"><div className="error-card">{error}</div></div>;
@@ -159,6 +171,8 @@ export function JobPage() {
   const selectedMindMap = selectedScope === "output" && selectedKind === "json" && (selectedFile === "mindmap.json" || selectedFile.endsWith(".mindmap.json"));
   const canCopy = ["markdown", "json", "subtitle", "html", "text"].includes(selectedKind);
   const selectedUrl = selectedScope === "input" ? inputFileUrl(job.id, selectedFile) : fileUrl(job.id, selectedFile);
+  const groundingSource = selectedArtifact?.kind === "grounded-image" ? job.artifacts.find((artifact) => artifact.id === selectedArtifact.derivedFrom[0] && artifact.path.startsWith("input/")) : undefined;
+  const compareSource = groundingSource ? inputFileUrl(job.id, groundingSource.path.slice("input/".length)) : undefined;
   const selectedDisplayName = selectedScope === "input" ? selectedInput?.name || selectedFile : displayOutputName(selectedFile);
 
   async function openChat() {
@@ -317,6 +331,7 @@ export function JobPage() {
           <div className="source-files-desktop"><div className="file-tree-divider" /><p className="file-group-label">Source files</p>{sourceFileRows}</div>
           <details className="mobile-source-files"><summary><span><File size={16} />Source files</span><small>{job.inputs.length}</small><ChevronDown size={16} /></summary><div>{sourceFileRows}</div></details>
         </div>
+        <RunTimeline runs={job.runs} titleFor={(run) => modules.find((module) => module.id === run.moduleId)?.title || (run.moduleId === "text-transform" ? "Prompt preset" : run.moduleId)} />
         <div className="file-sidebar-footer"><span>Workflow</span><strong>{workflowLabel}</strong><span>Status</span><strong>{job.stage}</strong></div>
       </aside>
 
@@ -329,8 +344,8 @@ export function JobPage() {
             </div>
             {selectedArtifact && (nextActions.length > 0 || compatibleWorkflows.length > 0) && <div className="artifact-flow-bar"><span>Continue with</span><div>{nextActions.map((action) => <Link className="artifact-flow-action" to={moduleHandoffUrl(action.id, job.id, selectedArtifact.id)} title={action.actionDescription} key={action.id}><FlowActionIcon moduleId={action.id} /><span>{action.actionLabel}</span><ArrowRight size={15} /></Link>)}{compatibleWorkflows.map((workflow) => <button type="button" className="artifact-flow-action workflow-flow-action" onClick={() => void runCompatibleWorkflow(workflow)} disabled={Boolean(startingWorkflowId)} title={workflow.description || `Run ${workflow.name}`} key={`workflow-${workflow.id}`}><GitBranch size={17} /><span>{workflow.name}</span>{startingWorkflowId === workflow.id ? <LoaderCircle size={15} className="animate-spin" /> : <ArrowRight size={15} />}</button>)}</div></div>}
           </div>
-          {selectedScope === "output" && job.type === "audio" && job.inputs[0] && selectedFile === outputFiles[0] && <div className="workspace-player">{job.inputs[0].mimeType.startsWith("video/") ? <video controls preload="metadata" src={`/api/jobs/${job.id}/input/${encodeURIComponent(job.inputs[0].storedName)}`} /> : <audio controls preload="metadata" src={`/api/jobs/${job.id}/input/${encodeURIComponent(job.inputs[0].storedName)}`} />}</div>}
-          <div className={cn("preview-content", selectedMindMap && previewMode === "rendered" && "mindmap-preview-content")}>{loadingPreview ? <div className="preview-loading"><span className="spinner dark" />Loading preview…</div> : <OutputPreview content={preview} kind={selectedKind} html={html} mode={previewMode} title={selectedDisplayName} src={selectedUrl} />}</div>
+          {selectedScope === "output" && job.type === "audio" && job.inputs[0] && selectedFile === outputFiles[0] && <div className="workspace-player">{job.inputs[0].mimeType.startsWith("video/") ? <video ref={(element) => { mediaRef.current = element; }} controls preload="metadata" src={`/api/jobs/${job.id}/input/${encodeURIComponent(job.inputs[0].storedName)}`} /> : <audio ref={(element) => { mediaRef.current = element; }} controls preload="metadata" src={`/api/jobs/${job.id}/input/${encodeURIComponent(job.inputs[0].storedName)}`} />}</div>}
+          <div className={cn("preview-content", selectedMindMap && previewMode === "rendered" && "mindmap-preview-content")}>{loadingPreview ? <div className="preview-loading"><span className="spinner dark" />Loading preview…</div> : <OutputPreview content={preview} kind={selectedKind} html={html} mode={previewMode} title={selectedDisplayName} src={selectedUrl} transcript={transcriptSegments.length ? { segments: transcriptSegments, mediaRef } : undefined} compareSrc={compareSource} />}</div>
         </> : <div className="workspace-empty"><FolderOpen size={36} /><h2>No output yet</h2><p>This job did not create any files.</p></div>}
       </div>
     </section>
@@ -471,8 +486,8 @@ function ProcessingView({ job, flowRun }: { job: Job; flowRun?: FlowRun }) {
   </div>;
 }
 
-function OutputPreview({ content, kind, html, mode, title, src }: { content: string; kind: ReturnType<typeof getFileKind>; html: string | null; mode: PreviewMode; title: string; src: string }) {
-  if (kind === "image") return <div className="generated-image-preview"><img src={src} alt={title} /></div>;
+function OutputPreview({ content, kind, html, mode, title, src, transcript, compareSrc }: { content: string; kind: ReturnType<typeof getFileKind>; html: string | null; mode: PreviewMode; title: string; transcript?: { segments: TranscriptSegment[]; mediaRef: RefObject<HTMLMediaElement | null> }; compareSrc?: string; src: string }) {
+  if (kind === "image") return <ImageViewer src={src} title={title} compareSrc={compareSrc} />;
   if (kind === "pdf") return <iframe className="source-document-preview" src={src} title={title} />;
   if (kind === "audio") return <div className="source-media-preview"><audio controls preload="metadata" src={src} /></div>;
   if (kind === "video") return <div className="source-media-preview"><video controls preload="metadata" src={src} /></div>;
@@ -480,9 +495,15 @@ function OutputPreview({ content, kind, html, mode, title, src }: { content: str
   const mindMap = kind === "json" ? parseMindMap(content) : undefined;
   if (mindMap) return <MindMapViewer document={mindMap} />;
   if (html) return <AutoHeightHtmlPreview content={html} title={title} />;
-  if (kind === "markdown") return <article className="prose-output"><MarkdownRenderer>{markdownForPreview(content)}</MarkdownRenderer></article>;
+  if (kind === "markdown" && transcript && mode === "rendered") return <TranscriptViewer segments={transcript.segments} mediaRef={transcript.mediaRef} />;
+  if (kind === "markdown") return <MarkdownDocument content={markdownForPreview(content)} />;
   if (kind === "json") { let formatted = content; try { formatted = JSON.stringify(JSON.parse(content), null, 2); } catch { /* show original */ } return <pre className="source-preview json"><code>{formatted}</code></pre>; }
   return <pre className="source-preview plain"><code>{content}</code></pre>;
+}
+
+function MarkdownDocument({ content }: { content: string }) {
+  const article = useRef<HTMLElement>(null);
+  return <div className="document-layout"><article className="prose-output" ref={article}><MarkdownRenderer>{content}</MarkdownRenderer></article><DocumentOutline articleRef={article} content={content} /></div>;
 }
 
 function AutoHeightHtmlPreview({ content, title }: { content: string; title: string }) {

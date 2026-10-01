@@ -7,7 +7,7 @@ import multer from "multer";
 import { z } from "zod";
 import { ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
-import { checkEndpoint, openChatStream } from "./ai.js";
+import { checkEndpoint, imageCapabilities, openChatStream, type ImageCapabilities } from "./ai.js";
 import { modelMessagesForChat } from "./chat-messages.js";
 import { APP_VERSION, CLIENT_DIR, DATA_DIR, PORT } from "./config.js";
 import { jobEvents, publishJob } from "./events.js";
@@ -15,6 +15,7 @@ import type { ChatMessage, EndpointKind, JobKind, PromptPreset, Settings } from 
 import { listModules } from "./modules/registry.js";
 import { TRANSLATION_PREVIEW_CHARACTER_LIMIT, translateContent } from "./modules/translation/service.js";
 import { searchWorkspace } from "./search.js";
+import { ensureThumbnail, galleryItems, thumbnailWidth } from "./thumbnails.js";
 import { workflowRouter } from "./workflows/routes.js";
 import { closeQueue, enqueueJob, enqueuePreset, enqueueWorkflowRun, pingRedis, startWorker, stopJobWork, stopRunWork } from "./queue.js";
 import {
@@ -116,8 +117,21 @@ const workflowRunSchema = z.object({
 });
 const textToImageSchema = z.object({
   prompt: z.string().trim().min(1).max(12_000),
-  size: z.enum(["1024x1024", "1536x1024", "1024x1536"]).default("1024x1024"),
+  size: z.string().regex(/^\d{3,4}x\d{3,4}$/, "Size must look like 1024x1024").default("1024x1024"),
+  steps: z.number().int().min(2).max(100).optional(),
+  seed: z.number().int().min(0).max(2 ** 31 - 1).optional(),
 });
+
+// The image server's capabilities change only when it is redeployed, so a short cache spares a request per job.
+let cachedImageCapabilities: { key: string; at: number; value: ImageCapabilities } | undefined;
+async function currentImageCapabilities(settings: Settings) {
+  const endpoint = settings.endpoints["image-generation"];
+  const key = `${endpoint.baseUrl}|${endpoint.model}`;
+  if (cachedImageCapabilities?.key === key && Date.now() - cachedImageCapabilities.at < 60_000) return cachedImageCapabilities.value;
+  const value = await imageCapabilities(endpoint);
+  cachedImageCapabilities = { key, at: Date.now(), value };
+  return value;
+}
 const mindMapSchema = z.object({
   subject: z.string().trim().min(1).max(500_000),
   instructions: z.string().trim().max(4000).default(""),
@@ -133,6 +147,12 @@ const textTranslationSchema = z.object({
 const translationPreviewSchema = textTranslationSchema.extend({ text: z.string().trim().min(1).max(50_000) });
 const fileTranslationSchema = textTranslationSchema.omit({ text: true });
 const translationFileExtensions = new Set([".txt", ".md", ".markdown", ".html", ".htm"]);
+const gallerySchema = z.object({
+  source: z.enum(["all", "generated", "uploaded"]).default("all"),
+  model: z.string().max(200).optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(200).default(60),
+});
 const searchQuerySchema = z.object({
   q: z.string().max(200).default(""),
   scope: z.enum(SEARCH_SCOPES).default("all"),
@@ -270,12 +290,18 @@ app.post("/api/modules/grounding/jobs", upload.array("files", 1), async (request
     throw error;
   }
 });
+app.get("/api/modules/text-to-image/capabilities", async (_request, response) => {
+  response.json(await currentImageCapabilities(await readSettings()));
+});
 app.post("/api/modules/text-to-image/jobs", async (request, response) => {
   const input = textToImageSchema.parse(request.body);
   const settings = await readSettings();
   const module = listModules(settings).find((candidate) => candidate.id === "text-to-image");
   if (!module?.configured) return response.status(409).json({ error: "Configure and enable the Image generation service first" });
-  const job = await createTextToImageJob(input.prompt, { prompt: input.prompt, size: input.size });
+  const capabilities = await currentImageCapabilities(settings);
+  if (!capabilities.sizes.some((size) => size.value === input.size)) return response.status(400).json({ error: `${capabilities.model || "The image model"} does not offer ${input.size.replace("x", " × ")}` });
+  if (input.steps !== undefined && capabilities.maxSteps && input.steps > capabilities.maxSteps) return response.status(400).json({ error: `${capabilities.model || "The image model"} accepts at most ${capabilities.maxSteps} steps` });
+  const job = await createTextToImageJob(input.prompt, { prompt: input.prompt, size: input.size, ...(input.steps !== undefined ? { steps: input.steps } : {}), ...(input.seed !== undefined ? { seed: input.seed } : {}) });
   try {
     await enqueueJob(job.id);
   } catch (error) {
@@ -451,6 +477,23 @@ app.patch("/api/jobs/:id/files/*file", async (request, response) => {
   const relative = Array.isArray(request.params.file) ? request.params.file.join("/") : request.params.file;
   const { name } = renameSchema.parse(request.body);
   response.json(await renameOutputFile(job.id, relative, name));
+});
+
+app.get("/api/jobs/:id/thumbnails/:artifactId", async (request, response) => {
+  const job = await readJob(request.params.id);
+  const artifact = job.artifacts.find((candidate) => candidate.id === request.params.artifactId);
+  if (!artifact) return response.status(404).json({ error: "Artifact not found" });
+  const file = await ensureThumbnail(job, artifact, thumbnailWidth(request.query.w));
+  response.setHeader("Cache-Control", "private, no-cache");
+  response.type("image/webp").sendFile(file);
+});
+
+app.get("/api/gallery", async (request, response) => {
+  const input = gallerySchema.parse(request.query);
+  const all = galleryItems(await listJobs(), { source: input.source });
+  const models = [...new Set(all.flatMap((item) => (item.model ? [item.model] : [])))].sort();
+  const items = input.model ? all.filter((item) => item.model === input.model) : all;
+  response.json({ items: items.slice(input.offset, input.offset + input.limit), total: items.length, models });
 });
 
 app.get("/api/jobs/:id/input/:file", async (request, response) => {

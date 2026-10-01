@@ -30,10 +30,12 @@ SERVICE_SPECS = (
     ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336"))),
 )
 SERVICE_BY_PORT = {port: {"id": service_id, "label": label} for service_id, label, port in SERVICE_SPECS}
+# PaddleOCR-VL's vision-language model listens on a private port behind the OCR adapter.
+SERVICE_BY_PORT[int(os.getenv("OCR_VLM_PORT", "8342"))] = {"id": "ocr", "label": "OCR"}
 PROCESS_SIGNATURES = {
     "hy_server.py": ("translation", "Translation", int(os.getenv("TRANSLATION_PORT", "8334")), "Hy-MT2-1.8B-FP8"),
     "locate_server.py": ("grounding", "Grounding", int(os.getenv("GROUNDING_PORT", "8335")), "nvidia/LocateAnything-3B"),
-    "/app/server.py": ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336")), "Z-Image-Turbo"),
+    "/app/server.py": ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336")), os.getenv("IMAGE_GENERATION_MODEL", "Z-Image-Turbo")),
 }
 
 

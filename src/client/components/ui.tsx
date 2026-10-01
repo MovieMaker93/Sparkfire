@@ -1,14 +1,34 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Check, CheckCircle2, Clock3, FileImage, FileText, GitBranch, LoaderCircle, Mic2, Network, Pencil, Trash2, TriangleAlert, XCircle } from "lucide-react";
-import type { Job, JobKind, JobStatus, ModuleId } from "../types";
+import { thumbnailUrl } from "../api";
+import type { Artifact, Job, JobKind, JobStatus, ModuleId } from "../types";
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
 export function JobIcon({ type, moduleId, workflow = false, className }: { type: JobKind; moduleId?: ModuleId; workflow?: boolean; className?: string }) {
   const Icon = workflow ? GitBranch : moduleId === "mindmap" ? Network : type === "audio" ? Mic2 : type === "image" || type === "text" ? FileImage : FileText;
   return <span className={cn("job-icon", `job-icon-${workflow ? "workflow" : moduleId === "mindmap" ? "mindmap" : type}`, className)}><Icon size={20} strokeWidth={1.8} /></span>;
+}
+
+const previewKinds: Array<Artifact["kind"]> = ["generated-image", "source-image", "source-video", "source-pdf"];
+
+/** The artifact that best represents a job visually: its generated image, else its source media. */
+export function previewArtifact(job: Pick<Job, "artifacts">) {
+  for (const kind of previewKinds) {
+    const artifact = job.artifacts?.find((candidate) => candidate.kind === kind && !/\.svg$/i.test(candidate.path));
+    if (artifact) return artifact;
+  }
+  return undefined;
+}
+
+/** A thumbnail of the job's media, falling back to the module icon when there is none or it fails to render. */
+export function JobThumb({ job, className }: { job: Pick<Job, "id" | "type" | "moduleId" | "workflowId" | "artifacts">; className?: string }) {
+  const artifact = previewArtifact(job);
+  const [failed, setFailed] = useState(false);
+  if (!artifact || failed) return <JobIcon type={job.type} moduleId={job.moduleId} workflow={job.workflowId.startsWith("flow:")} className={className} />;
+  return <span className={cn("job-thumb", className)}><img src={thumbnailUrl(job.id, artifact.id, 160)} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} /></span>;
 }
 
 export function StatusBadge({ status }: { status: JobStatus }) {
@@ -126,6 +146,27 @@ export function formatBytes(size: number) {
   if (size < 1024 ** 2) return `${(size / 1024).toFixed(1)} KB`;
   if (size < 1024 ** 3) return `${(size / 1024 ** 2).toFixed(1)} MB`;
   return `${(size / 1024 ** 3).toFixed(1)} GB`;
+}
+
+const jobKindLabels: Record<JobKind, string> = { audio: "Transcription", image: "Image OCR", pdf: "PDF OCR", text: "Text to image" };
+
+/** Short human label for what produced a job, shared by lists and the running strip. */
+export function jobLabel(job: Pick<Job, "type" | "moduleId" | "workflowId">) {
+  if (job.workflowId.startsWith("flow:")) return "Workflow";
+  if (job.moduleId === "grounding") return "Grounding";
+  if (job.moduleId === "translation") return "Translation";
+  if (job.moduleId === "mindmap") return "Mind map";
+  return jobKindLabels[job.type];
+}
+
+const opaqueName = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f_-]{20,})$/i;
+
+/** Job titles inherit upload names; machine-generated names (UUIDs, hashes) read badly, so describe the job instead. */
+export function displayTitle(job: Pick<Job, "title" | "type" | "moduleId" | "workflowId" | "createdAt">) {
+  const stem = job.title.trim().replace(/\.[a-z0-9]{1,5}$/i, "");
+  if (stem && !opaqueName.test(stem)) return job.title;
+  const date = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(job.createdAt));
+  return `${jobLabel(job)} · ${date}`;
 }
 
 export function timeAgo(value: string) {

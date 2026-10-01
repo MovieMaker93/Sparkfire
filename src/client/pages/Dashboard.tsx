@@ -3,20 +3,14 @@ import { useDropzone } from "react-dropzone";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, FileText, FolderOpen, GitBranch, Image as ImageIcon, Languages, MessageCircle, Network, Play, Save, ScanSearch, ScanText, Search, Trash2, X } from "lucide-react";
 import { api, uploadJob, uploadTranslationJob } from "../api";
-import { cn, ConfirmDialog, formatBytes, JobIcon, Progress, StatusBadge, timeAgo } from "../components/ui";
+import { cn, ConfirmDialog, displayTitle, formatBytes, JobIcon, jobLabel, JobThumb, Progress, StatusBadge, timeAgo } from "../components/ui";
 import { savedTranslationPreferences, translationLanguages, translationPreferenceKey, type TranslationPreferences } from "../translation";
 import type { Job, JobKind, ModuleDescriptor, ModuleId, WorkflowDefinition } from "../types";
 import { useGlobalSearch } from "../components/GlobalSearch";
+import { sizeForQuality, useImageCapabilities } from "../image-capabilities";
 import { SearchSelect } from "../components/SearchSelect";
 import { useToast } from "../components/ToastProvider";
 import { RunWorkflowDialog, workflowInputSummary } from "../components/RunWorkflowDialog";
-
-const workflowCopy: Record<JobKind, { label: string; description: string }> = {
-  audio: { label: "Transcription", description: "Audio or video to transcript and subtitles" },
-  image: { label: "Image OCR", description: "Images to structured Markdown" },
-  pdf: { label: "PDF OCR", description: "PDFs to one complete structured document" },
-  text: { label: "Text to image", description: "Prompts to generated images" },
-};
 
 type FileAction = "ocr" | "transcription" | "translation";
 type JobFilter = "all" | "audio" | "ocr" | "translation" | "grounding" | "generated" | "mindmap" | "workflow";
@@ -108,6 +102,9 @@ export function Dashboard() {
   const [translationError, setTranslationError] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [imageSize, setImageSize] = useState("1024x1024");
+  const imageCapabilities = useImageCapabilities();
+  const imageQuality = imageCapabilities.sizes.find((size) => size.value === imageSize)?.quality || "standard";
+  const offersHighQuality = imageCapabilities.sizes.some((size) => size.quality === "high");
   const [generating, setGenerating] = useState(false);
   const [imageError, setImageError] = useState("");
   const [chatPrompt, setChatPrompt] = useState("");
@@ -289,6 +286,7 @@ export function Dashboard() {
   return <div className="page-wrap content-page dashboard-page">
     <div className="dashboard-workspace">
     <section className="dashboard-shortcuts">
+    <RunningNow jobs={jobs} />
     <header className="dashboard-column-heading"><h1>Shortcuts</h1></header>
     <div className="workbench-grid">
       <section className="workbench-card workbench-file-card">
@@ -330,8 +328,9 @@ export function Dashboard() {
       <section className="workbench-card workbench-image-card">
         <WorkbenchHeading icon={<ImageIcon size={22} />} title="Create an image" />
         <textarea className="workbench-prompt" value={imagePrompt} onChange={(event) => setImagePrompt(event.target.value)} placeholder="A quiet reading room at night, warm table lamps, rain on tall windows…" maxLength={12000} />
+        {offersHighQuality && <div className="theme-choice image-quality-choice" role="radiogroup" aria-label="Image quality">{(["standard", "high"] as const).map((quality) => <button type="button" role="radio" aria-checked={imageQuality === quality} className={cn(imageQuality === quality && "active")} onClick={() => setImageSize(sizeForQuality(imageCapabilities.sizes, imageSize, quality))} key={quality}>{quality === "standard" ? "Standard" : "High · 2K"}</button>)}</div>}
         <div className="image-size-options" role="radiogroup" aria-label="Image canvas">
-          {[["1024x1024", "Square", "1:1"], ["1536x1024", "Landscape", "3:2"], ["1024x1536", "Portrait", "2:3"]].map(([value, label, ratio]) => <button type="button" role="radio" aria-checked={imageSize === value} className={imageSize === value ? "active" : ""} onClick={() => setImageSize(value)} key={value}><span className={`canvas-shape canvas-${ratio.replace(":", "-")}`} /><span><strong>{label}</strong><small>{value.replace("x", " × ")}</small></span></button>)}
+          {imageCapabilities.sizes.filter((size) => size.quality === imageQuality).map(({ value, label, ratio }) => <button type="button" role="radio" aria-checked={imageSize === value} className={imageSize === value ? "active" : ""} onClick={() => setImageSize(value)} key={value}><span className={`canvas-shape canvas-${ratio.replace(":", "-")}`} /><span><strong>{label}</strong><small>{value.replace("x", " × ")}</small></span></button>)}
         </div>
         {imageError && <p className="form-error">{imageError}</p>}
         <div className="workbench-card-footer"><button className="button-primary" onClick={() => void createImage()} disabled={generating || !imagePrompt.trim() || !configured("text-to-image")}>{generating ? <><span className="spinner dark" />Starting</> : <>Generate<ArrowRight size={17} /></>}</button></div>
@@ -370,9 +369,24 @@ function CompactLanguageSelect({ label, value, allowAuto = false, onChange }: { 
   return <div className="compact-language-select"><small>{label}</small><SearchSelect value={value} options={options} onChange={onChange} ariaLabel={`${label} language`} searchPlaceholder="Search languages" emptyMessage="No languages found" /></div>;
 }
 
+const activeStatuses = new Set(["queued", "preparing", "processing", "merging"]);
+
+/** Live view of work in progress; the Workbench already refreshes jobs every few seconds. */
+function RunningNow({ jobs }: { jobs: Job[] }) {
+  const active = jobs.filter((job) => activeStatuses.has(job.status));
+  if (!active.length) return null;
+  return <section className="running-now" aria-label="Running now">
+    <header><span className="running-now-pulse" aria-hidden="true" /><h2>Running now</h2><small>{active.length} active</small></header>
+    <div className="running-now-grid">{active.slice(0, 4).map((job) => <Link to={`/jobs/${job.id}`} className="running-card" key={job.id}>
+      <JobThumb job={job} />
+      <span className="running-card-copy"><strong title={job.title}>{displayTitle(job)}</strong><small>{job.status === "queued" ? "Waiting for a worker" : job.detail ? `${job.stage} · ${job.detail}` : job.stage}</small></span>
+      <span className="running-card-percent">{job.status === "queued" ? "Queued" : `${job.progress}%`}</span>
+      <Progress job={job} />
+    </Link>)}</div>
+  </section>;
+}
+
 function JobRow({ job, onDelete, compact = false }: { job: Job; onDelete: () => void; compact?: boolean }) {
-  const running = ["queued", "preparing", "processing", "merging"].includes(job.status);
-  const workflowJob = job.workflowId.startsWith("flow:");
-  const label = workflowJob ? "Workflow" : job.moduleId === "grounding" ? "Grounding" : job.moduleId === "translation" ? "Translation" : job.moduleId === "mindmap" ? "Mind map" : workflowCopy[job.type].label;
-  return <div className={cn("job-row-shell", compact && "compact")}><Link to={`/jobs/${job.id}`} className="job-row group"><JobIcon type={job.type} moduleId={job.moduleId} workflow={workflowJob} /><div className="job-row-main"><div><p>{job.title}</p>{(!compact || job.status !== "done") && <StatusBadge status={job.status} />}</div><small>{label}<i />{!compact && <>{job.stage}<i /></>}{timeAgo(job.createdAt)}</small>{running && <Progress job={job} />}</div><ArrowRight size={19} className="job-row-arrow" /></Link><button className="row-delete-button" onClick={onDelete} aria-label={`Delete ${job.title}`} title="Delete job"><Trash2 size={15} /></button></div>;
+  const running = activeStatuses.has(job.status);
+  return <div className={cn("job-row-shell", compact && "compact")}><Link to={`/jobs/${job.id}`} className="job-row group"><JobThumb job={job} /><div className="job-row-main"><div><p title={job.title}>{displayTitle(job)}</p>{!compact && <StatusBadge status={job.status} />}</div><small>{compact && job.status !== "done" && <StatusBadge status={job.status} />}{jobLabel(job)}<i />{!compact && <>{job.stage}<i /></>}{timeAgo(job.createdAt)}</small>{running && <Progress job={job} />}</div><ArrowRight size={19} className="job-row-arrow" /></Link><button className="row-delete-button" onClick={onDelete} aria-label={`Delete ${job.title}`} title="Delete job"><Trash2 size={15} /></button></div>;
 }

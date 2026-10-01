@@ -9,7 +9,7 @@ services:
       LLM_BASE_URL: http://host.docker.internal:8331/v1
       LLM_MODEL: qwen36-35b-a3b-nvfp4
       OCR_BASE_URL: http://host.docker.internal:8332/v1
-      OCR_MODEL: Unlimited-OCR
+      OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}
       STT_BASE_URL: http://host.docker.internal:8333/v1
       STT_MODEL: Qwen3-ASR-1.7B
       TRANSLATION_BASE_URL: http://host.docker.internal:8334/v1
@@ -17,7 +17,7 @@ services:
       GROUNDING_BASE_URL: http://host.docker.internal:8335/v1
       GROUNDING_MODEL: nvidia/LocateAnything-3B
       IMAGE_GENERATION_BASE_URL: http://host.docker.internal:8336/v1
-      IMAGE_GENERATION_MODEL: Z-Image-Turbo
+      IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
       SPARKLINGKIT_SETUP_COMPLETE: "true"
       SPARKLINGKIT_DEPLOYMENT_MODE: all-in-one
 
@@ -225,6 +225,84 @@ services:
       retries: 120
       start_period: 2m
 
+  # Alternative OCR backend (SPARKLINGKIT_OCR_BACKEND=paddleocr-vl). It replaces unlimited-ocr on :8332:
+  # the adapter runs PP-DocLayout on CPU and sends each detected element to the VLM below.
+  paddleocr-vlm:
+    image: vllm/vllm-openai:v0.24.0@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f
+    container_name: sparklingkit-paddleocr-vlm
+    restart: unless-stopped
+    network_mode: host
+    ipc: host
+    shm_size: "8gb"
+    environment:
+      HF_HOME: /root/.cache/huggingface
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+      - ./data/dgx-models/PaddlePaddle/PaddleOCR-VL-1.6:/model:ro
+      - ./data/dgx-runtime/paddleocr-vlm:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    entrypoint: ["vllm", "serve"]
+    command:
+      - /model
+      - --served-model-name
+      - PaddleOCR-VL-1.6
+      - --host
+      - 127.0.0.1
+      - --port
+      - "8342"
+      - --trust-remote-code
+      - --max-num-batched-tokens
+      - "16384"
+      - --max-num-seqs
+      - ${PADDLE_MAX_NUM_SEQS:-8}
+      - --kv-cache-memory-bytes
+      - ${PADDLE_KV_CACHE_MEMORY_BYTES:-3G}
+      - --gpu-memory-utilization
+      - ${PADDLE_GPU_MEMORY_UTILIZATION:-0.06}
+      - --no-enable-prefix-caching
+      - --mm-processor-cache-gb
+      - "0"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8342/v1/models >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 120
+      start_period: 3m
+
+  paddleocr-vl:
+    build:
+      context: ./services/dgx-models/paddleocr-vl
+    image: sparklingkit/paddleocr-vl-adapter:paddleocr-3.7.0
+    container_name: sparklingkit-paddleocr-vl
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      MODEL_NAME: PaddleOCR-VL-1.6
+      VLM_URL: http://127.0.0.1:8342/v1
+      VLM_MODEL_NAME: PaddleOCR-VL-1.6
+      LAYOUT_DEVICE: ${PADDLE_LAYOUT_DEVICE:-cpu}
+      PORT: "8332"
+    volumes:
+      - ./data/dgx-runtime/paddleocr-vl:/root/.cache
+    depends_on:
+      paddleocr-vlm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8332/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 80
+      start_period: 3m
+
   hy-mt2:
     build:
       context: ./services/dgx-models/hy-mt2
@@ -305,29 +383,32 @@ services:
       retries: 120
       start_period: 5m
 
+  # One image service on :8336 whose model is chosen at deploy time with SPARKLINGKIT_IMAGE_BACKEND:
+  # z-image (Z-Image-Turbo, default) or qwen-image-2.1 (Qwen-Image 2.1, float8 weights, ~34 GB cap).
+  # Model path, name, steps and sizes follow the backend unless overridden below.
   z-image:
     build:
       context: ./services/dgx-models/image-generation
-    image: sparklingkit/z-image-turbo:diffusers-0.40.0
-    container_name: sparklingkit-z-image-turbo
+    image: sparklingkit/image-generation:diffusers-6256aa7
+    container_name: sparklingkit-image-generation
     restart: unless-stopped
     network_mode: host
     ipc: host
     shm_size: "16gb"
-    mem_limit: "26g"
-    memswap_limit: "26g"
+    mem_limit: ${IMAGE_MEM_LIMIT:-26g}
+    memswap_limit: ${IMAGE_MEM_LIMIT:-26g}
     environment:
       HF_HOME: /root/.cache/huggingface
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      MODEL_PATH: /models/Tongyi-MAI/Z-Image-Turbo
-      MODEL_NAME: Z-Image-Turbo
+      IMAGE_BACKEND: ${SPARKLINGKIT_IMAGE_BACKEND:-z-image}
       PORT: "8336"
       ATTENTION_BACKEND: ${IMAGE_ATTENTION_BACKEND:-flash}
-      DEFAULT_STEPS: ${IMAGE_DEFAULT_STEPS:-9}
-      MAX_PIXELS: ${IMAGE_MAX_PIXELS:-4194304}
+      DEFAULT_STEPS: ${IMAGE_DEFAULT_STEPS:-}
+      MAX_PIXELS: ${IMAGE_MAX_PIXELS:-}
+      QUANTIZE: ${IMAGE_QUANTIZE:-}
     volumes:
       - ./data/dgx-models:/models:ro
       - ./data/dgx-outputs/images:/outputs

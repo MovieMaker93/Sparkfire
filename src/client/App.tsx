@@ -4,7 +4,8 @@ import { api } from "./api";
 import { AppShell } from "./components/AppShell";
 import { GlobalSearchProvider } from "./components/GlobalSearch";
 import { ToastProvider } from "./components/ToastProvider";
-import { announceSettingsUpdated } from "./settings-events";
+import { announceSettingsUpdated, settingsUpdatedEvent } from "./settings-events";
+import { applyTheme } from "./theme";
 import type { Settings } from "./types";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -14,6 +15,7 @@ const JobPage = lazy(() => import("./pages/JobPage").then((module) => ({ default
 const ChatPage = lazy(() => import("./pages/ChatPage").then((module) => ({ default: module.ChatPage })));
 const ModulesPage = lazy(() => import("./pages/ModulesPage").then((module) => ({ default: module.ModulesPage })));
 const ModulePage = lazy(() => import("./pages/ModulesPage").then((module) => ({ default: module.ModulePage })));
+const GalleryPage = lazy(() => import("./pages/GalleryPage").then((module) => ({ default: module.GalleryPage })));
 const WorkflowsPage = lazy(() => import("./pages/WorkflowsPage").then((module) => ({ default: module.WorkflowsPage })));
 const WorkflowEditorPage = lazy(() => import("./pages/WorkflowsPage").then((module) => ({ default: module.WorkflowEditorPage })));
 
@@ -34,6 +36,12 @@ export function App() {
     api.settings().then((value) => active && setSettings(value)).catch((value) => active && setSettingsError(value instanceof Error ? value.message : String(value)));
     return () => { active = false; };
   }, []);
+  useEffect(() => { if (settings) applyTheme(settings.ui.theme); }, [settings?.ui.theme]);
+  useEffect(() => {
+    const handleSettingsUpdated = (event: Event) => setSettings((event as CustomEvent<Settings>).detail);
+    window.addEventListener(settingsUpdatedEvent, handleSettingsUpdated);
+    return () => window.removeEventListener(settingsUpdatedEvent, handleSettingsUpdated);
+  }, []);
 
   function completeOnboarding(nextSettings: Settings, openServiceSettings = false) {
     setSettings(nextSettings);
@@ -49,6 +57,7 @@ export function App() {
           <Route path="/jobs/:id" element={<JobPage />} />
           <Route path="/tools" element={<ModulesPage />} />
           <Route path="/tools/:moduleId" element={<ModulePage />} />
+          <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/workflows" element={<WorkflowsPage />} />
           <Route path="/workflows/:workflowId" element={<WorkflowEditorPage />} />
           <Route path="/chat" element={<ChatPage />} />

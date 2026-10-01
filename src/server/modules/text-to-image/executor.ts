@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import { generateImage } from "../../ai.js";
 import { publishJob } from "../../events.js";
 import type { JobManifest, WorkflowRun } from "../../models.js";
-import { readSettings, safeArtifactPath, safeOutputPath, updateJob } from "../../store.js";
+import { readSettings, safeArtifactPath, safeOutputPath, updateJob, updateWorkflowRun } from "../../store.js";
 import type { WorkflowExecutionResult } from "../executors.js";
 
 async function report(jobId: string, patch: Parameters<typeof updateJob>[1]) {
@@ -25,11 +25,14 @@ export async function processTextToImage(job: JobManifest, run: WorkflowRun, sig
   const size = typeof run.params.size === "string" ? run.params.size : "1024x1024";
   await report(job.id, { status: "preparing", progress: 8, stage: "Preparing image request", startedAt: run.startedAt || new Date().toISOString() });
   await report(job.id, { status: "processing", progress: 18, stage: "Generating image", detail: size.replace("x", " × ") });
-  const generated = await generateImage(endpoint, prompt, { size }, signal);
+  const integer = (value: unknown) => (typeof value === "number" && Number.isInteger(value) ? value : undefined);
+  const generated = await generateImage(endpoint, prompt, { size, seed: integer(run.params.seed), steps: integer(run.params.steps) }, signal);
   if (signal?.aborted) throw new DOMException("Image generation cancelled", "AbortError");
   await report(job.id, { status: "merging", progress: 94, stage: "Saving generated image", detail: undefined });
   const baseName = `generated-image${generated.extension}`;
   const outputName = job.outputFiles.includes(baseName) ? `generated-image-${run.id.replace(/^run-/, "").slice(0, 8)}${generated.extension}` : baseName;
   await fs.writeFile(safeOutputPath(job.id, outputName), generated.bytes);
+  // Record what produced the image (model, seed, steps) so the gallery can show and compare it.
+  await updateWorkflowRun(job.id, run.id, { params: { ...run.params, prompt, size, model: generated.model || endpoint.model, ...(generated.seed !== undefined ? { seed: generated.seed } : {}), ...(generated.steps !== undefined ? { steps: generated.steps } : {}) } });
   return { outputFiles: [...new Set([...job.outputFiles, outputName])], warnings: [] };
 }

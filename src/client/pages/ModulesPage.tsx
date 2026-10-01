@@ -8,6 +8,7 @@ import { moduleWorkflowForArtifact } from "../../shared/module-router";
 import { savedTranslationPreferences, translationLanguages, translationPreferenceKey } from "../translation";
 import type { Job, JobKind, ModuleDescriptor, ModuleId } from "../types";
 import { useGlobalSearch } from "../components/GlobalSearch";
+import { useImageCapabilities } from "../image-capabilities";
 import { SearchSelect } from "../components/SearchSelect";
 import { useToast } from "../components/ToastProvider";
 
@@ -85,6 +86,9 @@ export function ModulePage() {
   const [groundingQueries, setGroundingQueries] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
   const [imageSize, setImageSize] = useState("1024x1024");
+  const [imageSteps, setImageSteps] = useState("");
+  const [imageSeed, setImageSeed] = useState("");
+  const imageCapabilities = useImageCapabilities();
   const [mindMapMode, setMindMapMode] = useState<"topic" | "result">("topic");
   const [mindMapSubject, setMindMapSubject] = useState("");
   const [mindMapDepth, setMindMapDepth] = useState("4");
@@ -261,6 +265,12 @@ export function ModulePage() {
     setTranslatedText(sourceText);
   }
 
+  function imageOptions() {
+    const steps = Number.parseInt(imageSteps, 10);
+    const seed = Number.parseInt(imageSeed, 10);
+    return { ...(Number.isInteger(steps) ? { steps } : {}), ...(Number.isInteger(seed) && seed >= 0 ? { seed } : {}) };
+  }
+
   async function createImage() {
     if (!imagePrompt.trim()) return;
     setUploading(true); setError("");
@@ -272,11 +282,11 @@ export function ModulePage() {
           moduleId: "text-to-image",
           workflowId,
           inputArtifactIds: [selectedArtifactEntry.artifact.id],
-          params: { artifactId: selectedArtifactEntry.artifact.id, prompt: imagePrompt.trim(), size: imageSize },
+          params: { artifactId: selectedArtifactEntry.artifact.id, prompt: imagePrompt.trim(), size: imageSize, ...imageOptions() },
         });
         navigate(`/jobs/${queued.job.id}`);
       } else {
-        const job = await api.createImageJob(imagePrompt.trim(), imageSize);
+        const job = await api.createImageJob(imagePrompt.trim(), imageSize, imageOptions());
         navigate(`/jobs/${job.id}`);
       }
     } catch (value) {
@@ -417,7 +427,11 @@ export function ModulePage() {
       {!module.configured && <div className="module-setup-note"><span>The Image generation service is not configured yet.</span><Link to="/settings" state={{ backgroundLocation: location }}>Configure service</Link></div>}
       {selectedArtifactEntry && <ImportedArtifactCard job={selectedArtifactEntry.job} artifact={selectedArtifactEntry.artifact} onRemove={() => { setSelectedArtifact(""); importedPromptRef.current = ""; setImagePrompt(""); }} compact />}
       <label className="field-label">Prompt<textarea className="input mt-2 image-prompt-input" value={imagePrompt} onChange={(event) => setImagePrompt(event.target.value)} placeholder="A quiet reading room at night, warm table lamps, rain on tall windows, editorial photography" maxLength={12000} /></label>
-      <label className="field-label">Canvas<SearchSelect className="module-search-select" value={imageSize} onChange={setImageSize} options={[{ value: "1024x1024", label: "Square · 1024 × 1024" }, { value: "1536x1024", label: "Landscape · 1536 × 1024" }, { value: "1024x1536", label: "Portrait · 1024 × 1536" }]} searchPlaceholder="Search canvas sizes" ariaLabel="Canvas size" /></label>
+      <label className="field-label">Canvas<SearchSelect className="module-search-select" value={imageSize} onChange={setImageSize} options={imageCapabilities.sizes.map((size) => ({ value: size.value, label: `${size.label} · ${size.value.replace("x", " × ")}${size.quality === "high" ? " · High" : ""}` }))} searchPlaceholder="Search canvas sizes" ariaLabel="Canvas size" /></label>
+      <details className="image-advanced"><summary>Advanced{imageCapabilities.model ? <small>{imageCapabilities.model}</small> : null}</summary><div className="image-advanced-fields">
+        <label className="field-label">Steps<input className="input mt-2" type="number" inputMode="numeric" min={2} max={imageCapabilities.maxSteps || 100} value={imageSteps} onChange={(event) => setImageSteps(event.target.value)} placeholder={imageCapabilities.defaultSteps ? `${imageCapabilities.defaultSteps} (default)` : "Model default"} /></label>
+        <label className="field-label">Seed<input className="input mt-2" type="number" inputMode="numeric" min={0} value={imageSeed} onChange={(event) => setImageSeed(event.target.value)} placeholder="Random" /></label>
+      </div><p>Reuse a seed with the same prompt and size to reproduce an image, or to compare models fairly.</p></details>
       <div className="module-form-actions"><button className="button-primary" onClick={() => void createImage()} disabled={uploading || !module.configured || !imagePrompt.trim()}>{uploading ? "Starting…" : <><ImageIcon size={18} />Generate image</>}</button></div>
     </section> : <section className="module-coming-card">
       <span className={`module-card-icon module-card-icon-${module.id}`}><Icon size={28} /></span>

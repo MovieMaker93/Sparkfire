@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { chatCompletion, ocrImage, transcribeAudio, type TranscriptSegment } from "./ai.js";
+import { chatCompletion, ocrPage, transcribeAudio, type OcrBlock, type TranscriptSegment } from "./ai.js";
 import { jobEvents, publishJob } from "./events.js";
 import { extractAudio, normalizeAudio, rasterizePdf, splitAudio, srtTimestamp, vttTimestamp } from "./media.js";
 import { executeWorkflow } from "./modules/executors.js";
@@ -243,6 +243,34 @@ function mergeOverlappingText(parts: string[]) {
   return merged.trim();
 }
 
+interface PageLayout { page: number; source: string; width?: number; height?: number; blocks: OcrBlock[] }
+
+/**
+ * OCRs one page image behind a Markdown checkpoint. Layout blocks, when the model returns them, are
+ * checkpointed beside it first, so an existing Markdown checkpoint always has its layout available.
+ */
+async function ocrWithCheckpoint(settings: Settings, file: string, checkpoint: string, label: string, signal?: AbortSignal) {
+  const layoutCheckpoint = checkpoint.replace(/\.md$/, ".layout.json");
+  const saved = await fs.readFile(checkpoint, "utf8").catch(() => undefined);
+  if (saved !== undefined) {
+    const layout = await fs.readFile(layoutCheckpoint, "utf8").then((value) => JSON.parse(value) as Omit<PageLayout, "page" | "source">).catch(() => undefined);
+    return { markdown: saved.trim(), layout };
+  }
+  const page = await withRetries(settings.queue.maxRetriesPerChunk + 1, () => ocrPage(settings.endpoints.ocr, file, label, signal), signal);
+  const layout = page.blocks.length ? { width: page.width, height: page.height, blocks: page.blocks } : undefined;
+  if (layout) await fs.writeFile(layoutCheckpoint, JSON.stringify(layout));
+  await fs.writeFile(checkpoint, `${page.markdown}\n`);
+  return { markdown: page.markdown, layout };
+}
+
+/** Writes <document>.layout.json next to the Markdown when any page carried layout blocks. */
+async function writeLayout(jobId: string, documentName: string, layouts: PageLayout[]) {
+  if (!layouts.length) return [];
+  const name = documentName.replace(/\.md$/, ".layout.json");
+  await fs.writeFile(safeOutputPath(jobId, name), `${JSON.stringify({ version: 1, pages: layouts }, null, 2)}\n`);
+  return [name];
+}
+
 export async function processImages(job: JobManifest, signal?: AbortSignal, run?: WorkflowRun) {
   const settings = await readSettings();
   const root = jobDir(job.id);
@@ -257,6 +285,7 @@ export async function processImages(job: JobManifest, signal?: AbortSignal, run?
   await fs.mkdir(checkpointsDir, { recursive: true });
   await progress(job.id, { status: "processing", progress: 5, stage: "Preparing images", startedAt: new Date().toISOString() });
   const pages: string[] = [];
+  const layouts: PageLayout[] = [];
   const warnings: string[] = [];
   for (const [index, input] of images.entries()) {
     await assertNotCancelled(job.id, signal);
@@ -268,15 +297,8 @@ export async function processImages(job: JobManifest, signal?: AbortSignal, run?
     });
     try {
       const checkpoint = path.join(checkpointsDir, `${String(index + 1).padStart(4, "0")}.md`);
-      let markdown: string;
-      try {
-        markdown = (await fs.readFile(checkpoint, "utf8")).trim();
-      } catch {
-        markdown = await withRetries(settings.queue.maxRetriesPerChunk + 1, () =>
-          ocrImage(settings.endpoints.ocr, input.file, `image ${index + 1}`, signal),
-        signal);
-        await fs.writeFile(checkpoint, `${markdown}\n`);
-      }
+      const { markdown, layout } = await ocrWithCheckpoint(settings, input.file, checkpoint, `image ${index + 1}`, signal);
+      if (layout) layouts.push({ page: index + 1, source: input.name, ...layout });
       pages.push(markdown);
     } catch (error) {
       if (isAbort(error, signal)) throw new CancelledError();
@@ -292,13 +314,15 @@ export async function processImages(job: JobManifest, signal?: AbortSignal, run?
   const baseName = "document.md";
   const outputName = job.outputFiles.includes(baseName) ? `document.ocr-${(run?.id || "derived").replace(/^run-/, "").slice(0, 8)}.md` : baseName;
   await fs.writeFile(safeOutputPath(job.id, outputName), `# ${job.title}\n\n${document}\n`);
-  return { outputFiles: [...new Set([...job.outputFiles, outputName])], warnings };
+  const layoutFiles = await writeLayout(job.id, outputName, layouts);
+  return { outputFiles: [...new Set([...job.outputFiles, outputName, ...layoutFiles])], warnings };
 }
 
 export async function processPdfs(job: JobManifest, signal?: AbortSignal, run?: WorkflowRun) {
   const settings = await readSettings();
   const root = jobDir(job.id);
   const allPages: string[] = [];
+  const layouts: PageLayout[] = [];
   let globalPage = 0;
   const warnings: string[] = [];
   const derivedRun = run && job.runs.findIndex((candidate) => candidate.id === run.id) > 0;
@@ -329,15 +353,8 @@ export async function processPdfs(job: JobManifest, signal?: AbortSignal, run?: 
       globalPage += 1;
       const checkpoint = path.join(checkpointsDir, `${String(globalPage).padStart(4, "0")}.md`);
       try {
-        let markdown: string;
-        try {
-          markdown = (await fs.readFile(checkpoint, "utf8")).trim();
-        } catch {
-          markdown = await withRetries(settings.queue.maxRetriesPerChunk + 1, () =>
-            ocrImage(settings.endpoints.ocr, pageFile, `page ${pageIndex + 1} of ${input.name}`, signal),
-          signal);
-          await fs.writeFile(checkpoint, `${markdown}\n`);
-        }
+        const { markdown, layout } = await ocrWithCheckpoint(settings, pageFile, checkpoint, `page ${pageIndex + 1} of ${input.name}`, signal);
+        if (layout) layouts.push({ page: globalPage, source: input.name, ...layout });
         allPages.push(markdown);
       } catch (error) {
         if (isAbort(error, signal)) throw new CancelledError();
@@ -353,7 +370,8 @@ export async function processPdfs(job: JobManifest, signal?: AbortSignal, run?: 
   const baseName = "document.md";
   const outputName = job.outputFiles.includes(baseName) ? `document.ocr-${(run?.id || "derived").replace(/^run-/, "").slice(0, 8)}.md` : baseName;
   await fs.writeFile(safeOutputPath(job.id, outputName), `# ${job.title}\n\n${allPages.join("\n\n---\n\n")}\n`);
-  return { outputFiles: [...new Set([...job.outputFiles, outputName])], warnings };
+  const layoutFiles = await writeLayout(job.id, outputName, layouts);
+  return { outputFiles: [...new Set([...job.outputFiles, outputName, ...layoutFiles])], warnings };
 }
 
 export async function processJob(id: string, signal?: AbortSignal) {

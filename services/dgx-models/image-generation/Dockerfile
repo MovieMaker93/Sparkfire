@@ -8,14 +8,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
     HF_XET_HIGH_PERFORMANCE=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
 RUN PIP_CONSTRAINT= python3 -m pip install --no-cache-dir -r /app/requirements.txt
 
 WORKDIR /app
-COPY server.py /app/server.py
+COPY server.py test_server.py /app/
 
 ENTRYPOINT []
 CMD ["python3", "/app/server.py"]

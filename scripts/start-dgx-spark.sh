@@ -12,6 +12,8 @@ SKIP_PULL=false
 DEPLOY_APP=true
 REFRESH_IMAGES=false
 FORCE_RECREATE=false
+OCR_BACKEND="${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}"
+IMAGE_BACKEND="${SPARKLINGKIT_IMAGE_BACKEND:-z-image}"
 
 usage() {
   cat <<'EOF'
@@ -27,6 +29,8 @@ Options:
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
   --models-only            Run the six models and monitor without SparklingKit
+  --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
+  --image-backend NAME     z-image (default) or qwen-image-2.1
   -h, --help               Show this help
 
 Examples:
@@ -64,6 +68,11 @@ while (($#)); do
     --models-only)
       DEPLOY_APP=false
       ;;
+    --ocr-backend|--image-backend)
+      if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
+      if [[ "$1" == "--ocr-backend" ]]; then OCR_BACKEND="$2"; else IMAGE_BACKEND="$2"; fi
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -76,6 +85,18 @@ while (($#)); do
   esac
   shift
 done
+
+case "$OCR_BACKEND" in
+  unlimited-ocr) export OCR_MODEL="Unlimited-OCR" ;;
+  paddleocr-vl) export OCR_MODEL="PaddleOCR-VL-1.6" ;;
+  *) printf 'Unknown OCR backend: %s (use unlimited-ocr or paddleocr-vl)\n' "$OCR_BACKEND" >&2; exit 2 ;;
+esac
+case "$IMAGE_BACKEND" in
+  z-image) export IMAGE_GENERATION_MODEL="Z-Image-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-26g}" ;;
+  qwen-image-2.1) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
+  *) printf 'Unknown image backend: %s (use z-image or qwen-image-2.1)\n' "$IMAGE_BACKEND" >&2; exit 2 ;;
+esac
+export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND"
 
 COMPOSE=(
   docker compose
@@ -110,7 +131,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop qwen36 qwen3-asr unlimited-ocr hy-mt2 locateanything z-image dgx-status
+    "${COMPOSE[@]}" stop qwen36 qwen3-asr unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -175,7 +196,8 @@ elif [[ ! -f "$license_marker" ]]; then
   cat >&2 <<'EOF'
 The model weights are not covered by SparklingKit's Apache 2.0 license.
 Review the six publishers' model cards before downloading. In particular,
-nvidia/LocateAnything-3B is currently licensed for non-commercial/research use.
+nvidia/LocateAnything-3B is currently licensed for non-commercial/research use,
+and Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1) uses the Qwen Research License.
 EOF
   if [[ -t 0 ]]; then
     printf 'Have you reviewed and accepted the model terms? [y/N] ' >&2
@@ -195,13 +217,15 @@ fi
 if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding SparklingKit and DGX service images...\n'
   build_targets=(model-downloader qwen3-asr hy-mt2 locateanything z-image dgx-status)
+  if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
     "${COMPOSE[@]}" --profile tools build --pull "${build_targets[@]}"
   else
     "${COMPOSE[@]}" --profile tools build "${build_targets[@]}"
   fi
-  pull_targets=(qwen36 unlimited-ocr)
+  pull_targets=(qwen36)
+  if [[ "$OCR_BACKEND" == "unlimited-ocr" ]]; then pull_targets+=(unlimited-ocr); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then pull_targets+=(redis); fi
   if [[ "$SKIP_PULL" != "true" ]]; then "${COMPOSE[@]}" pull "${pull_targets[@]}"; fi
 fi
@@ -240,10 +264,17 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
     "nvidia/Qwen3.6-35B-A3B-NVFP4" \
     "491c2f1ea524c639598bf8fa787a93fed5a6fbce" \
     "nvidia/Qwen3.6-35B-A3B-NVFP4"
-  download_model \
-    "baidu/Unlimited-OCR" \
-    "27a5997fa0524f9adcf9e2f3d5e7d3f784434fa5" \
-    "baidu/Unlimited-OCR"
+  if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
+    download_model \
+      "PaddlePaddle/PaddleOCR-VL-1.6" \
+      "c5630abae1d940eafe0697512a0325494b02ab42" \
+      "PaddlePaddle/PaddleOCR-VL-1.6"
+  else
+    download_model \
+      "baidu/Unlimited-OCR" \
+      "27a5997fa0524f9adcf9e2f3d5e7d3f784434fa5" \
+      "baidu/Unlimited-OCR"
+  fi
   download_model \
     "Qwen/Qwen3-ASR-1.7B" \
     "7278e1e70fe206f11671096ffdd38061171dd6e5" \
@@ -256,10 +287,17 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
     "nvidia/LocateAnything-3B" \
     "c32291ca5e996f5a7a485845b4f57a233936bba0" \
     "nvidia/LocateAnything-3B"
-  download_model \
-    "Tongyi-MAI/Z-Image-Turbo" \
-    "f332072aa78be7aecdf3ee76d5c247082da564a6" \
-    "Tongyi-MAI/Z-Image-Turbo"
+  if [[ "$IMAGE_BACKEND" == "qwen-image-2.1" ]]; then
+    download_model \
+      "Qwen/Qwen-Image-2.1" \
+      "d26bb61231c349cf6b7896fa83353113880e1ba3" \
+      "Qwen/Qwen-Image-2.1"
+  else
+    download_model \
+      "Tongyi-MAI/Z-Image-Turbo" \
+      "f332072aa78be7aecdf3ee76d5c247082da564a6" \
+      "Tongyi-MAI/Z-Image-Turbo"
+  fi
 fi
 
 wait_for_endpoint() {
@@ -301,10 +339,15 @@ start_service() {
 printf '\nStarting the six models sequentially...\n'
 start_service qwen36 "Multimodal LLM" "http://127.0.0.1:8331/v1/models" 900
 start_service qwen3-asr "Transcription" "http://127.0.0.1:8333/v1/models" 600
-start_service unlimited-ocr "OCR" "http://127.0.0.1:8332/v1/models" 600
+if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
+  start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600
+  start_service paddleocr-vl "OCR layout adapter" "http://127.0.0.1:8332/health" 900
+else
+  start_service unlimited-ocr "OCR" "http://127.0.0.1:8332/v1/models" 600
+fi
 start_service hy-mt2 "Translation" "http://127.0.0.1:8334/health" 600
 start_service locateanything "Grounding" "http://127.0.0.1:8335/health" 900
-start_service z-image "Image generation" "http://127.0.0.1:8336/health" 1200
+start_service z-image "Image generation ($IMAGE_BACKEND)" "http://127.0.0.1:8336/health" 1800
 start_service dgx-status "System status" "http://127.0.0.1:8330/health" 120
 
 if [[ "$DEPLOY_APP" == "true" ]]; then
