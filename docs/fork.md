@@ -76,3 +76,5 @@ npm run dev
   - PaddleOCR-VL's layout stage on aarch64
   - Qwen-Image 2.1 with torchao float8 on sm_121
   - peak memory of the full stack with the alternatives enabled
+
+Next steps and status: [`plan.md`](plan.md).
