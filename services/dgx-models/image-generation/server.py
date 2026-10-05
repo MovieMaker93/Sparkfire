@@ -28,6 +28,8 @@ class Backend:
     size_multiple: int
     max_pixels: int
     sizes: list[dict[str, str]] = field(default_factory=list)
+    # diffusers attention backend; empty keeps PyTorch SDPA.
+    attention_backend: str = ""
 
 
 STANDARD_SIZES = [
@@ -48,9 +50,11 @@ BACKENDS = {
         size_multiple=16,
         max_pixels=2048 * 2048,
         sizes=STANDARD_SIZES,
+        attention_backend="flash",
     ),
     # Qwen-Image 2.1 is sampled without classifier-free guidance (true_cfg_scale 1.0) and needs
-    # dimensions divisible by 32. The high-quality set keeps the same ratios at about 4 MP.
+    # dimensions divisible by 32. The high-quality set keeps the same ratios at about 4 MP. Its transformer
+    # passes a text attention mask, which flash-attn 2 rejects, so it stays on SDPA.
     "qwen-image-2.1": Backend(
         model_name="Qwen-Image-2.1",
         model_path="/models/Qwen/Qwen-Image-2.1",
@@ -75,7 +79,7 @@ if BACKEND_ID not in BACKENDS:
 BACKEND = BACKENDS[BACKEND_ID]
 MODEL_PATH = os.getenv("MODEL_PATH", BACKEND.model_path)
 MODEL_NAME = os.getenv("MODEL_NAME", BACKEND.model_name)
-ATTENTION_BACKEND = os.getenv("ATTENTION_BACKEND", "flash")
+ATTENTION_BACKEND = os.getenv("ATTENTION_BACKEND") or BACKEND.attention_backend
 DEFAULT_STEPS = int(os.getenv("DEFAULT_STEPS") or BACKEND.default_steps)
 MAX_PIXELS = int(os.getenv("MAX_PIXELS") or BACKEND.max_pixels)
 # float8 weight-only quantization of the transformer and text encoder; "none" keeps bfloat16.

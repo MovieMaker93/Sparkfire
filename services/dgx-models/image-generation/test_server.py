@@ -58,6 +58,11 @@ class ImageAdapterTests(unittest.TestCase):
         self.assertEqual(load_server("qwen-image-2.1").QUANTIZE, "float8wo")
         self.assertIn("float8wo", load_server("z-image").TORCHAO_CONFIGS)
 
+    def test_attention_backend_follows_the_model(self):
+        # Qwen-Image passes an attention mask that flash-attn 2 rejects.
+        self.assertEqual(load_server("qwen-image-2.1").ATTENTION_BACKEND, "")
+        self.assertEqual(load_server("z-image").ATTENTION_BACKEND, "flash")
+
     def test_unknown_backend_is_rejected(self):
         with self.assertRaises(SystemExit):
             load_server("dall-e")
