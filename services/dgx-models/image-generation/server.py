@@ -136,19 +136,32 @@ def parse_size(size: str) -> tuple[int, int]:
     return width, height
 
 
+# QUANTIZE names → torchao config classes. diffusers on main only accepts config instances, not these strings.
+TORCHAO_CONFIGS = {
+    "float8wo": "Float8WeightOnlyConfig",
+    "float8dq": "Float8DynamicActivationFloat8WeightConfig",
+    "int8wo": "Int8WeightOnlyConfig",
+}
+
+
 def quantization_config(torch):
     """float8 weight-only roughly halves the ~30 GB of bf16 weights; unified memory makes CPU offload useless."""
     global active_quantization
     if QUANTIZE == "none":
         return None
-    from diffusers import PipelineQuantizationConfig
+    if QUANTIZE not in TORCHAO_CONFIGS:
+        raise ValueError(f"QUANTIZE must be none or one of {', '.join(TORCHAO_CONFIGS)}, got {QUANTIZE!r}")
+    import torchao.quantization
+    import transformers
+    from diffusers import PipelineQuantizationConfig, TorchAoConfig
 
+    config_class = getattr(torchao.quantization, TORCHAO_CONFIGS[QUANTIZE])
     active_quantization = QUANTIZE
-    return PipelineQuantizationConfig(
-        quant_backend="torchao",
-        quant_kwargs={"quant_type": QUANTIZE},
-        components_to_quantize=["transformer", "text_encoder"],
-    )
+    # diffusers' and transformers' TorchAoConfig differ in signature, so each component gets its own.
+    return PipelineQuantizationConfig(quant_mapping={
+        "transformer": TorchAoConfig(quant_type=config_class()),
+        "text_encoder": transformers.TorchAoConfig(quant_type=config_class()),
+    })
 
 
 def load_pipeline() -> None:
