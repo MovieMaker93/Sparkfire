@@ -28,6 +28,8 @@ class Backend:
     size_multiple: int
     max_pixels: int
     sizes: list[dict[str, str]] = field(default_factory=list)
+    # diffusers attention backend; empty keeps PyTorch SDPA.
+    attention_backend: str = ""
 
 
 STANDARD_SIZES = [
@@ -48,9 +50,11 @@ BACKENDS = {
         size_multiple=16,
         max_pixels=2048 * 2048,
         sizes=STANDARD_SIZES,
+        attention_backend="flash",
     ),
     # Qwen-Image 2.1 is sampled without classifier-free guidance (true_cfg_scale 1.0) and needs
-    # dimensions divisible by 32. The high-quality set keeps the same ratios at about 4 MP.
+    # dimensions divisible by 32. The high-quality set keeps the same ratios at about 4 MP. Its transformer
+    # passes a text attention mask, which flash-attn 2 rejects, so it stays on SDPA.
     "qwen-image-2.1": Backend(
         model_name="Qwen-Image-2.1",
         model_path="/models/Qwen/Qwen-Image-2.1",
@@ -75,7 +79,7 @@ if BACKEND_ID not in BACKENDS:
 BACKEND = BACKENDS[BACKEND_ID]
 MODEL_PATH = os.getenv("MODEL_PATH", BACKEND.model_path)
 MODEL_NAME = os.getenv("MODEL_NAME", BACKEND.model_name)
-ATTENTION_BACKEND = os.getenv("ATTENTION_BACKEND", "flash")
+ATTENTION_BACKEND = os.getenv("ATTENTION_BACKEND") or BACKEND.attention_backend
 DEFAULT_STEPS = int(os.getenv("DEFAULT_STEPS") or BACKEND.default_steps)
 MAX_PIXELS = int(os.getenv("MAX_PIXELS") or BACKEND.max_pixels)
 # float8 weight-only quantization of the transformer and text encoder; "none" keeps bfloat16.
@@ -136,19 +140,32 @@ def parse_size(size: str) -> tuple[int, int]:
     return width, height
 
 
+# QUANTIZE names → torchao config classes. diffusers on main only accepts config instances, not these strings.
+TORCHAO_CONFIGS = {
+    "float8wo": "Float8WeightOnlyConfig",
+    "float8dq": "Float8DynamicActivationFloat8WeightConfig",
+    "int8wo": "Int8WeightOnlyConfig",
+}
+
+
 def quantization_config(torch):
     """float8 weight-only roughly halves the ~30 GB of bf16 weights; unified memory makes CPU offload useless."""
     global active_quantization
     if QUANTIZE == "none":
         return None
-    from diffusers import PipelineQuantizationConfig
+    if QUANTIZE not in TORCHAO_CONFIGS:
+        raise ValueError(f"QUANTIZE must be none or one of {', '.join(TORCHAO_CONFIGS)}, got {QUANTIZE!r}")
+    import torchao.quantization
+    import transformers
+    from diffusers import PipelineQuantizationConfig, TorchAoConfig
 
+    config_class = getattr(torchao.quantization, TORCHAO_CONFIGS[QUANTIZE])
     active_quantization = QUANTIZE
-    return PipelineQuantizationConfig(
-        quant_backend="torchao",
-        quant_kwargs={"quant_type": QUANTIZE},
-        components_to_quantize=["transformer", "text_encoder"],
-    )
+    # diffusers' and transformers' TorchAoConfig differ in signature, so each component gets its own.
+    return PipelineQuantizationConfig(quant_mapping={
+        "transformer": TorchAoConfig(quant_type=config_class()),
+        "text_encoder": transformers.TorchAoConfig(quant_type=config_class()),
+    })
 
 
 def load_pipeline() -> None:

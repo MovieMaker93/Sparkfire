@@ -72,7 +72,13 @@ npm run dev
 - Unit tests cover:
   - the image and PaddleOCR adapters, without a GPU
   - OCR profiles, thumbnails, the gallery and the viewer helpers
-- Still to validate on the DGX Spark:
-  - PaddleOCR-VL's layout stage on aarch64
-  - Qwen-Image 2.1 with torchao float8 on sm_121
-  - peak memory of the full stack with the alternatives enabled
+- Validated on the DGX Spark on 2026-10-05:
+  - PaddleOCR-VL-1.6, including its CPU layout stage on aarch64. On a 20-page benchmark it found 99.9%
+    of the words and all table numbers.
+  - Qwen-Image 2.1 with torchao float8 on sm_121, after the torchao 0.16 and SDPA fixes. It takes about
+    80 s for a 1024² image and 286 s for 2048².
+  - Peak memory of the full stack under load: 93.5 GiB.
+- Known issue: the stock vLLM 0.24 LLM service can crash on long generations, and its automatic restart
+  can run the Spark out of memory. See "Spark validation" in `plan.md`.
+
+Next steps and status: [`plan.md`](plan.md).

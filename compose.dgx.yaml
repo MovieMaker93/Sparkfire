@@ -405,7 +405,8 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       IMAGE_BACKEND: ${SPARKLINGKIT_IMAGE_BACKEND:-z-image}
       PORT: "8336"
-      ATTENTION_BACKEND: ${IMAGE_ATTENTION_BACKEND:-flash}
+      # Empty uses the backend's own default (flash for Z-Image, SDPA for Qwen-Image).
+      ATTENTION_BACKEND: ${IMAGE_ATTENTION_BACKEND:-}
       DEFAULT_STEPS: ${IMAGE_DEFAULT_STEPS:-}
       MAX_PIXELS: ${IMAGE_MAX_PIXELS:-}
       QUANTIZE: ${IMAGE_QUANTIZE:-}

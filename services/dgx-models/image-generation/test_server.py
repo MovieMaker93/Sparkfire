@@ -46,6 +46,23 @@ class ImageAdapterTests(unittest.TestCase):
         with self.assertRaises(server.HTTPException):
             server.validate_steps(80)
 
+    def test_quantization_names_are_checked_before_torchao_loads(self):
+        try:
+            os.environ["QUANTIZE"] = "none"
+            self.assertIsNone(load_server("qwen-image-2.1").quantization_config(None))
+            os.environ["QUANTIZE"] = "float8"
+            with self.assertRaises(ValueError):
+                load_server("qwen-image-2.1").quantization_config(None)
+        finally:
+            os.environ.pop("QUANTIZE", None)
+        self.assertEqual(load_server("qwen-image-2.1").QUANTIZE, "float8wo")
+        self.assertIn("float8wo", load_server("z-image").TORCHAO_CONFIGS)
+
+    def test_attention_backend_follows_the_model(self):
+        # Qwen-Image passes an attention mask that flash-attn 2 rejects.
+        self.assertEqual(load_server("qwen-image-2.1").ATTENTION_BACKEND, "")
+        self.assertEqual(load_server("z-image").ATTENTION_BACKEND, "flash")
+
     def test_unknown_backend_is_rejected(self):
         with self.assertRaises(SystemExit):
             load_server("dall-e")

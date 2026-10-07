@@ -3,7 +3,9 @@
 diffusers @ git+https://github.com/huggingface/diffusers@6256aa7666cedd47443adc8f82da9a10e110b09c
 transformers==5.5.3
 accelerate==1.14.0
-torchao>=0.13
+# The NGC base ships torchao 0.14, which lacks FqnToConfig that this diffusers commit imports; 0.16 also
+# keeps its C++ extensions working with the base image's torch 2.10.
+torchao==0.16.0
 fastapi==0.124.4
 uvicorn[standard]==0.38.0
 python-multipart==0.0.20

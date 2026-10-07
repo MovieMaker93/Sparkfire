@@ -1,3 +1,4 @@
+import "./http-dispatcher.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
