@@ -694,7 +694,6 @@ textarea.input { @apply text-[16px]; resize: vertical; }
 .thinking i:nth-child(2) { animation-delay: 120ms; }
 .thinking i:nth-child(3) { animation-delay: 240ms; }
 .chat-composer-wrap { @apply sticky bottom-0 z-10 shrink-0 bg-[var(--sk-n17)]/95 px-4 pt-3 pb-4 backdrop-blur sm:px-8; }
-.chat-composer-wrap > p { @apply mt-2 text-center text-[14px] text-muted; }
 .chat-composer { @apply mx-auto flex max-w-5xl items-end gap-2 rounded-[20px] border border-[var(--sk-n14)] bg-[var(--sk-n17)] p-2.5; box-shadow: 0 5px 18px rgba(32,33,36,.14); }
 .chat-composer textarea { @apply max-h-44 min-h-10 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-[16px] leading-7 outline-none placeholder:text-[var(--sk-n12)]; }
 .send-button { @apply flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--sk-blue-4)] text-[var(--sk-n17)] transition hover:bg-[var(--sk-blue-3)] disabled:bg-[var(--sk-n15)] disabled:text-[var(--sk-n12)]; box-shadow: 0 1px 3px rgba(11,87,208,.25); }
@@ -2048,3 +2047,33 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .image-advanced summary small { @apply rounded-full border border-[var(--sk-n8)] px-2 py-0.5 font-mono text-[11px] font-semibold text-muted; }
 .image-advanced-fields { @apply mt-3 grid gap-3 sm:grid-cols-2; }
 .image-advanced > p { @apply mt-2 text-[13px] leading-5 text-muted; }
+
+/* Chat: thinking effort under the composer, and the model's reasoning above each answer */
+.chat-composer-footer { @apply mx-auto mt-2 flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2; }
+.chat-composer-footer > p { @apply hidden text-[14px] text-muted sm:block; }
+.effort-choice { @apply items-center; }
+.effort-choice > span { @apply inline-flex items-center gap-1.5 pr-1 pl-2 text-[12px] font-bold tracking-[.04em] text-muted uppercase; }
+.effort-choice button { @apply h-7 px-2.5 text-[12px]; }
+.effort-choice button:disabled { @apply cursor-not-allowed opacity-60; }
+.message-reasoning { @apply mb-3 rounded-[14px] border border-[var(--sk-n8)] bg-[var(--sk-n2)] px-4 py-2.5; }
+.message-reasoning summary { @apply flex cursor-pointer list-none items-center gap-2 text-[14px] font-semibold text-[var(--sk-n13)] select-none; }
+.message-reasoning summary::-webkit-details-marker { display: none; }
+.message-reasoning summary small { @apply ml-auto font-mono text-[11px] font-medium text-muted; }
+.message-reasoning > p { @apply mt-2 max-h-72 overflow-y-auto text-[14px] leading-6 whitespace-pre-wrap text-[var(--sk-n12)]; }
+
+/* Chat attachments: the + button, chips in the composer, and files on sent messages */
+.chat-composer { flex-wrap: wrap; }
+.chat-composer-dragging { border-color: var(--sk-accent); box-shadow: 0 0 0 3px var(--sk-accent-soft); }
+.composer-attachments { @apply flex w-full basis-full flex-wrap gap-2 px-1 pt-0.5 pb-1; }
+.attach-button { @apply flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--sk-n9)] bg-transparent text-[var(--sk-n13)] transition hover:bg-[var(--sk-n6)] hover:text-ink disabled:cursor-not-allowed disabled:opacity-50; }
+.attachment-chip { @apply inline-flex h-10 max-w-[280px] items-center gap-2 rounded-[12px] border border-[var(--sk-n8)] bg-[var(--sk-n2)] px-2 text-[13px] text-[var(--sk-n14)]; }
+.attachment-chip img { @apply h-7 w-7 shrink-0 rounded-md object-cover; }
+.attachment-chip > svg { @apply shrink-0 text-muted; }
+.attachment-chip-name { @apply min-w-0 truncate font-semibold text-ink; }
+a.attachment-chip-name:hover { @apply underline; }
+.attachment-chip small { @apply shrink-0 font-mono text-[11px] text-muted; }
+.attachment-chip button { @apply flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-muted transition hover:bg-[var(--sk-n6)] hover:text-ink; }
+.message-attachments { @apply mb-2 flex flex-wrap gap-2; }
+.message-user .message-attachments { @apply justify-end; }
+.message-attachment-image { @apply block overflow-hidden rounded-[14px] border border-[var(--sk-n8)]; }
+.message-attachment-image img { @apply block max-h-48 max-w-[min(320px,70vw)] object-cover; }

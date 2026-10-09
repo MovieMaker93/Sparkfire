@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, transcribeAudio } from "./ai.js";
+import { DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio } from "./ai.js";
 
 const cleanup: Array<() => Promise<unknown>> = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((work) => work())); });
@@ -124,5 +124,24 @@ describe("image generation", () => {
     const result = await generateImage({ baseUrl, model: "configured-name", apiKey: "", enabled: true }, "a harbor", { size: "1536x1024", seed: 7, steps: 9 });
     expect(JSON.parse(body)).toMatchObject({ prompt: "a harbor", size: "1536x1024", seed: 7, steps: 9 });
     expect(result).toMatchObject({ model: "Z-Image-Turbo", seed: 7, steps: 9, mimeType: "image/png" });
+  });
+});
+
+describe("chat thinking", () => {
+  it("maps each effort onto the chat template switches", () => {
+    expect(thinkingOptions()).toEqual({});
+    expect(thinkingOptions("off")).toEqual({ chat_template_kwargs: { enable_thinking: false } });
+    expect(thinkingOptions("low")).toEqual({ chat_template_kwargs: { enable_thinking: true, reasoning_effort: "low" } });
+    expect(thinkingOptions("medium")).toEqual({ chat_template_kwargs: { enable_thinking: true, reasoning_effort: "medium" } });
+    // High leaves the effort to the model's default (xhigh on Qwen3.8), which older templates also accept.
+    expect(thinkingOptions("high")).toEqual({ chat_template_kwargs: { enable_thinking: true } });
+  });
+
+  it("reads answer and reasoning text from either server's stream chunks", () => {
+    expect(streamDelta({ choices: [{ delta: { content: "Hi" } }] })).toEqual({ content: "Hi", reasoning: "" });
+    expect(streamDelta({ choices: [{ delta: { reasoning_content: "Let me think" } }] })).toEqual({ content: "", reasoning: "Let me think" });
+    expect(streamDelta({ choices: [{ delta: { reasoning: "Hmm", content: null } }] })).toEqual({ content: "", reasoning: "Hmm" });
+    expect(streamDelta({ object: "bookkeeping" })).toEqual({ content: "", reasoning: "" });
+    expect(streamDelta(null)).toEqual({ content: "", reasoning: "" });
   });
 });

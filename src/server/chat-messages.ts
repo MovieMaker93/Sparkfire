@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { attachmentImages, documentText, MAX_MODEL_IMAGES } from "./chat-attachments.js";
 import type { Artifact, ChatRecord, Settings } from "./models.js";
 import { readJob, safeArtifactPath } from "./store.js";
 
@@ -10,6 +11,8 @@ export type ModelChatMessage = {
     | { type: "image_url"; image_url: { url: string } }
   >;
 };
+
+type ContentPart = Exclude<ModelChatMessage["content"], string>[number];
 
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -48,8 +51,9 @@ function orderedImageArtifacts(artifacts: Artifact[], linkedArtifactIds?: string
  * chat JSON on disk.
  */
 export async function modelMessagesForChat(chat: ChatRecord, settings: Settings): Promise<ModelChatMessage[]> {
-  const messages: ModelChatMessage[] = chat.messages.map(({ role, content }) => ({ role, content }));
-  if (!settings.endpoints.llm.capabilities?.includes("image") || !chat.linkedJobId) return messages;
+  const acceptsImages = Boolean(settings.endpoints.llm.capabilities?.includes("image"));
+  const messages = await withAttachments(chat, acceptsImages);
+  if (!acceptsImages || !chat.linkedJobId) return messages;
 
   let lastUserIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -58,7 +62,7 @@ export async function modelMessagesForChat(chat: ChatRecord, settings: Settings)
       break;
     }
   }
-  if (lastUserIndex < 0 || typeof messages[lastUserIndex].content !== "string") return messages;
+  if (lastUserIndex < 0) return messages;
 
   const job = await readJob(chat.linkedJobId);
   const imageParts: Array<{ type: "image_url"; image_url: { url: string } }> = [];
@@ -76,7 +80,46 @@ export async function modelMessagesForChat(chat: ChatRecord, settings: Settings)
   }
   if (!imageParts.length) return messages;
 
-  const text = messages[lastUserIndex].content as string;
-  messages[lastUserIndex] = { role: messages[lastUserIndex].role, content: [{ type: "text", text }, ...imageParts] };
+  const current = messages[lastUserIndex].content;
+  const parts = typeof current === "string" ? [{ type: "text" as const, text: current }] : current;
+  messages[lastUserIndex] = { role: messages[lastUserIndex].role, content: [...parts, ...imageParts] };
+  return messages;
+}
+
+/**
+ * Turns attached files into model input: each document's text joins its own message on every turn, and images
+ * go to the newest messages first, up to MAX_MODEL_IMAGES per request; older ones are named in text instead.
+ */
+async function withAttachments(chat: ChatRecord, acceptsImages: boolean): Promise<ModelChatMessage[]> {
+  const imagesFor = new Map<string, Array<{ file: string; mimeType: string }>>();
+  let budget = acceptsImages ? MAX_MODEL_IMAGES : 0;
+  for (const message of [...chat.messages].reverse()) {
+    for (const attachment of [...(message.attachments || [])].reverse()) {
+      const images = budget > 0 ? await attachmentImages(chat.id, attachment).catch(() => []) : [];
+      const kept = images.slice(0, budget);
+      budget -= kept.length;
+      imagesFor.set(attachment.id, kept);
+    }
+  }
+
+  const messages: ModelChatMessage[] = [];
+  for (const { role, content, attachments } of chat.messages) {
+    if (!attachments?.length) {
+      messages.push({ role, content });
+      continue;
+    }
+    const parts: ContentPart[] = [{ type: "text", text: content }];
+    for (const attachment of attachments) {
+      const text = await documentText(chat.id, attachment);
+      if (text) parts.push({ type: "text", text });
+      const images = imagesFor.get(attachment.id) || [];
+      for (const image of images) {
+        const bytes = await fs.readFile(image.file).catch(() => undefined);
+        if (bytes) parts.push({ type: "image_url", image_url: { url: `data:${image.mimeType};base64,${bytes.toString("base64")}` } });
+      }
+      if (!text && !images.length) parts.push({ type: "text", text: `[The file "${attachment.name}" was shared earlier in this conversation.]` });
+    }
+    messages.push({ role, content: parts });
+  }
   return messages;
 }

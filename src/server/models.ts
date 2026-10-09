@@ -2,6 +2,7 @@ export type {
   Artifact,
   ArtifactKind,
   ArtifactRole,
+  ChatAttachment,
   ChatMessage,
   ChatRecord,
   EndpointConfig,
