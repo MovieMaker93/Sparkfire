@@ -32,3 +32,6 @@ scripts/spark-switch.env
 # Personal, machine-specific notes for agents and maintainers (never committed)
 CLAUDE.local.md
 *.local.md
+
+# Demo inputs and raw recordings for the README clips
+scripts/media/work/

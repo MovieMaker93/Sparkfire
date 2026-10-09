@@ -1,86 +1,163 @@
-# SparklingKit · MovieMaker93 fork
-
-> A local-first, file-oriented AI workspace for OCR, transcription, translation, visual grounding, image generation, interactive mind maps, chat, and reusable workflows.
-
-> [!NOTE]
-> **Unofficial fork.** This is a personal fork of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit), maintained by [MovieMaker93](https://github.com/MovieMaker93) and tuned for one DGX Spark. It is not affiliated with or endorsed by the SparklingKit project. For the official app, installer and Docker images, use the upstream repository. The changes are summarised in [What this fork adds](#what-this-fork-adds).
+# SparklingKit ⚡ — a local AI workspace for one DGX Spark
 
 [![CI](https://github.com/MovieMaker93/SparklingKit/actions/workflows/ci.yml/badge.svg)](https://github.com/MovieMaker93/SparklingKit/actions/workflows/ci.yml)
 [![Security](https://github.com/MovieMaker93/SparklingKit/actions/workflows/security.yml/badge.svg)](https://github.com/MovieMaker93/SparklingKit/actions/workflows/security.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933.svg)](https://nodejs.org/)
+[![Platform](https://img.shields.io/badge/platform-DGX%20Spark%20%C2%B7%20ARM64-76b900?style=flat-square)](#quick-start)
+[![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square)](https://react.dev)
+[![Express](https://img.shields.io/badge/Express-5-444444?style=flat-square)](https://expressjs.com)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-SparklingKit turns files into durable, reusable AI work. It connects to independently hosted inference services, keeps sources and generated results together, and records processing history as ordinary files rather than hiding it inside a database.
+**SparklingKit turns files into reusable AI work: it reads documents, transcribes recordings, translates, finds things in images, generates pictures, maps ideas and lets you chat about all of it, on models that run on your own DGX Spark.**
 
-The application is designed for private workstations, home labs, and local-network AI servers. Models are not bundled: bring compatible services, configure their endpoints, and enable only the capabilities you need.
+Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a summary, a mind map or a conversation. Seven specialised models share one Spark behind one interface, and nothing leaves your network.
 
-SparklingKit’s reference deployment runs **six specialized models on a single NVIDIA DGX Spark with 128 GB of unified memory**. Instead of asking one general model to handle every medium, the workspace routes each task to a focused OCR, speech, translation, grounding, image, or multimodal language model—all from one machine and one interface. A repository-owned starter script handles the model downloads, service builds, memory-safe startup order, readiness checks, system monitor, and SparklingKit itself.
+> [!NOTE]
+> **Unofficial fork** of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit), maintained by [MovieMaker93](https://github.com/MovieMaker93). It is not affiliated with or endorsed by the SparklingKit project. See [what's new in this fork](#whats-new-in-this-fork).
 
-## What this fork adds
+[![A 40-second tour of SparklingKit running real models on a DGX Spark: the workbench, OCR, image generation, the gallery, chat, grounding and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
 
-Everything upstream does still works the same way; the fork adds to it. Details are in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md](docs/validation.md), and what comes next in the [roadmap](docs/fork.md#roadmap). Coding agents start from [AGENTS.md](AGENTS.md).
+[Watch the tour as MP4](.github/media/tour.mp4) · recorded on one DGX Spark with the real models; only the waits are fast-forwarded.
 
-**Interface**
+* * *
 
-- Light, dark and system themes built on shared color tokens, with a mint accent for primary actions.
-- Sidebar: one AI-services chip with a status popover, and a compact DGX Spark monitor.
-- Workbench: a "Running now" strip, and readable job titles in place of IDs.
-- Gallery: generated and uploaded images with thumbnails, filters by source and model, a lightbox and a side-by-side compare.
-- Job pages: a transcript timeline that seeks the player, image zoom with a before/after slider for grounding, a document outline, and a run-history timeline.
+## Contents
 
-**Chat**
+- [What's new in this fork](#whats-new-in-this-fork)
+- [Feature tour](#feature-tour)
+- [Quick start](#quick-start)
+- [Memory and containers](#memory-and-containers)
+- [Why SparklingKit?](#why-sparklingkit) · [One DGX Spark, six AI services](#one-dgx-spark-six-ai-services) · [Choose your deployment](#choose-your-deployment)
+- [Modules](#modules) · [Workbench](#workbench) · [File-based workflows](#file-based-workflows)
+- [Architecture](#architecture) · [API overview](#api-overview) · [Security and privacy](#security-and-privacy)
+- [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
 
-- A thinking control (Off, Low, Medium, High) for models with a thinking mode. The model's reasoning streams into a foldable block and is kept with the answer.
-- Attachments through a + button, paste, or drag and drop. Images go to the model as image input; PDFs and text or code files are read as text, and scanned PDFs as page images.
-- The header names the model that is actually configured.
+* * *
 
-**Model backends**, chosen at deploy time. Upstream's defaults stay the defaults.
+## What's new in this fork
 
-| Service | Upstream default | Fork alternative | Option |
-| --- | --- | --- | --- |
-| OCR | Unlimited-OCR | PaddleOCR-VL-1.6, with a layout stage for headings, tables and reading order | `--ocr-backend paddleocr-vl` |
-| Image generation | Z-Image-Turbo | Qwen-Image 2.1 (2K sizes), or Qwen-Image-2.1-Turbo (8 steps, about 4× faster) | `--image-backend qwen-image-2.1` or `qwen-image-2.1-turbo` |
+| Area | What you get |
+| --- | --- |
+| **Interface** | Light, dark and system themes; a mint accent; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench |
+| **Gallery** | Every image with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
+| **Job pages** | Transcript lines that seek the player, image zoom with a before/after slider, a document outline, and run history |
+| **Chat** | Attach images, PDFs and text files; a thinking control (Off, Low, Medium, High) with the reasoning shown live |
+| **Models** | PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; seed and step controls |
+| **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
+| **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
 
-Image jobs can set a seed and a step count, and the size list follows the running model.
+Details in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md](docs/validation.md), next steps in the [roadmap](docs/fork.md#roadmap), and instructions for coding agents in [AGENTS.md](AGENTS.md).
 
-**Operations and fixes**
+* * *
 
-- `scripts/spark-switch.sh` swaps the Spark between SparklingKit and another always-on LLM, since the two do not fit in memory together.
-- Long model calls, such as 2K images or long translations, are no longer cut off by Node's 300-second fetch timeouts.
-- CI on every change: tests and builds, CodeQL, dependency and secret scanning, Trivy, Dockerfile linting, and Dependabot updates. Releases come from [Conventional Commits](https://www.conventionalcommits.org/) through release-please, with a changelog, a multi-arch image on `ghcr.io/moviemaker93/sparklingkit` and a DGX stack bundle. See [SECURITY.md](SECURITY.md) to report a vulnerability.
+## Feature tour
 
-### Quick start on a DGX Spark
+Each clip is the real app on a DGX Spark with demo files. Only the time spent waiting for a model is fast-forwarded. Click a clip for the full-quality MP4.
+
+### The Workbench
+
+Start anything from one page: drop files, translate text, describe an image or ask the model. Jobs that are running show live progress at the top, and recent work keeps readable names and thumbnails.
+
+[![The Workbench with three jobs running and recent work below (click for the MP4)](.github/media/workbench.webp)](.github/media/workbench.mp4)
+
+### Read documents (OCR)
+
+PaddleOCR-VL-1.6 turns PDFs and scans into Markdown, keeping headings, tables and reading order, and saves the page layout next to it. Long documents get an outline to jump through; the source view shows exactly what the model produced.
+
+[![A three-page report recognised into Markdown: jumping through the outline, then the Markdown source (click for the MP4)](.github/media/ocr.webp)](.github/media/ocr.mp4)
+
+### Transcribe recordings
+
+Qwen3-ASR turns audio and video into a transcript, subtitles (SRT and WebVTT) and timed lines. Click a line and the player jumps there.
+
+[![A transcript whose timed lines move the audio player (click for the MP4)](.github/media/transcript.webp)](.github/media/transcript.mp4)
+
+### Generate images
+
+Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024 × 1024, or a minute at 2K. Every image lands in the Gallery, where you can filter by model and compare two side by side.
+
+[![Typing a prompt, the progress view, the finished image, then the Gallery and its compare picker (click for the MP4)](.github/media/image.webp)](.github/media/image.mp4)
+
+### Find things in images
+
+Ask LocateAnything for anything you can name, and it boxes every match. Slide between the original and the result to check them.
+
+[![Wind turbines and a lighthouse boxed in a photo, with the before/after slider moving across (click for the MP4)](.github/media/grounding.webp)](.github/media/grounding.mp4)
+
+### Chat with your files
+
+Attach images, PDFs or text files with the + button, choose how hard the model should think, and watch its reasoning before the answer. Any finished job can also be opened in a chat.
+
+[![Attaching the report, asking for its risks with Low thinking, the live reasoning and the answer (click for the MP4)](.github/media/chat.webp)](.github/media/chat.mp4)
+
+### Mind maps
+
+Turn a document, transcript or image into an interactive map, then fold and unfold its branches. The map is also saved as JSON and as a Markdown outline.
+
+[![A mind map of the report with branches being folded and unfolded (click for the MP4)](.github/media/mindmap.webp)](.github/media/mindmap.mp4)
+
+### Dark, light or system
+
+Pick a theme in Settings; the whole interface follows, in both themes and on any screen width.
+
+[![Switching the interface between dark and light in Settings (click for the MP4)](.github/media/theme.webp)](.github/media/theme.mp4)
+
+* * *
+
+## Quick start
 
 You need:
 - an NVIDIA DGX Spark (or another GB10 system) with its stock DGX OS, which includes Docker, the NVIDIA container runtime and CUDA 13;
 - about 130 GB of free disk for the model weights and service images;
 - internet access for the first run.
 
-Then:
-
 ```bash
 git clone https://github.com/MovieMaker93/SparklingKit.git
 cd SparklingKit
+# Builds the services, downloads the models at pinned revisions, starts everything in a memory-safe order
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
 ```
 
-**What the first run does.** It takes 30 to 60 minutes, mostly downloads:
-- builds the app and the service images;
-- downloads each model at a pinned revision;
-- starts the services one at a time, checking each is ready.
-
-Later runs reuse everything and take a few minutes. Passing `--accept-model-licenses` confirms you have read the [model licenses](#this-fork); two of the models are for non-commercial use only.
-
-**Using it.** Open `http://<spark-host>:54321` from any device on your network. The stack uses about 85 GB of the Spark's memory, so do not run another large model next to it; `scripts/spark-switch.sh` swaps between SparklingKit and another LLM container for you.
+- The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
+- `--accept-model-licenses` confirms you have read the [model licenses](#this-fork); two of the models are for non-commercial use only.
+- Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
+| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend` |
 | Use upstream's models instead | leave out `--ocr-backend` and `--image-backend` |
+| Update | `git pull`, then run the start script again |
+| Share the Spark with another LLM | `./scripts/spark-switch.sh sparklingkit` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
 | Run only the app against models you already host | `cp .env.example .env`, set the endpoint URLs, then `docker compose up -d --build` |
 
 The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described further down install **upstream** SparklingKit, not this fork.
+
+## Memory and containers
+
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. Measured on one Spark with the stack above:
+
+| Service | Model | Memory |
+| --- | --- | --- |
+| LLM | Qwen3.6-35B-A3B NVFP4 (vLLM) | about 28 GiB, and about 60 GB while it loads |
+| Image generation | Qwen-Image 2.1 or Turbo, float8 | about 17–18 GiB |
+| Speech recognition | Qwen3-ASR-1.7B | 12.6 GiB |
+| Grounding | LocateAnything-3B | 8.5 GiB |
+| OCR | PaddleOCR-VL-1.6, plus its layout stage on the CPU | 5.4 GiB + about 1 GiB |
+| Translation | Hy-MT2-1.8B-FP8 | 3.8 GiB |
+| App, Redis, system monitor | | under 1 GiB |
+
+| State | Memory used |
+| --- | --- |
+| All services idle | about 85 GiB |
+| Busy (two jobs at a time, the app's default) | 93.5 GiB at peak |
+| Starting up | 95.8 GiB at peak |
+
+That leaves room for the system, but not for another large model: stop other LLMs first, or use `spark-switch.sh`.
+
+The stack runs **9 Docker containers**, or **10** with PaddleOCR-VL (its vision model and its layout adapter run separately): the app, Redis, the system monitor, and one per model service. A short-lived downloader container also runs during installation. Full measurements, including the alternatives, are in [docs/validation.md](docs/validation.md).
+
+* * *
 
 ## Why SparklingKit?
 
@@ -127,7 +204,7 @@ Keeping that boundary explicit supports three practical setups without maintaini
 The recommended distribution is a prebuilt multi-platform container with a small Docker Compose bundle. It runs SparklingKit and Redis together; model weights are never included in the application image.
 
 > [!NOTE]
-> In this fork, the installer and images in this section install upstream SparklingKit. To run the fork, use [Run this fork](#what-this-fork-adds) or one of the source paths below.
+> In this fork, the installer and images in this section install upstream SparklingKit. To run the fork, use the [quick start](#quick-start) or one of the source paths below.
 
 ```bash
 curl -fsSL https://run.sparklingkit.com/stable/install.sh -o install.sh && bash install.sh
@@ -429,6 +506,9 @@ Issues and pull requests are welcome. Before opening a pull request:
 3. Add or update tests for behavioral changes.
 4. Run `npm run typecheck`, `npm test`, and `npm run build`.
 5. Avoid committing `.env`, `data/`, model credentials, or user files.
+6. Title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`); it becomes the squashed commit that release notes are built from.
+
+Coding agents, and humans who like a map, start from [AGENTS.md](AGENTS.md). The README clips are recorded by `scripts/media/`; see its README to refresh them after UI changes.
 
 The project is currently pre-1.0, so APIs and persisted schemas may still evolve. Migrations should remain additive and must not silently rewrite user folders.
 
@@ -447,3 +527,12 @@ This fork is distributed under the same Apache License 2.0 and keeps upstream's 
 Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License, and nvidia/LocateAnything-3B, upstream's grounding model, is licensed for non-commercial and research use.
 
 Fork changes copyright 2026 MovieMaker93.
+
+## Acknowledgements
+
+- [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project this fork builds on.
+- The model teams whose open weights do the work: Qwen ([Qwen3.6](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4), [Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR-1.7B), [Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([LocateAnything](https://huggingface.co/nvidia/LocateAnything-3B)) and Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)).
+- Models evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) and [parakeet.cpp](https://github.com/mudler/parakeet.cpp).
+- The serving and tooling stack: [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
+- The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.
+- The README layout takes its cue from [sparkDash](https://github.com/MiaAI-Lab/sparkDash).
