@@ -1,7 +1,7 @@
-# Qwen-Image 2.1 (QwenImage21Pipeline) is on diffusers main since #14804 and not yet in a release;
-# this commit also keeps ZImagePipeline. Move back to a release pin once one includes it.
-diffusers @ git+https://github.com/huggingface/diffusers@6256aa7666cedd47443adc8f82da9a10e110b09c
-transformers==5.5.3
+# 0.41.0 is the first release with QwenImage21Pipeline and its model-configured sampling sigmas (#14950),
+# which Qwen-Image-2.1-Turbo needs; it also keeps ZImagePipeline. Turbo asks for transformers >= 5.17.
+diffusers==0.41.0
+transformers==5.19.0
 accelerate==1.14.0
 # The NGC base ships torchao 0.14, which lacks FqnToConfig that this diffusers commit imports; 0.16 also
 # keeps its C++ extensions working with the base image's torch 2.10.

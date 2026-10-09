@@ -384,12 +384,13 @@ services:
       start_period: 5m
 
   # One image service on :8336 whose model is chosen at deploy time with SPARKLINGKIT_IMAGE_BACKEND:
-  # z-image (Z-Image-Turbo, default) or qwen-image-2.1 (Qwen-Image 2.1, float8 weights, ~34 GB cap).
+  # z-image (Z-Image-Turbo, default), qwen-image-2.1 (Qwen-Image 2.1, float8 weights, ~34 GB cap) or
+  # qwen-image-2.1-turbo (the same model distilled to 8 steps).
   # Model path, name, steps and sizes follow the backend unless overridden below.
   z-image:
     build:
       context: ./services/dgx-models/image-generation
-    image: sparklingkit/image-generation:diffusers-6256aa7
+    image: sparklingkit/image-generation:diffusers-0.41.0
     container_name: sparklingkit-image-generation
     restart: unless-stopped
     network_mode: host

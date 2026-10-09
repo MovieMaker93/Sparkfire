@@ -30,7 +30,7 @@ Options:
   --force-recreate         Recreate services after using the selected images
   --models-only            Run the six models and monitor without SparklingKit
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
-  --image-backend NAME     z-image (default) or qwen-image-2.1
+  --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
   -h, --help               Show this help
 
 Examples:
@@ -94,7 +94,8 @@ esac
 case "$IMAGE_BACKEND" in
   z-image) export IMAGE_GENERATION_MODEL="Z-Image-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-26g}" ;;
   qwen-image-2.1) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
-  *) printf 'Unknown image backend: %s (use z-image or qwen-image-2.1)\n' "$IMAGE_BACKEND" >&2; exit 2 ;;
+  qwen-image-2.1-turbo) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
+  *) printf 'Unknown image backend: %s (use z-image, qwen-image-2.1 or qwen-image-2.1-turbo)\n' "$IMAGE_BACKEND" >&2; exit 2 ;;
 esac
 export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND"
 
@@ -197,7 +198,7 @@ elif [[ ! -f "$license_marker" ]]; then
 The model weights are not covered by SparklingKit's Apache 2.0 license.
 Review the six publishers' model cards before downloading. In particular,
 nvidia/LocateAnything-3B is currently licensed for non-commercial/research use,
-and Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1) uses the Qwen Research License.
+and Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License.
 EOF
   if [[ -t 0 ]]; then
     printf 'Have you reviewed and accepted the model terms? [y/N] ' >&2
@@ -292,6 +293,11 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
       "Qwen/Qwen-Image-2.1" \
       "d26bb61231c349cf6b7896fa83353113880e1ba3" \
       "Qwen/Qwen-Image-2.1"
+  elif [[ "$IMAGE_BACKEND" == "qwen-image-2.1-turbo" ]]; then
+    download_model \
+      "Qwen/Qwen-Image-2.1-Turbo" \
+      "d65dbc9a7e8f6b5479e33dee6030eaab2a906509" \
+      "Qwen/Qwen-Image-2.1-Turbo"
   else
     download_model \
       "Tongyi-MAI/Z-Image-Turbo" \
