@@ -5,6 +5,8 @@
 > [!NOTE]
 > **Unofficial fork.** This is a personal fork of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit), maintained by [MovieMaker93](https://github.com/MovieMaker93) and tuned for one DGX Spark. It is not affiliated with or endorsed by the SparklingKit project. For the official app, installer and Docker images, use the upstream repository. The changes are summarised in [What this fork adds](#what-this-fork-adds).
 
+[![CI](https://github.com/MovieMaker93/SparklingKit/actions/workflows/ci.yml/badge.svg)](https://github.com/MovieMaker93/SparklingKit/actions/workflows/ci.yml)
+[![Security](https://github.com/MovieMaker93/SparklingKit/actions/workflows/security.yml/badge.svg)](https://github.com/MovieMaker93/SparklingKit/actions/workflows/security.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933.svg)](https://nodejs.org/)
 
@@ -45,6 +47,7 @@ Image jobs can set a seed and a step count, and the size list follows the runnin
 
 - `scripts/spark-switch.sh` swaps the Spark between SparklingKit and another always-on LLM, since the two do not fit in memory together.
 - Long model calls, such as 2K images or long translations, are no longer cut off by Node's 300-second fetch timeouts.
+- CI on every change: tests and builds, CodeQL, dependency and secret scanning, Trivy, Dockerfile linting, and Dependabot updates. Releases come from [Conventional Commits](https://www.conventionalcommits.org/) through release-please, with a changelog, a multi-arch image on `ghcr.io/moviemaker93/sparklingkit` and a DGX stack bundle. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ### Quick start on a DGX Spark
 

@@ -114,6 +114,10 @@ npm run dev
    - Remove the open `cors()`.
    - Redact API keys in `GET /api/settings`.
    - Add a host allowlist and an optional access token.
+   - Run the app and service containers as a non-root user (Trivy DS-0002); existing `data/` folders need
+     their ownership migrated.
+   - Update the grounding adapter's Pillow (11 → 12) and transformers (4.57 → 5.x), which carry known
+     advisories, after testing LocateAnything on a Spark.
 6. **Correctness and speed:**
    - Add a per-job lock in `updateJob`.
    - Send OCR pages and ASR chunks with bounded concurrency.

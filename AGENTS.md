@@ -143,7 +143,34 @@ Rules for this layer:
 - **Tests sit next to the code** (`*.test.ts`, vitest). Behaviour changes need tests. Python adapters use
   `unittest` and must run without a GPU or model weights.
 - **Line endings are LF.**
-- **Commits:** an imperative subject line, and a body that explains why. One logical change per commit.
+- **Commits follow [Conventional Commits](https://www.conventionalcommits.org/):** `type(scope): description`
+  in the imperative and lower case, with a body that explains why. One logical change per commit.
+  - Types: `feat`, `fix`, `perf`, `security`, `deps`, `docs`, `refactor`, `test`, `build`, `ci`, `chore`,
+    `revert`.
+  - Scopes are optional, for example `chat`, `ocr`, `image`, `dgx`, `ui`.
+  - A breaking change adds `!` after the type, plus a `BREAKING CHANGE:` footer.
+  - Pull requests are squash-merged, so the **PR title** becomes the commit on `main` and must follow the
+    same format; a check enforces it.
+
+## CI, security checks and releases
+
+All of it lives in `.github/`:
+
+| Workflow | Runs on | What it does |
+| --- | --- | --- |
+| `ci.yml` | pushes to `main`, pull requests | Type check, unit tests, production build; Python adapter tests; ShellCheck; Docker builds of the app and the small service images |
+| `security.yml` | pushes, pull requests, weekly | CodeQL (TypeScript, Python, workflows); `npm audit` on production dependencies; dependency review on PRs; gitleaks secret scan; Trivy on lockfiles, requirements and Dockerfiles; hadolint |
+| `pr-title.yml` | pull requests | Checks the title is a Conventional Commit |
+| `fork-release.yml` | pushes to `main` | release-please keeps a release PR with the next version and `CHANGELOG.md`; merging it tags the release, publishes `ghcr.io/<owner>/sparklingkit` (amd64 and arm64, with SBOM and provenance) and attaches the DGX stack bundle |
+| `release.yml`, `publish-run-site.yml` | upstream only | Upstream's own release and install site; skipped outside `stevibe/SparklingKit` |
+
+Dependabot (`.github/dependabot.yml`) opens weekly update PRs for npm, pip, Dockerfiles, Compose images and
+GitHub Actions. Updates to model services change GPU code paths: merge them only after the stack has run
+on a DGX Spark.
+
+When a check fails, fix the cause rather than loosening the check. Third-party actions are pinned to commit
+SHAs (with the version in a comment); keep it that way when you add or update one. Never commit the version
+bump or `CHANGELOG.md` by hand: release-please owns both.
 
 ## Security and privacy
 
@@ -167,10 +194,10 @@ The DGX Spark is often shared with other workloads. Before starting or stopping 
 
 ## Definition of done
 
-1. `npm run typecheck` and `npm test` pass (apart from the known Windows-only failures above), and adapter
-   tests pass if you touched `services/`.
+1. `npm run typecheck` and `npm test` pass (apart from the known Windows-only failures above), adapter
+   tests pass if you touched `services/`, and the CI and Security workflows are green.
 2. New behaviour has tests; UI changes were checked in both themes at both widths.
 3. Docs are updated: `docs/fork.md` for fork features, the README for anything a user installs or sees,
    `docs/validation.md` for measured results.
 4. No personal or machine-specific details in tracked files.
-5. Commits are focused and explain why.
+5. Commits and the PR title follow Conventional Commits and explain why.
