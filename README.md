@@ -1,6 +1,9 @@
-# SparklingKit
+# SparklingKit · MovieMaker93 fork
 
 > A local-first, file-oriented AI workspace for OCR, transcription, translation, visual grounding, image generation, interactive mind maps, chat, and reusable workflows.
+
+> [!NOTE]
+> **Unofficial fork.** This is a personal fork of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit), maintained by [MovieMaker93](https://github.com/MovieMaker93) and tuned for one DGX Spark. It is not affiliated with or endorsed by the SparklingKit project. For the official app, installer and Docker images, use the upstream repository. The changes are summarised in [What this fork adds](#what-this-fork-adds).
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933.svg)](https://nodejs.org/)
@@ -10,6 +13,48 @@ SparklingKit turns files into durable, reusable AI work. It connects to independ
 The application is designed for private workstations, home labs, and local-network AI servers. Models are not bundled: bring compatible services, configure their endpoints, and enable only the capabilities you need.
 
 SparklingKit’s reference deployment runs **six specialized models on a single NVIDIA DGX Spark with 128 GB of unified memory**. Instead of asking one general model to handle every medium, the workspace routes each task to a focused OCR, speech, translation, grounding, image, or multimodal language model—all from one machine and one interface. A repository-owned starter script handles the model downloads, service builds, memory-safe startup order, readiness checks, system monitor, and SparklingKit itself.
+
+## What this fork adds
+
+Everything upstream does still works the same way; the fork adds to it. Details are in [docs/fork.md](docs/fork.md), and the validation results and next steps in [docs/plan.md](docs/plan.md).
+
+**Interface**
+
+- Light, dark and system themes built on shared color tokens, with a mint accent for primary actions.
+- Sidebar: one AI-services chip with a status popover, and a compact DGX Spark monitor.
+- Workbench: a "Running now" strip, and readable job titles in place of IDs.
+- Gallery: generated and uploaded images with thumbnails, filters by source and model, a lightbox and a side-by-side compare.
+- Job pages: a transcript timeline that seeks the player, image zoom with a before/after slider for grounding, a document outline, and a run-history timeline.
+
+**Chat**
+
+- A thinking control (Off, Low, Medium, High) for models with a thinking mode. The model's reasoning streams into a foldable block and is kept with the answer.
+- Attachments through a + button, paste, or drag and drop. Images go to the model as image input; PDFs and text or code files are read as text, and scanned PDFs as page images.
+- The header names the model that is actually configured.
+
+**Model backends**, chosen at deploy time. Upstream's defaults stay the defaults.
+
+| Service | Upstream default | Fork alternative | Option |
+| --- | --- | --- | --- |
+| OCR | Unlimited-OCR | PaddleOCR-VL-1.6, with a layout stage for headings, tables and reading order | `--ocr-backend paddleocr-vl` |
+| Image generation | Z-Image-Turbo | Qwen-Image 2.1 (2K sizes), or Qwen-Image-2.1-Turbo (8 steps, about 4× faster) | `--image-backend qwen-image-2.1` or `qwen-image-2.1-turbo` |
+
+Image jobs can set a seed and a step count, and the size list follows the running model.
+
+**Operations and fixes**
+
+- `scripts/spark-switch.sh` swaps the Spark between SparklingKit and another always-on LLM, since the two do not fit in memory together.
+- Long model calls, such as 2K images or long translations, are no longer cut off by Node's 300-second fetch timeouts.
+
+**Run this fork** on a DGX Spark:
+
+```bash
+git clone https://github.com/MovieMaker93/SparklingKit.git
+cd SparklingKit
+./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
+```
+
+The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described below install **upstream** SparklingKit, not this fork.
 
 ## Why SparklingKit?
 
@@ -55,6 +100,9 @@ Keeping that boundary explicit supports three practical setups without maintaini
 
 The recommended distribution is a prebuilt multi-platform container with a small Docker Compose bundle. It runs SparklingKit and Redis together; model weights are never included in the application image.
 
+> [!NOTE]
+> In this fork, the installer and images in this section install upstream SparklingKit. To run the fork, use [Run this fork](#what-this-fork-adds) or one of the source paths below.
+
 ```bash
 curl -fsSL https://run.sparklingkit.com/stable/install.sh -o install.sh && bash install.sh
 ```
@@ -93,7 +141,7 @@ Reopen onboarding from **Settings → General → Deployment**. Existing configu
 The hosted installer is only a convenience. The equivalent auditable source path is:
 
 ```bash
-git clone https://github.com/stevibe/SparklingKit.git
+git clone https://github.com/MovieMaker93/SparklingKit.git
 cd SparklingKit
 ./distribution/install.sh --from-source --dir ../sparklingkit-install
 ```
@@ -198,7 +246,7 @@ See [Workflow design and JSON contracts](docs/workflows.md) for details.
 For a source-built Compose deployment, clone and configure the project:
 
 ```bash
-git clone https://github.com/stevibe/SparklingKit.git
+git clone https://github.com/MovieMaker93/SparklingKit.git
 cd SparklingKit
 cp .env.example .env
 ```
@@ -365,3 +413,11 @@ SparklingKit is licensed under the [Apache License 2.0](LICENSE).
 Third-party packages and model services remain subject to their respective license terms.
 
 Copyright 2026 Steven Lei.
+
+### This fork
+
+This fork is distributed under the same Apache License 2.0 and keeps upstream's [LICENSE](LICENSE) and [NOTICE](NOTICE). Its changes are recorded in the commit history and summarised in [docs/fork.md](docs/fork.md). "SparklingKit" is the upstream project's name; the fork uses it only to say where the code comes from.
+
+Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License, and nvidia/LocateAnything-3B, upstream's grounding model, is licensed for non-commercial and research use.
+
+Fork changes copyright 2026 MovieMaker93.
