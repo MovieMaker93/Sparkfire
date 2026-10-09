@@ -30,12 +30,25 @@ class Backend:
     sizes: list[dict[str, str]] = field(default_factory=list)
     # diffusers attention backend; empty keeps PyTorch SDPA.
     attention_backend: str = ""
+    # Weight quantization applied at load (a TORCHAO_CONFIGS key); "none" keeps bfloat16.
+    quantize: str = "none"
+    # The model's own config fixes the sampling schedule, so the requested step count is ignored.
+    fixed_schedule: bool = False
+    # Extra keyword arguments for every pipeline call.
+    pipeline_kwargs: dict = field(default_factory=dict)
 
 
 STANDARD_SIZES = [
     {"value": "1024x1024", "label": "Square", "ratio": "1:1", "quality": "standard"},
     {"value": "1536x1024", "label": "Landscape", "ratio": "3:2", "quality": "standard"},
     {"value": "1024x1536", "label": "Portrait", "ratio": "2:3", "quality": "standard"},
+]
+
+# Qwen-Image 2.1's official sizes are all about 4 MP; the 1 MP standard sizes are kept for speed.
+QWEN_SIZES = STANDARD_SIZES + [
+    {"value": "2048x2048", "label": "Square", "ratio": "1:1", "quality": "high"},
+    {"value": "2528x1696", "label": "Landscape", "ratio": "3:2", "quality": "high"},
+    {"value": "1696x2528", "label": "Portrait", "ratio": "2:3", "quality": "high"},
 ]
 
 BACKENDS = {
@@ -64,12 +77,26 @@ BACKENDS = {
         max_steps=60,
         guidance_scale=1.0,
         size_multiple=32,
-        max_pixels=2048 * 2048,
-        sizes=STANDARD_SIZES + [
-            {"value": "2048x2048", "label": "Square", "ratio": "1:1", "quality": "high"},
-            {"value": "2496x1664", "label": "Landscape", "ratio": "3:2", "quality": "high"},
-            {"value": "1664x2496", "label": "Portrait", "ratio": "2:3", "quality": "high"},
-        ],
+        max_pixels=2528 * 1696,
+        sizes=QWEN_SIZES,
+        quantize="float8wo",
+    ),
+    # The same model distilled to 8 steps. Its model_index.json carries the sampling sigmas (diffusers 0.41),
+    # so the step count is fixed; prefix KV caching reuses the prompt context across steps.
+    "qwen-image-2.1-turbo": Backend(
+        model_name="Qwen-Image-2.1-Turbo",
+        model_path="/models/Qwen/Qwen-Image-2.1-Turbo",
+        owner="Qwen",
+        pipeline="QwenImage21Pipeline",
+        default_steps=8,
+        max_steps=8,
+        guidance_scale=1.0,
+        size_multiple=32,
+        max_pixels=2528 * 1696,
+        sizes=QWEN_SIZES,
+        quantize="float8wo",
+        fixed_schedule=True,
+        pipeline_kwargs={"use_kv_cache": True},
     ),
 }
 
@@ -83,7 +110,7 @@ ATTENTION_BACKEND = os.getenv("ATTENTION_BACKEND") or BACKEND.attention_backend
 DEFAULT_STEPS = int(os.getenv("DEFAULT_STEPS") or BACKEND.default_steps)
 MAX_PIXELS = int(os.getenv("MAX_PIXELS") or BACKEND.max_pixels)
 # float8 weight-only quantization of the transformer and text encoder; "none" keeps bfloat16.
-QUANTIZE = os.getenv("QUANTIZE") or ("float8wo" if BACKEND_ID == "qwen-image-2.1" else "none")
+QUANTIZE = os.getenv("QUANTIZE") or BACKEND.quantize
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "/outputs"))
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -124,6 +151,8 @@ def validate_dimensions(width: int, height: int) -> None:
 
 
 def validate_steps(steps: int | None) -> int:
+    if BACKEND.fixed_schedule:
+        return BACKEND.default_steps
     actual = steps or DEFAULT_STEPS
     if actual > BACKEND.max_steps:
         raise HTTPException(status_code=400, detail=f"{MODEL_NAME} accepts at most {BACKEND.max_steps} steps")
@@ -206,7 +235,7 @@ def generate_image(prompt: str, width: int, height: int, seed: int | None, steps
     actual_steps = validate_steps(steps)
     actual_seed = seed if seed is not None else secrets.randbelow(2**31 - 1)
     guidance = BACKEND.guidance_scale if guidance_scale is None else guidance_scale
-    guidance_argument = {"true_cfg_scale": guidance} if BACKEND_ID == "qwen-image-2.1" else {"guidance_scale": guidance}
+    guidance_argument = {"true_cfg_scale": guidance} if BACKEND.pipeline == "QwenImage21Pipeline" else {"guidance_scale": guidance}
     generator = torch.Generator(device="cuda").manual_seed(actual_seed)
     started = time.perf_counter()
     with generation_lock, torch.inference_mode():
@@ -214,9 +243,10 @@ def generate_image(prompt: str, width: int, height: int, seed: int | None, steps
             prompt=prompt,
             height=height,
             width=width,
-            num_inference_steps=actual_steps,
             generator=generator,
+            **({} if BACKEND.fixed_schedule else {"num_inference_steps": actual_steps}),
             **guidance_argument,
+            **BACKEND.pipeline_kwargs,
         ).images[0]
         torch.cuda.synchronize()
         torch.cuda.empty_cache()

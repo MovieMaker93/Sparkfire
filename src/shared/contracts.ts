@@ -186,11 +186,33 @@ export interface PromptPreset {
   chunking: { maxInputTokens: number; strategy: "single" | "map-reduce" };
 }
 
+/** How hard the chat model should think before answering; "off" skips thinking. */
+export const CHAT_EFFORTS = ["off", "low", "medium", "high"] as const;
+export type ChatEffort = (typeof CHAT_EFFORTS)[number];
+
+export const MAX_CHAT_ATTACHMENTS = 8;
+
+/** A file added to a chat message: an image the model sees, or a document whose text it reads. */
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  kind: "image" | "document";
+  /** Characters of extracted text, for documents. */
+  textChars?: number;
+  /** Page images made for a PDF without a text layer, sent to the model as images. */
+  pageImages?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "system" | "user" | "assistant";
   content: string;
   createdAt: string;
+  /** The model's reasoning before an assistant answer, when the server streamed it. */
+  reasoning?: string;
+  attachments?: ChatAttachment[];
 }
 
 export interface ChatRecord {

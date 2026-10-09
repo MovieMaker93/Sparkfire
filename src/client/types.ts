@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  ChatAttachment,
   ChatRecord,
   EndpointConfig,
   EndpointHealth,
@@ -27,6 +28,7 @@ import type {
 
 export type {
   Artifact,
+  ChatAttachment,
   EndpointConfig,
   EndpointHealth,
   EndpointKind,

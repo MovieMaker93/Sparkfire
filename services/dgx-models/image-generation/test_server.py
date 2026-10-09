@@ -34,7 +34,7 @@ class ImageAdapterTests(unittest.TestCase):
         caps = server.capabilities()
         self.assertEqual(caps["model"], "Qwen-Image-2.1")
         self.assertEqual(caps["defaultSteps"], 40)
-        self.assertIn("2496x1664", [size["value"] for size in caps["sizes"]])
+        self.assertIn("2528x1696", [size["value"] for size in caps["sizes"]])
         for size in caps["sizes"]:
             width, height = server.parse_size(size["value"])
             self.assertEqual(width % 32, 0)
@@ -57,6 +57,17 @@ class ImageAdapterTests(unittest.TestCase):
             os.environ.pop("QUANTIZE", None)
         self.assertEqual(load_server("qwen-image-2.1").QUANTIZE, "float8wo")
         self.assertIn("float8wo", load_server("z-image").TORCHAO_CONFIGS)
+
+    def test_qwen_turbo_uses_its_own_schedule_and_prompt_cache(self):
+        server = load_server("qwen-image-2.1-turbo")
+        caps = server.capabilities()
+        self.assertEqual(caps["model"], "Qwen-Image-2.1-Turbo")
+        self.assertEqual((caps["defaultSteps"], caps["maxSteps"]), (8, 8))
+        # The 8-step schedule comes from the model, so a requested step count is ignored.
+        self.assertEqual(server.validate_steps(30), 8)
+        self.assertEqual(server.QUANTIZE, "float8wo")
+        self.assertEqual(server.BACKEND.pipeline_kwargs, {"use_kv_cache": True})
+        self.assertEqual(server.ATTENTION_BACKEND, "")
 
     def test_attention_backend_follows_the_model(self):
         # Qwen-Image passes an attention mask that flash-attn 2 rejects.

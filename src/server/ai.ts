@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { EndpointConfig, EndpointHealth } from "./models.js";
+import type { ChatEffort } from "../shared/contracts.js";
 
 function url(baseUrl: string, route: string) {
   return `${baseUrl.replace(/\/$/, "")}/${route.replace(/^\//, "")}`;
@@ -256,16 +257,35 @@ export async function openChatStream(
   }>,
   temperature: number,
   signal?: AbortSignal,
+  extraBody: Record<string, unknown> = {},
 ) {
   const response = await fetch(url(endpoint.baseUrl, "chat/completions"), {
     method: "POST",
     headers: headers(endpoint),
-    body: JSON.stringify({ model: endpoint.model, messages, temperature, stream: true }),
+    body: JSON.stringify({ model: endpoint.model, messages, temperature, stream: true, ...extraBody }),
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30 * 60_000)]) : AbortSignal.timeout(30 * 60_000),
   });
   if (!response.ok) throw new Error(await responseError(response));
   if (!response.body) throw new Error("The endpoint returned no response stream");
   return response.body;
+}
+
+/**
+ * Request fields for a thinking effort. Qwen3-family chat templates read `enable_thinking`; Qwen3.8 builds such
+ * as Saluki also read `reasoning_effort` (low, medium, or xhigh by default). No effort keeps the model's default.
+ */
+export function thinkingOptions(effort?: ChatEffort): Record<string, unknown> {
+  if (!effort) return {};
+  if (effort === "off") return { chat_template_kwargs: { enable_thinking: false } };
+  if (effort === "high") return { chat_template_kwargs: { enable_thinking: true } };
+  return { chat_template_kwargs: { enable_thinking: true, reasoning_effort: effort } };
+}
+
+/** Answer and reasoning text of one streamed chat-completion chunk; servers name the reasoning field differently. */
+export function streamDelta(chunk: unknown) {
+  const delta = (chunk as { choices?: Array<{ delta?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null } }> } | null)
+    ?.choices?.[0]?.delta;
+  return { content: delta?.content || "", reasoning: delta?.reasoning_content || delta?.reasoning || "" };
 }
 
 export interface GeneratedImageResult {

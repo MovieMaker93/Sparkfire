@@ -6,9 +6,10 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cors from "cors";
 import multer from "multer";
 import { z } from "zod";
-import { ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES } from "../shared/contracts.js";
+import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
-import { checkEndpoint, imageCapabilities, openChatStream, type ImageCapabilities } from "./ai.js";
+import { checkEndpoint, imageCapabilities, openChatStream, streamDelta, thinkingOptions, type ImageCapabilities } from "./ai.js";
+import { chatAttachmentPath, MAX_ATTACHMENTS_PER_MESSAGE, readChatAttachment, saveChatAttachment } from "./chat-attachments.js";
 import { modelMessagesForChat } from "./chat-messages.js";
 import { APP_VERSION, CLIENT_DIR, DATA_DIR, PORT } from "./config.js";
 import { jobEvents, publishJob } from "./events.js";
@@ -526,14 +527,45 @@ app.delete("/api/chats/:id", async (request, response) => {
   await deleteChat(request.params.id);
   response.status(204).end();
 });
+app.post("/api/chats/:id/attachments", upload.array("files", MAX_ATTACHMENTS_PER_MESSAGE), async (request, response) => {
+  const files = (request.files || []) as Express.Multer.File[];
+  const chatId = String(request.params.id);
+  try {
+    await readChat(chatId);
+    if (!files.length) return response.status(400).json({ error: "Choose a file to attach" });
+    const settings = await readSettings();
+    const acceptsImages = Boolean(settings.endpoints.llm.capabilities?.includes("image"));
+    const attachments = [];
+    for (const file of files) attachments.push(await saveChatAttachment(chatId, file, acceptsImages));
+    response.status(201).json(attachments);
+  } finally {
+    await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => undefined)));
+  }
+});
+
+app.get("/api/chats/:id/attachments/:attachmentId", async (request, response) => {
+  const { file, mimeType, name } = await chatAttachmentPath(request.params.id, request.params.attachmentId);
+  // Documents are served as plain text so an attached HTML or SVG file never runs on the app's origin.
+  response.type(mimeType.startsWith("image/") || mimeType === "application/pdf" ? mimeType : "text/plain; charset=utf-8");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("Content-Security-Policy", "sandbox");
+  response.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
+  response.sendFile(file);
+});
+
 app.post("/api/chats/:id/messages", async (request, response) => {
-  const content = z.string().min(1).max(500_000).parse(request.body?.content);
+  const typed = z.string().max(500_000).default("").parse(request.body?.content).trim();
+  const attachmentIds = z.array(z.string()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]).parse(request.body?.attachmentIds);
+  const effort = z.enum(CHAT_EFFORTS).optional().parse(request.body?.effort);
+  if (!typed && !attachmentIds.length) return response.status(400).json({ error: "Write a message or attach a file" });
   const chat = await readChat(request.params.id);
+  const attachments = await Promise.all(attachmentIds.map((attachmentId) => readChatAttachment(chat.id, attachmentId)));
+  const content = typed || `Please look at the attached ${attachments.length === 1 ? "file" : "files"}.`;
   const settings = await readSettings();
   const now = new Date().toISOString();
-  const userMessage: ChatMessage = { id: randomUUID(), role: "user", content, createdAt: now };
+  const userMessage: ChatMessage = { id: randomUUID(), role: "user", content, createdAt: now, ...(attachments.length ? { attachments } : {}) };
   chat.messages.push(userMessage);
-  if (chat.title === "New conversation") chat.title = content.replace(/\s+/g, " ").slice(0, 54);
+  if (chat.title === "New conversation") chat.title = (typed || attachments[0]?.name || content).replace(/\s+/g, " ").slice(0, 54);
   await writeChat(chat);
 
   response.setHeader("Content-Type", "text/event-stream");
@@ -541,16 +573,19 @@ app.post("/api/chats/:id/messages", async (request, response) => {
   response.setHeader("Connection", "keep-alive");
   response.flushHeaders();
   let assistant = "";
+  let reasoning = "";
   const upstreamController = new AbortController();
   response.on("close", () => {
     if (!response.writableEnded) upstreamController.abort();
   });
   try {
+    // Always the configured model: a chat created before a model switch would otherwise ask for one the server no longer serves.
     const body = await openChatStream(
-      { ...settings.endpoints.llm, model: chat.model || settings.endpoints.llm.model },
+      settings.endpoints.llm,
       await modelMessagesForChat(chat, settings),
       chat.temperature,
       upstreamController.signal,
+      thinkingOptions(effort),
     );
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -565,8 +600,11 @@ app.post("/api/chats/:id/messages", async (request, response) => {
         const data = line.slice(5).trim();
         if (!data || data === "[DONE]") continue;
         try {
-          const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-          const delta = parsed.choices?.[0]?.delta?.content || "";
+          const { content: delta, reasoning: thought } = streamDelta(JSON.parse(data));
+          if (thought) {
+            reasoning += thought;
+            response.write(`data: ${JSON.stringify({ reasoning: thought })}\n\n`);
+          }
           if (delta) {
             assistant += delta;
             response.write(`data: ${JSON.stringify({ delta })}\n\n`);
@@ -578,8 +616,15 @@ app.post("/api/chats/:id/messages", async (request, response) => {
       if (done) break;
     }
     if (!assistant.trim()) throw new Error("The language model finished without returning final content");
-    const assistantMessage: ChatMessage = { id: randomUUID(), role: "assistant", content: assistant, createdAt: new Date().toISOString() };
+    const assistantMessage: ChatMessage = {
+      id: randomUUID(),
+      role: "assistant",
+      content: assistant,
+      createdAt: new Date().toISOString(),
+      ...(reasoning.trim() ? { reasoning: reasoning.trim() } : {}),
+    };
     chat.messages.push(assistantMessage);
+    chat.model = settings.endpoints.llm.model;
     await writeChat(chat);
     response.write(`data: ${JSON.stringify({ done: true, message: assistantMessage })}\n\n`);
     response.end();

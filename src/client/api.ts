@@ -1,5 +1,6 @@
+import type { ChatEffort } from "../shared/contracts";
 import type { ImageCapabilities } from "./image-capabilities";
-import type { Chat, EndpointConfig, GalleryItem, EndpointHealth, EndpointKind, FlowRun, Health, Job, ModuleDescriptor, ModuleId, PromptPreset, SearchResponse, SearchScope, Settings, SparkStatus, WorkflowDefinition, WorkflowRun, WorkflowValidationResult } from "./types";
+import type { Chat, ChatAttachment, EndpointConfig, GalleryItem, EndpointHealth, EndpointKind, FlowRun, Health, Job, ModuleDescriptor, ModuleId, PromptPreset, SearchResponse, SearchScope, Settings, SparkStatus, WorkflowDefinition, WorkflowRun, WorkflowValidationResult } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -12,6 +13,19 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+export function chatAttachmentUrl(chatId: string, attachmentId: string) {
+  return `/api/chats/${encodeURIComponent(chatId)}/attachments/${encodeURIComponent(attachmentId)}`;
+}
+
+export async function uploadChatAttachments(chatId: string, files: File[]) {
+  const form = new FormData();
+  files.forEach((file) => form.append("files", file));
+  const response = await fetch(`/api/chats/${encodeURIComponent(chatId)}/attachments`, { method: "POST", body: form });
+  const payload = await response.json().catch(() => ({})) as ChatAttachment[] & { error?: string };
+  if (!response.ok) throw new Error(payload.error || `Upload failed (${response.status})`);
+  return payload as ChatAttachment[];
 }
 
 export function thumbnailUrl(jobId: string, artifactId: string, width = 320) {
@@ -157,13 +171,14 @@ export function uploadGroundingJob(file: File, queries: string[], onProgress: (v
 export async function streamChat(
   chatId: string,
   content: string,
-  handlers: { onDelta: (delta: string) => void; onDone: () => void; onError: (message: string) => void },
+  handlers: { onDelta: (delta: string) => void; onReasoning?: (delta: string) => void; onDone: () => void; onError: (message: string) => void },
   signal?: AbortSignal,
+  options: { effort?: ChatEffort; attachmentIds?: string[] } = {},
 ) {
   const response = await fetch(`/api/chats/${chatId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, ...options }),
     signal,
   });
   if (!response.ok || !response.body) throw new Error(`Chat request failed (${response.status})`);
@@ -178,7 +193,8 @@ export async function streamChat(
     for (const event of events) {
       const line = event.split("\n").find((entry) => entry.startsWith("data:"));
       if (!line) continue;
-      const payload = JSON.parse(line.slice(5).trim()) as { delta?: string; done?: boolean; error?: string };
+      const payload = JSON.parse(line.slice(5).trim()) as { delta?: string; reasoning?: string; done?: boolean; error?: string };
+      if (payload.reasoning) handlers.onReasoning?.(payload.reasoning);
       if (payload.delta) handlers.onDelta(payload.delta);
       if (payload.error) handlers.onError(payload.error);
       if (payload.done) handlers.onDone();
