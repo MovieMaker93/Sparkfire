@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio } from "./ai.js";
+import { cleanAsrText, DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio } from "./ai.js";
 
 const cleanup: Array<() => Promise<unknown>> = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((work) => work())); });
@@ -143,5 +143,15 @@ describe("chat thinking", () => {
     expect(streamDelta({ choices: [{ delta: { reasoning: "Hmm", content: null } }] })).toEqual({ content: "", reasoning: "Hmm" });
     expect(streamDelta({ object: "bookkeeping" })).toEqual({ content: "", reasoning: "" });
     expect(streamDelta(null)).toEqual({ content: "", reasoning: "" });
+  });
+});
+
+describe("ASR text cleanup", () => {
+  it("removes Qwen3-ASR language tags wherever they appear", () => {
+    expect(cleanAsrText("language English<asr_text>Hello there.</asr_text>")).toBe("Hello there.");
+    // A long chunk can switch windows mid-text; the tag used to leak into the transcript.
+    expect(cleanAsrText("is really.language English<asr_text>Greek, after all")).toBe("is really. Greek, after all");
+    expect(cleanAsrText("<asr_text>Ciao a tutti.</asr_text>")).toBe("Ciao a tutti.");
+    expect(cleanAsrText("We study the language English speakers use.")).toBe("We study the language English speakers use.");
   });
 });
