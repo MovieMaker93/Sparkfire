@@ -16,7 +16,7 @@ SparklingKit’s reference deployment runs **six specialized models on a single 
 
 ## What this fork adds
 
-Everything upstream does still works the same way; the fork adds to it. Details are in [docs/fork.md](docs/fork.md), and the validation results and next steps in [docs/plan.md](docs/plan.md).
+Everything upstream does still works the same way; the fork adds to it. Details are in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md](docs/validation.md), and what comes next in the [roadmap](docs/fork.md#roadmap). Coding agents start from [AGENTS.md](AGENTS.md).
 
 **Interface**
 
@@ -46,7 +46,14 @@ Image jobs can set a seed and a step count, and the size list follows the runnin
 - `scripts/spark-switch.sh` swaps the Spark between SparklingKit and another always-on LLM, since the two do not fit in memory together.
 - Long model calls, such as 2K images or long translations, are no longer cut off by Node's 300-second fetch timeouts.
 
-**Run this fork** on a DGX Spark:
+### Quick start on a DGX Spark
+
+You need:
+- an NVIDIA DGX Spark (or another GB10 system) with its stock DGX OS, which includes Docker, the NVIDIA container runtime and CUDA 13;
+- about 130 GB of free disk for the model weights and service images;
+- internet access for the first run.
+
+Then:
 
 ```bash
 git clone https://github.com/MovieMaker93/SparklingKit.git
@@ -54,7 +61,23 @@ cd SparklingKit
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
 ```
 
-The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described below install **upstream** SparklingKit, not this fork.
+**What the first run does.** It takes 30 to 60 minutes, mostly downloads:
+- builds the app and the service images;
+- downloads each model at a pinned revision;
+- starts the services one at a time, checking each is ready.
+
+Later runs reuse everything and take a few minutes. Passing `--accept-model-licenses` confirms you have read the [model licenses](#this-fork); two of the models are for non-commercial use only.
+
+**Using it.** Open `http://<spark-host>:54321` from any device on your network. The stack uses about 85 GB of the Spark's memory, so do not run another large model next to it; `scripts/spark-switch.sh` swaps between SparklingKit and another LLM container for you.
+
+| To | Run |
+| --- | --- |
+| See what is running | `./scripts/start-dgx-spark.sh status` |
+| Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
+| Use upstream's models instead | leave out `--ocr-backend` and `--image-backend` |
+| Run only the app against models you already host | `cp .env.example .env`, set the endpoint URLs, then `docker compose up -d --build` |
+
+The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described further down install **upstream** SparklingKit, not this fork.
 
 ## Why SparklingKit?
 
