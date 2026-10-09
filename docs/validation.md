@@ -75,10 +75,35 @@ clips, one request at a time:
 | Prefill | about 740 tok/s up to 6k tokens; 703 tok/s at 25k | faster |
 
 It read a table page from an image correctly, answered reasoning questions, and produced a working mind map
-through the app. The chat's thinking control maps onto its template (`enable_thinking`,
+through the app.
+
+- **Context:** 65,536 tokens (64k) in one slot (`-c 65536 --parallel 1`). The model was trained for 262,144
+  (256k), so the window can grow at the cost of more cache memory. SparklingKit's default LLM uses the same
+  64k (`--max-model-len 65536`).
+- **Memory breakdown:**
+  - 13.0 GiB on the GPU: about 7.3 GiB of weights, 0.9 GiB for the vision add-on, and roughly 4.8 GiB for the
+    64k context cache and working buffers.
+  - 8.5 GiB of process memory, mostly the memory-mapped GGUF file. The system can reclaim it, and
+    `--no-mmap` avoids holding it next to the GPU copy. The chat's thinking control maps onto its template (`enable_thinking`,
 `reasoning_effort`: low, medium, xhigh).
 
 ## Memory
+
+Per container, with every service loaded and idle (`nvidia-smi` per process for GPU memory, `docker stats` for
+the container's own RAM). The LLM was replaced by Saluki for this measurement, so its row is an estimate
+from its configuration and the stack totals.
+
+| Container | GPU | RAM | Total |
+| --- | --- | --- | --- |
+| `sparklingkit-qwen36` (Qwen3.6-35B-A3B, vLLM) | ≈ 27 GiB | ≈ 4 GiB | ≈ 31 GiB; about 60 GB while loading |
+| `sparklingkit-image-generation` (Qwen-Image-2.1-Turbo, float8) | 17.1 GiB | 1.9 GiB | 19.0 GiB |
+| `sparklingkit-qwen3-asr` | 12.6 GiB | 3.9 GiB | 16.5 GiB |
+| `sparklingkit-locateanything` | 8.4 GiB | 2.5 GiB | 10.9 GiB |
+| `sparklingkit-paddleocr-vlm` | 5.4 GiB | 3.6 GiB | 9.0 GiB |
+| `sparklingkit-hy-mt2` | 2.4 GiB | 3.0 GiB | 5.4 GiB |
+| `sparklingkit-paddleocr-vl` (layout, CPU) | — | 0.8 GiB | 0.8 GiB |
+| `sparklingkit-app-1`, `sparklingkit-redis-1`, `sparklingkit-dgx-status` | — | 0.1 GiB together | 0.1 GiB |
+| Saluki 27B in `llama-server` (instead of `qwen36`) | 13.0 GiB | 8.5 GiB, reclaimable | 13–21.5 GiB |
 
 | State | Used |
 | --- | --- |

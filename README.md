@@ -135,17 +135,32 @@ The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described f
 
 ## Memory and containers
 
-The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. Measured on one Spark with the stack above:
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **9 Docker containers**, or **10** with PaddleOCR-VL, whose vision model and layout stage run separately. A short-lived downloader container also runs during installation.
 
-| Service | Model | Memory |
+Measured on one Spark with every service loaded and idle. GPU is what the container allocates through CUDA; RAM is the container's own process memory.
+
+| # | Container | What it runs | GPU | RAM | Total |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `sparklingkit-app-1` | Web app, API and job worker | — | 0.1 GiB | 0.1 GiB |
+| 2 | `sparklingkit-redis-1` | Job queue | — | < 0.1 GiB | < 0.1 GiB |
+| 3 | `sparklingkit-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
+| 4 | `sparklingkit-qwen36` | LLM: Qwen3.6-35B-A3B NVFP4 in vLLM, 64k context | ≈ 27 GiB | ≈ 4 GiB | **≈ 31 GiB**, and about 60 GB while it loads |
+| 5 | `sparklingkit-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
+| 6 | `sparklingkit-qwen3-asr` | Qwen3-ASR-1.7B in vLLM | 12.6 GiB | 3.9 GiB | **16.5 GiB** |
+| 7 | `sparklingkit-locateanything` | LocateAnything-3B grounding | 8.4 GiB | 2.5 GiB | **10.9 GiB** |
+| 8 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
+| 9 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
+| 10 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
+
+The LLM row is estimated from its configuration (`--kv-cache-memory-bytes 2G`, `--gpu-memory-utilization 0.25`) and the stack's totals; every other row is measured.
+
+The alternatives change single rows:
+
+| Instead of | You run | Memory |
 | --- | --- | --- |
-| LLM | Qwen3.6-35B-A3B NVFP4 (vLLM) | about 28 GiB, and about 60 GB while it loads |
-| Image generation | Qwen-Image 2.1 or Turbo, float8 | about 17–18 GiB |
-| Speech recognition | Qwen3-ASR-1.7B | 12.6 GiB |
-| Grounding | LocateAnything-3B | 8.5 GiB |
-| OCR | PaddleOCR-VL-1.6, plus its layout stage on the CPU | 5.4 GiB + about 1 GiB |
-| Translation | Hy-MT2-1.8B-FP8 | 3.8 GiB |
-| App, Redis, system monitor | | under 1 GiB |
+| Rows 8 and 10 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, upstream's default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
+| Row 5's model | Z-Image-Turbo (upstream's default) | Not measured; the container is capped at 26 GiB. |
+| Row 4 | Saluki 27B in `llama-server`, 64k of its 256k context (evaluated, not yet in the stack) | 13.0 GiB GPU, plus 8.5 GiB for its memory-mapped model file, which the system can reclaim |
 
 | State | Memory used |
 | --- | --- |
@@ -153,9 +168,7 @@ The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and 
 | Busy (two jobs at a time, the app's default) | 93.5 GiB at peak |
 | Starting up | 95.8 GiB at peak |
 
-That leaves room for the system, but not for another large model: stop other LLMs first, or use `spark-switch.sh`.
-
-The stack runs **9 Docker containers**, or **10** with PaddleOCR-VL (its vision model and its layout adapter run separately): the app, Redis, the system monitor, and one per model service. A short-lived downloader container also runs during installation. Full measurements, including the alternatives, are in [docs/validation.md](docs/validation.md).
+That leaves room for the system, but not for another large model: stop other LLMs first, or use `spark-switch.sh`. Full measurements are in [docs/validation.md](docs/validation.md).
 
 * * *
 
