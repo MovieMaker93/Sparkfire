@@ -45,6 +45,7 @@ jobs:
           - services/dgx-models/image-generation
           - services/dgx-models/paddleocr-vl
           - services/dgx-status
+          - scripts/media
     steps:
       - uses: actions/checkout@v7
 

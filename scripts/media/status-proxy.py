@@ -3,12 +3,17 @@ import json
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-UPSTREAM = "http://127.0.0.1:8330"
+# The app only reads this route. It is fetched from a fixed URL, so nothing in a request can steer the proxy.
+STATUS_PATH = "/v1/status"
+UPSTREAM_STATUS = "http://127.0.0.1:8330/v1/status"
 
 
 class Proxy(BaseHTTPRequestHandler):
     def do_GET(self):
-        with urllib.request.urlopen(UPSTREAM + self.path, timeout=10) as upstream:
+        if self.path != STATUS_PATH:
+            self.send_error(404)
+            return
+        with urllib.request.urlopen(UPSTREAM_STATUS, timeout=10) as upstream:
             body = upstream.read()
             status = upstream.status
         try:
