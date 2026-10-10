@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: App · typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install media tools used by tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg poppler-utils
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  adapters:
+    name: Adapter tests · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - services/dgx-models/image-generation
+          - services/dgx-models/paddleocr-vl
+          - services/dgx-status
+          - scripts/media
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      # The tests check request handling and backend settings; they import neither torch nor the models.
+      - name: Install the web framework the adapters use
+        run: pip install fastapi uvicorn python-multipart
+
+      - name: Run unit tests
+        working-directory: ${{ matrix.service }}
+        run: python -m unittest -v
+
+  scripts:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: ShellCheck (errors only)
+        run: shellcheck --severity=error scripts/*.sh distribution/install.sh distribution/dgx/install.sh
+
+  docker:
+    name: Docker build · ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The GPU service images (vLLM, NVIDIA PyTorch bases) are too large for hosted runners; they are
+        # covered by hadolint and Trivy in the Security workflow and built on the Spark.
+        include:
+          - image: app
+            context: .
+          - image: paddleocr-vl
+            context: services/dgx-models/paddleocr-vl
+          - image: dgx-status
+            context: services/dgx-status
+          - image: model-downloader
+            context: services/dgx-models/downloader
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build without pushing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

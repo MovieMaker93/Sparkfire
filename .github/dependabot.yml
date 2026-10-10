@@ -1,0 +1,63 @@
+# Weekly update pull requests, titled as Conventional Commits so release-please can read them.
+# Model-service updates (pip, Docker bases, Compose images) change GPU code paths: merge them only after
+# the stack has run on a DGX Spark.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: pip
+    directories:
+      - /services/dgx-models/grounding
+      - /services/dgx-models/image-generation
+      - /services/dgx-models/paddleocr-vl
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      model-adapters:
+        patterns: ["*"]
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /services/dgx-models/asr
+      - /services/dgx-models/downloader
+      - /services/dgx-models/grounding
+      - /services/dgx-models/hy-mt2
+      - /services/dgx-models/image-generation
+      - /services/dgx-models/paddleocr-vl
+      - /services/dgx-status
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Switch a single DGX Spark between a large always-on LLM (for example Qwen3.8 Flash Next, which needs
-# most of the 121 GiB) and SparklingKit's model stack. The two never fit in memory at the same time.
+# Switch a single DGX Spark between another large, always-on LLM container (one that needs most of the
+# 121 GiB) and SparklingKit's model stack. The two never fit in memory at the same time.
 #
 #   ./scripts/spark-switch.sh status
 #   ./scripts/spark-switch.sh sparklingkit [--yes] [start-dgx-spark.sh options...]
@@ -16,11 +16,16 @@ if [[ -f scripts/spark-switch.env ]]; then
   source scripts/spark-switch.env
 fi
 
-LLM_CONTAINER="${LLM_CONTAINER:-my-llm}"
-LLM_HEALTH_URL="${LLM_HEALTH_URL:-http://127.0.0.1:8888/v1/models}"
-LLM_METRICS_URL="${LLM_METRICS_URL:-http://127.0.0.1:8888/metrics}"
+LLM_CONTAINER="${LLM_CONTAINER:-}"
+LLM_HEALTH_URL="${LLM_HEALTH_URL:-http://127.0.0.1:8000/v1/models}"
+LLM_METRICS_URL="${LLM_METRICS_URL:-http://127.0.0.1:8000/metrics}"
 LLM_READY_TIMEOUT="${LLM_READY_TIMEOUT:-1200}"
 MIN_FREE_GIB="${MIN_FREE_GIB:-100}"
+
+if [[ -z "$LLM_CONTAINER" ]]; then
+  printf 'Set LLM_CONTAINER to the container of your other LLM, in scripts/spark-switch.env (see spark-switch.env.example).\n' >&2
+  exit 2
+fi
 
 ACTION="${1:-status}"
 shift || true

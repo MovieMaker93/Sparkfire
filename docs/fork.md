@@ -1,7 +1,7 @@
 # Fork notes
 
-Changes in this fork on top of upstream SparklingKit 0.1.5. Kept in this file, not the README, so upstream
-releases rebase cleanly.
+Changes in this fork on top of upstream SparklingKit 0.1.5. The README summarises them; this file has the
+details. Measured results are in [`validation.md`](validation.md).
 
 ## Interface
 
@@ -28,6 +28,29 @@ API additions:
 - `GET /api/gallery?source=&model=&offset=&limit=` lists images across jobs.
 - `GET /api/modules/text-to-image/capabilities` returns the sizes and step limits of the active image model.
 
+## Chat
+
+- **Thinking control.** Off, Low, Medium and High under the composer, remembered per browser. It is sent
+  as `chat_template_kwargs`: `enable_thinking`, plus `reasoning_effort` (low, medium) for Qwen3.8-based
+  models; High keeps the model's own default. Models without a thinking mode ignore it.
+- **Reasoning.** It streams into a foldable block while the model thinks and is saved with the answer. It
+  is not sent back to the model on later turns.
+- **Attachments.** A + button, paste, or drag and drop add up to 8 files per message.
+  - **Images** go to the model as image input (the newest four per request), when the LLM endpoint
+    declares image input in Settings → Services.
+  - **PDFs** send their text layer. Scans without one send their first pages as images.
+  - **Text and code files** send their text, trimmed to 60,000 characters each.
+- **Model name.** The header shows the configured LLM with a friendly name. Requests always use the
+  configured model, so chats created before a model switch keep working.
+
+API additions:
+
+- `POST /api/chats/:id/attachments` (multipart `files`) stores files in `data/chats/<id>/attachments/`.
+- `GET /api/chats/:id/attachments/:attachmentId` serves one back. Anything but images and PDFs is served as
+  plain text.
+- `POST /api/chats/:id/messages` also accepts `effort` and `attachmentIds`, and streams `reasoning` events
+  next to `delta`.
+
 ## Model backends
 
 The DGX stack keeps upstream's six services and defaults. Two of them can be switched at deploy time:
@@ -39,7 +62,7 @@ The DGX stack keeps upstream's six services and defaults. Two of them can be swi
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
 
 ```bash
-./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1 --accept-model-licenses
+./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
 ```
 
 SparklingKit chooses the OCR request format from the model id. After switching the OCR backend on an
@@ -70,16 +93,35 @@ npm run dev
 
 ## Status
 
-- Unit tests cover:
+- **Unit tests** cover:
   - the image and PaddleOCR adapters, without a GPU
   - OCR profiles, thumbnails, the gallery and the viewer helpers
-- Validated on the DGX Spark on 2026-10-05:
-  - PaddleOCR-VL-1.6, including its CPU layout stage on aarch64. On a 20-page benchmark it found 99.9%
-    of the words and all table numbers.
-  - Qwen-Image 2.1 with torchao float8 on sm_121, after the torchao 0.16 and SDPA fixes. It takes about
-    80 s for a 1024² image and 286 s for 2048².
-  - Peak memory of the full stack under load: 93.5 GiB.
-- Known issue: the stock vLLM 0.24 LLM service can crash on long generations, and its automatic restart
-  can run the Spark out of memory. See "Spark validation" in `plan.md`.
+  - chat thinking options, stream parsing, and attachments
+- **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Qwen-Image 2.1 and its Turbo version, and the memory of
+  the full stack. Results and known issues are in [`validation.md`](validation.md).
 
-Next steps and status: [`plan.md`](plan.md).
+## Roadmap
+
+1. **LLM backend switch:** `--llm-backend qwen36|saluki`, with a llama.cpp service built for sm_121.
+   Saluki 27B takes half the memory and has no loading peak (see `validation.md`).
+2. **Safer LLM restarts:** start the LLM before the other services on every restart, and replace
+   `restart: unless-stopped` with a bounded restart, so a crash cannot turn into an out-of-memory loop.
+3. **Parakeet as the ASR backend,** with word timestamps for word-accurate subtitles. It is as accurate
+   as Qwen3-ASR, much faster, and frees about 11 GiB.
+4. **Image defaults:** make Qwen-Image-2.1-Turbo the default Qwen backend, and its 2K sizes the default for
+   prompts with text.
+5. **Security:**
+   - Remove the open `cors()`.
+   - Redact API keys in `GET /api/settings`.
+   - Add a host allowlist and an optional access token.
+   - Run the app and service containers as a non-root user (Trivy DS-0002); existing `data/` folders need
+     their ownership migrated.
+   - Update the grounding adapter's Pillow (11 → 12) and transformers (4.57 → 5.x), which carry known
+     advisories, after testing LocateAnything on a Spark.
+6. **Correctness and speed:**
+   - Add a per-job lock in `updateJob`.
+   - Send OCR pages and ASR chunks with bounded concurrency.
+7. **Long documents:**
+   - Give chat and mind maps a token budget, then retrieval.
+   - Add full-text search.
+8. **Image editing** with Qwen-Image 2.1: reference images, masks, and grounding → edit.

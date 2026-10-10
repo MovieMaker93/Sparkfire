@@ -238,11 +238,13 @@ export async function transcribeAudio(
   return { text, segments };
 }
 
-function cleanAsrText(value: string) {
+/** Qwen3-ASR prefixes each stretch of audio it hears with "language X<asr_text>"; long chunks carry several. */
+export function cleanAsrText(value: string) {
   return value
-    .replace(/^language\s+[^<\r\n]+<asr_text>/i, "")
-    .replace(/^<asr_text>/i, "")
-    .replace(/<\/asr_text>$/i, "")
+    .replace(/language\s+[^<\r\n]{1,40}<asr_text>/gi, " ")
+    .replace(/<\/?asr_text>/gi, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +([.,;:!?])/g, "$1")
     .trim();
 }
 

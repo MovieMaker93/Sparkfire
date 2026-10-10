@@ -17,6 +17,8 @@ env:
 
 jobs:
   release:
+    # Upstream's release publishes to ghcr.io/stevibe; forks release through fork-release.yml instead.
+    if: github.repository == 'stevibe/SparklingKit'
     runs-on: ubuntu-latest
     steps:
       - name: Check out release source

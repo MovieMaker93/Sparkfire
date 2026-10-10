@@ -29,7 +29,8 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    # run.sparklingkit.com belongs to upstream; forks must not publish it.
+    if: github.repository == 'stevibe/SparklingKit' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
