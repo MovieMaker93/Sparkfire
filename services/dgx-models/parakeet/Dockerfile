@@ -42,5 +42,11 @@ RUN PIP_CONSTRAINT= python3 -m pip install --no-cache-dir -r /app/requirements.t
 WORKDIR /app
 COPY parakeet_server.py /app/parakeet_server.py
 
+# The adapter only listens on unprivileged ports and reads the read-only model mount, so it needs no root
+# (uid 65534 is nobody). The check mirrors the compose health check; PORT keeps it right if the port moves.
+USER 65534:65534
+HEALTHCHECK --interval=30s --timeout=5s --start-period=1m --retries=3 \
+    CMD curl -fsS "http://127.0.0.1:${PORT:-8333}/health" || exit 1
+
 ENTRYPOINT []
 CMD ["python3", "/app/parakeet_server.py"]
