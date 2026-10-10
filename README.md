@@ -287,6 +287,8 @@ The default `latest` image follows stable releases. Set `SPARKLINGKIT_IMAGE=ghcr
 
 See [Application deployment and upgrades](docs/deployment.md) for network binding, pinned releases, rollback limits, backups, and release artifacts.
 
+Coming from the six-model DGX stack? Saved settings still point the LLM at port 8331 and grounding at port 8335, which no longer run: repoint or disable them in **Settings → Services** (see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack)).
+
 Set `HF_TOKEN` in the shell when the DGX model download requires authentication or additional download capacity:
 
 ```bash

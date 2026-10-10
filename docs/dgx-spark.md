@@ -179,7 +179,7 @@ Application upgrades are managed separately from model-stack upgrades. In the wo
 ./sparklingkit update
 ```
 
-The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the five model weights again.
+The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the model weights again.
 
 ## Model terms
 
@@ -192,3 +192,7 @@ The stack no longer ships a grounding service: LocateAnything-3B (non-commercial
 The DGX stack is a recommended reference configuration, not a requirement. SparklingKit can connect to other local endpoints, services hosted elsewhere on a trusted network, compatible cloud APIs, or a mixture of these. For those deployments, use `scripts/start-sparklingkit.sh --configure-later` or use `compose.yaml`, copy `.env.example` to `.env`, and configure providers in onboarding or under **Settings → Services**.
 
 Saved settings are intentionally retained across restarts and upgrades. To move an existing installation between all-in-one, split, and custom layouts, open **Settings → General → Deployment**. The guided setup updates endpoints without deleting jobs, chats, workflows, or files.
+
+### Upgrading from the six-model stack
+
+`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold about 27 GiB. Saved settings are not rewritten, so the LLM still points at port 8331 and grounding at port 8335. Until you repoint or disable those two endpoints in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. A newly configured LLM endpoint accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.
