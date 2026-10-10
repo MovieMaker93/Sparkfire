@@ -1,6 +1,6 @@
 # Parakeet as the default speech recognition backend
 
-Date: 2026-10-10. Status: approved in conversation, awaiting review of this written spec.
+Date: 2026-10-10. Status: approved. Plan: `docs/superpowers/plans/2026-10-10-parakeet-asr.md`.
 
 ## Goal
 
@@ -51,13 +51,18 @@ New folder `services/dgx-models/parakeet/`:
 - `scripts/start-dgx-spark.sh`
   - `--asr-backend parakeet|qwen3-asr` (or `SPARKLINGKIT_ASR_BACKEND`), default `parakeet`; exports
     `STT_MODEL` (`Parakeet-TDT-0.6B-v3` or `Qwen3-ASR-1.7B`).
+  - Waits on Parakeet's `/health` (its `/v1/models` answers before the engine has loaded). The CUDA 13
+    `ptxas` check runs only for `qwen3-asr`, the one service that mounts it.
   - Builds, downloads and starts only the chosen backend. `download_model` gains an optional file pattern
     (passed to the downloader as `--include`) and accepts a `.gguf` file as proof of a complete download.
   - Before starting the chosen backend, stops the other one's container: both use port 8333. The same is
     done for OCR (`unlimited-ocr` vs `paddleocr-vlm` + `paddleocr-vl`, port 8332), which has the same gap
     today.
   - `stop` includes the new container.
-- `compose.dgx.yaml`: a `parakeet` service; the app's environment uses `STT_MODEL: ${STT_MODEL:-Qwen3-ASR-1.7B}`.
+- `compose.dgx.yaml`: a `parakeet` service; the app's environment uses
+  `STT_MODEL: ${STT_MODEL:-Parakeet-TDT-0.6B-v3}`.
+- `src/shared/reference-stack.ts`: the speech model of the reference stack becomes `Parakeet-TDT-0.6B-v3`,
+  so onboarding against a Spark host configures the default backend.
 - `services/dgx-status/server.py`: labels the adapter process as ASR with the Parakeet model name.
 - `scripts/spark-switch.sh`: recognises `sparklingkit-parakeet` as part of the stack.
 - CI runs the adapter's tests (the image itself is too large for hosted runners, like the other GPU images);
@@ -72,10 +77,13 @@ New folder `services/dgx-models/parakeet/`:
     offset) next to `text` and `segments`. The default profile's request is unchanged.
 - New `src/server/transcript-timing.ts` (pure functions):
   - `joinChunkWords(chunks)`: chunks overlap by `chunkOverlapSec` (3 s by default). For each neighbouring
-    pair the seam is the middle of the overlap; words of the earlier chunk that start before the seam and
-    words of the later chunk that start at or after it are kept, so each spoken word appears once.
-  - `toSentences(words)`: a sentence ends after a word ending in `.`, `?`, `!` or `…`, or before a pause of
-    at least 1.5 s.
+    pair the seam is the middle of the overlap. A chunk keeps the words that start before its seam and whose
+    midpoint lies after the end of the last word already kept. So each spoken word appears once, even when
+    two chunks put its start on different sides of the seam.
+  - `toSentences(words)`: a sentence ends after a word ending in `.`, `?`, `!` or `…`, unless that word is a
+    common abbreviation (Mr., Dr., etc., Sig., …) or a single initial, or the next word starts in lower
+    case; a pause of at least 1.5 s also ends one. Punctuation that arrives as its own token attaches to
+    the word before it.
   - `toCues(words)`: a cue ends at a sentence end or before a pause of at least 0.8 s, and before the word
     that would make it longer than 7 s or 84 characters. Words are never split; a single word longer than
     the caps becomes its own cue.
@@ -84,7 +92,7 @@ New folder `services/dgx-models/parakeet/`:
   - `.srt` and `.vtt` are built from the cues;
   - the Markdown text joins the sentences, with a paragraph break at pauses of at least 2 s.
   Otherwise (Qwen3-ASR, or any chunk without words) the output is exactly as today. Checkpoints and adaptive
-  retries are unchanged; a chunk retried in halves contributes the halves' words in order.
+  retries are unchanged; a chunk retried in halves joins the halves' words with `joinChunkWords`.
 
 ## 4. Testing and rollout
 
