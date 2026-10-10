@@ -4,7 +4,7 @@ export const REFERENCE_SERVICE_CATALOG = {
   systemStatus: { port: 8330, label: "System status" },
   llm: { port: 8331, model: "qwen36-35b-a3b-nvfp4" },
   ocr: { port: 8332, model: "Unlimited-OCR" },
-  stt: { port: 8333, model: "Qwen3-ASR-1.7B" },
+  stt: { port: 8333, model: "Parakeet-TDT-0.6B-v3" },
   translation: { port: 8334, model: "Hy-MT2-1.8B-FP8" },
   grounding: { port: 8335, model: "nvidia/LocateAnything-3B" },
   imageGeneration: { port: 8336, model: "Z-Image-Turbo" },

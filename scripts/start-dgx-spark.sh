@@ -13,6 +13,7 @@ DEPLOY_APP=true
 REFRESH_IMAGES=false
 FORCE_RECREATE=false
 OCR_BACKEND="${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}"
+ASR_BACKEND="${SPARKLINGKIT_ASR_BACKEND:-parakeet}"
 IMAGE_BACKEND="${SPARKLINGKIT_IMAGE_BACKEND:-z-image}"
 
 usage() {
@@ -30,6 +31,7 @@ Options:
   --force-recreate         Recreate services after using the selected images
   --models-only            Run the six models and monitor without SparklingKit
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
+  --asr-backend NAME       parakeet (default) or qwen3-asr
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
   -h, --help               Show this help
 
@@ -68,9 +70,13 @@ while (($#)); do
     --models-only)
       DEPLOY_APP=false
       ;;
-    --ocr-backend|--image-backend)
+    --ocr-backend|--asr-backend|--image-backend)
       if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
-      if [[ "$1" == "--ocr-backend" ]]; then OCR_BACKEND="$2"; else IMAGE_BACKEND="$2"; fi
+      case "$1" in
+        --ocr-backend) OCR_BACKEND="$2" ;;
+        --asr-backend) ASR_BACKEND="$2" ;;
+        *) IMAGE_BACKEND="$2" ;;
+      esac
       shift
       ;;
     -h|--help)
@@ -91,13 +97,27 @@ case "$OCR_BACKEND" in
   paddleocr-vl) export OCR_MODEL="PaddleOCR-VL-1.6" ;;
   *) printf 'Unknown OCR backend: %s (use unlimited-ocr or paddleocr-vl)\n' "$OCR_BACKEND" >&2; exit 2 ;;
 esac
+# Parakeet answers /v1/models as soon as its adapter is up, before the engine has loaded, so it is ready on /health.
+case "$ASR_BACKEND" in
+  parakeet)
+    ASR_SERVICE=parakeet
+    ASR_READY_URL="http://127.0.0.1:8333/health"
+    export STT_MODEL="Parakeet-TDT-0.6B-v3"
+    ;;
+  qwen3-asr)
+    ASR_SERVICE=qwen3-asr
+    ASR_READY_URL="http://127.0.0.1:8333/v1/models"
+    export STT_MODEL="Qwen3-ASR-1.7B"
+    ;;
+  *) printf 'Unknown ASR backend: %s (use parakeet or qwen3-asr)\n' "$ASR_BACKEND" >&2; exit 2 ;;
+esac
 case "$IMAGE_BACKEND" in
   z-image) export IMAGE_GENERATION_MODEL="Z-Image-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-26g}" ;;
   qwen-image-2.1) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
   qwen-image-2.1-turbo) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
   *) printf 'Unknown image backend: %s (use z-image, qwen-image-2.1 or qwen-image-2.1-turbo)\n' "$IMAGE_BACKEND" >&2; exit 2 ;;
 esac
-export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND"
+export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_ASR_BACKEND="$ASR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND"
 
 COMPOSE=(
   docker compose
@@ -132,7 +152,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop qwen36 qwen3-asr unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
+    "${COMPOSE[@]}" stop qwen36 qwen3-asr parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -181,7 +201,8 @@ if ! nvidia-smi >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -x /usr/local/cuda-13.0/bin/ptxas ]]; then
+# Only the Qwen3-ASR container mounts this ptxas.
+if [[ "$ASR_BACKEND" == "qwen3-asr" && ! -x /usr/local/cuda-13.0/bin/ptxas ]]; then
   printf 'CUDA 13 ptxas was not found at /usr/local/cuda-13.0/bin/ptxas.\n' >&2
   printf 'Update DGX OS/CUDA or adjust the ASR mount in compose.dgx.yaml.\n' >&2
   exit 1
@@ -217,7 +238,7 @@ fi
 
 if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding SparklingKit and DGX service images...\n'
-  build_targets=(model-downloader qwen3-asr hy-mt2 locateanything z-image dgx-status)
+  build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 locateanything z-image dgx-status)
   if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
@@ -235,12 +256,17 @@ download_model() {
   local repository="$1"
   local revision="$2"
   local destination="$3"
+  local include="${4:-}"
   local completion_marker="$model_root/$destination/.sparklingkit-$revision.complete"
+  local include_args=()
 
   if [[ -f "$completion_marker" ]]; then
     printf 'Using existing %-34s %s\n' "$repository" "$revision"
     return
   fi
+
+  # A repository that ships several variants (GGUF files) is fetched for one file only.
+  if [[ -n "$include" ]]; then include_args=(--include "$include"); fi
 
   printf 'Downloading %-34s %s\n' "$repository" "$revision"
   mkdir -p "$model_root/$destination"
@@ -250,9 +276,11 @@ download_model() {
     download "$repository" \
     --revision "$revision" \
     --local-dir "/models/$destination" \
+    "${include_args[@]}" \
     --max-workers 8
 
-  if [[ ! -s "$model_root/$destination/config.json" && ! -s "$model_root/$destination/model_index.json" ]]; then
+  if [[ ! -s "$model_root/$destination/config.json" && ! -s "$model_root/$destination/model_index.json" ]] \
+    && ! compgen -G "$model_root/$destination/*.gguf" >/dev/null; then
     printf 'Download validation failed for %s: no model configuration found\n' "$repository" >&2
     exit 1
   fi
@@ -276,10 +304,18 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
       "27a5997fa0524f9adcf9e2f3d5e7d3f784434fa5" \
       "baidu/Unlimited-OCR"
   fi
-  download_model \
-    "Qwen/Qwen3-ASR-1.7B" \
-    "7278e1e70fe206f11671096ffdd38061171dd6e5" \
-    "Qwen/Qwen3-ASR-1.7B"
+  if [[ "$ASR_BACKEND" == "qwen3-asr" ]]; then
+    download_model \
+      "Qwen/Qwen3-ASR-1.7B" \
+      "7278e1e70fe206f11671096ffdd38061171dd6e5" \
+      "Qwen/Qwen3-ASR-1.7B"
+  else
+    download_model \
+      "mudler/parakeet-cpp-gguf" \
+      "741158ae71e64ef5c89385862c18f777d07a97a1" \
+      "mudler/parakeet-cpp-gguf" \
+      "tdt-0.6b-v3-f16.gguf"
+  fi
   download_model \
     "tencent/Hy-MT2-1.8B-FP8" \
     "b3f6f590920726d69a5504293bd4f36d50e5f681" \
@@ -344,11 +380,15 @@ start_service() {
 
 printf '\nStarting the six models sequentially...\n'
 start_service qwen36 "Multimodal LLM" "http://127.0.0.1:8331/v1/models" 900
-start_service qwen3-asr "Transcription" "http://127.0.0.1:8333/v1/models" 600
+# The two ASR backends share port 8333 and the two OCR backends port 8332: stop the one that is not selected.
+if [[ "$ASR_BACKEND" == "parakeet" ]]; then "${COMPOSE[@]}" stop qwen3-asr; else "${COMPOSE[@]}" stop parakeet; fi
+start_service "$ASR_SERVICE" "Transcription ($ASR_BACKEND)" "$ASR_READY_URL" 600
 if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
+  "${COMPOSE[@]}" stop unlimited-ocr
   start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600
   start_service paddleocr-vl "OCR layout adapter" "http://127.0.0.1:8332/health" 900
 else
+  "${COMPOSE[@]}" stop paddleocr-vl paddleocr-vlm
   start_service unlimited-ocr "OCR" "http://127.0.0.1:8332/v1/models" 600
 fi
 start_service hy-mt2 "Translation" "http://127.0.0.1:8334/health" 600

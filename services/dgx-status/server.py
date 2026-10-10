@@ -32,6 +32,8 @@ SERVICE_SPECS = (
 SERVICE_BY_PORT = {port: {"id": service_id, "label": label} for service_id, label, port in SERVICE_SPECS}
 # PaddleOCR-VL's vision-language model listens on a private port behind the OCR adapter.
 SERVICE_BY_PORT[int(os.getenv("OCR_VLM_PORT", "8342"))] = {"id": "ocr", "label": "OCR"}
+# Likewise, parakeet.cpp's engine listens on a private port behind the ASR adapter.
+SERVICE_BY_PORT[int(os.getenv("ASR_ENGINE_PORT", "8343"))] = {"id": "asr", "label": "ASR"}
 PROCESS_SIGNATURES = {
     "hy_server.py": ("translation", "Translation", int(os.getenv("TRANSLATION_PORT", "8334")), "Hy-MT2-1.8B-FP8"),
     "locate_server.py": ("grounding", "Grounding", int(os.getenv("GROUNDING_PORT", "8335")), "nvidia/LocateAnything-3B"),

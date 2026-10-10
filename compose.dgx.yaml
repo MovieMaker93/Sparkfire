@@ -11,7 +11,7 @@ services:
       OCR_BASE_URL: http://host.docker.internal:8332/v1
       OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}
       STT_BASE_URL: http://host.docker.internal:8333/v1
-      STT_MODEL: Qwen3-ASR-1.7B
+      STT_MODEL: ${STT_MODEL:-Parakeet-TDT-0.6B-v3}
       TRANSLATION_BASE_URL: http://host.docker.internal:8334/v1
       TRANSLATION_MODEL: Hy-MT2-1.8B-FP8
       GROUNDING_BASE_URL: http://host.docker.internal:8335/v1
