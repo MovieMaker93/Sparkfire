@@ -1,4 +1,4 @@
-# Reference four-model deployment for a 128 GB NVIDIA DGX Spark.
+# Reference deployment for a 128 GB NVIDIA DGX Spark: four model services plus video generation.
 # Use through scripts/start-dgx-spark.sh so the memory-heavy services start
 # sequentially and are checked for readiness before the next model is loaded.
 # The stack ships no LLM (chat and mind maps use an endpoint configured in Settings) and no
@@ -16,6 +16,9 @@ services:
       TRANSLATION_MODEL: Hy-MT2-1.8B-FP8
       IMAGE_GENERATION_BASE_URL: http://host.docker.internal:8336/v1
       IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
+      # start-dgx-spark.sh --video-backend none sets this empty, so the endpoint is not configured.
+      VIDEO_GENERATION_BASE_URL: ${SPARKLINGKIT_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}
+      VIDEO_GENERATION_MODEL: FastH3
       SPARKLINGKIT_SETUP_COMPLETE: "true"
       SPARKLINGKIT_DEPLOYMENT_MODE: all-in-one
 
@@ -274,3 +277,46 @@ services:
       timeout: 10s
       retries: 160
       start_period: 8m
+
+  # Video generation on :8337: FastH3 (MiniMax H3, video with sound) through a pinned ComfyUI that the adapter
+  # starts on 127.0.0.1:8347. Nothing loads at start; the weights load on the first job (+32-35 GiB measured
+  # for Fast) and are freed after VIDEO_IDLE_UNLOAD_SECONDS without a job. The cap bounds host-side memory
+  # (staging weights while loading); GPU allocations are not charged to it, as the image service's
+  # 1.8 GiB-of-34 GiB reading with 17.9 GB on the GPU shows. The MiniMax H3 Community License does not cover
+  # the EU, the UK, South Korea or the US; start-dgx-spark.sh --video-backend none leaves this service out.
+  video-generation:
+    build:
+      context: ./services/dgx-models/video
+    image: sparklingkit/video-generation:comfyui-0df64eb
+    container_name: sparklingkit-video-generation
+    restart: unless-stopped
+    network_mode: host
+    ipc: host
+    shm_size: "16gb"
+    mem_limit: ${VIDEO_MEM_LIMIT:-56g}
+    memswap_limit: ${VIDEO_MEM_LIMIT:-56g}
+    environment:
+      HF_HUB_OFFLINE: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      VIDEO_BACKEND: fasth3
+      MODEL_NAME: FastH3
+      PORT: "8337"
+      COMFY_PORT: "8347"
+      IDLE_UNLOAD_SECONDS: ${VIDEO_IDLE_UNLOAD_SECONDS:-600}
+    volumes:
+      - ./data/dgx-models:/models:ro
+      - ./data/dgx-runtime/video:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8337/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 3m

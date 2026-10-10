@@ -21,15 +21,19 @@ PORT = int(os.getenv("PORT", "8330"))
 PROC_ROOT = Path(os.getenv("PROC_ROOT", "/proc"))
 MIB = 1024 * 1024
 
+# An empty VIDEO_GENERATION_PORT means the stack runs without video generation (--video-backend none).
+VIDEO_GENERATION_PORT = os.getenv("VIDEO_GENERATION_PORT", "8337").strip()
 SERVICE_SPECS = (
     ("ocr", "OCR", int(os.getenv("OCR_PORT", "8332"))),
     ("asr", "ASR", int(os.getenv("ASR_PORT", "8333"))),
     ("translation", "Translation", int(os.getenv("TRANSLATION_PORT", "8334"))),
     ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336"))),
-)
+) + ((("video-generation", "Video generation", int(VIDEO_GENERATION_PORT)),) if VIDEO_GENERATION_PORT else ())
 SERVICE_BY_PORT = {port: {"id": service_id, "label": label} for service_id, label, port in SERVICE_SPECS}
 # PaddleOCR-VL's vision-language model listens on a private port behind the OCR adapter.
 SERVICE_BY_PORT[int(os.getenv("OCR_VLM_PORT", "8342"))] = {"id": "ocr", "label": "OCR"}
+# The video adapter's ComfyUI, which holds the GPU memory, listens on a private port too.
+SERVICE_BY_PORT[int(os.getenv("VIDEO_COMFY_PORT", "8347"))] = {"id": "video-generation", "label": "Video generation"}
 PROCESS_SIGNATURES = {
     # parakeet.cpp's engine (a private port behind the ASR adapter) is a binary whose environment this container
     # cannot read, so its command line names it; the adapter's script has an underscore and does not match.
