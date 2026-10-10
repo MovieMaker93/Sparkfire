@@ -37,7 +37,7 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
-| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, Parakeet ASR, Qwen3-ASR, translation, grounding, downloader |
+| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, Parakeet ASR, translation, grounding, downloader |
 | `services/dgx-status/` | The DGX system monitor service |
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
@@ -110,7 +110,7 @@ as a host name; they pass on Linux and in CI.
 | 54321 | SparklingKit app | | |
 | 8330 | System monitor | | |
 | 8332 | OCR | Unlimited-OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342): `--ocr-backend paddleocr-vl` |
-| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | Qwen3-ASR-1.7B: `--asr-backend qwen3-asr` |
+| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
 | 8335 | Grounding | LocateAnything-3B | |
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
@@ -119,7 +119,7 @@ Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
 stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
-  `llama-server`, ~13 GiB) and idles around 40 GiB with Parakeet (about 54 GiB with Qwen3-ASR). Do not
+  `llama-server`, ~13 GiB) and idles around 40 GiB. Do not
   start extra models, large builds or big downloads while services are loading, and never run a second
   large LLM next to the stack.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;

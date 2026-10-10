@@ -37,7 +37,7 @@ done
 
 available_gib() { free -g | awk '/^Mem:/ {print $7}'; }
 container_running() { [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" == "true" ]]; }
-sparklingkit_running() { docker ps --format '{{.Names}}' | grep -qE '^sparklingkit-(qwen3-asr|parakeet|unlimited-ocr|paddleocr-vlm|hy-mt2|locateanything|image-generation)$'; }
+sparklingkit_running() { docker ps --format '{{.Names}}' | grep -qE '^sparklingkit-(parakeet|unlimited-ocr|paddleocr-vlm|hy-mt2|locateanything|image-generation)$'; }
 
 confirm() {
   [[ "$ASSUME_YES" == "true" ]] && return 0

@@ -32,61 +32,8 @@ services:
     volumes:
       - ./data/dgx-models:/models
 
-  qwen3-asr:
-    build:
-      context: ./services/dgx-models/asr
-    image: sparklingkit/qwen3-asr-1.7b:vllm-0.14.0
-    container_name: sparklingkit-qwen3-asr
-    restart: unless-stopped
-    network_mode: host
-    ipc: host
-    shm_size: "16gb"
-    environment:
-      HF_HOME: /root/.cache/huggingface
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-      VLLM_WORKER_MULTIPROC_METHOD: spawn
-      TRITON_PTXAS_PATH: /opt/cuda13/bin/ptxas
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    volumes:
-      - ./data/dgx-models/Qwen/Qwen3-ASR-1.7B:/model:ro
-      - ./data/dgx-runtime/asr:/root/.cache
-      - /usr/local/cuda-13.0/bin/ptxas:/opt/cuda13/bin/ptxas:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    command:
-      - qwen-asr-serve
-      - /model
-      - --served-model-name
-      - Qwen3-ASR-1.7B
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8333"
-      - --dtype
-      - bfloat16
-      - --kv-cache-memory-bytes
-      - ${ASR_KV_CACHE_MEMORY_BYTES:-8G}
-      - --gpu-memory-utilization
-      - ${ASR_GPU_MEMORY_UTILIZATION:-0.12}
-      - --max-num-seqs
-      - ${ASR_MAX_NUM_SEQS:-2}
-      - --trust-remote-code
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8333/v1/models >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 120
-      start_period: 2m
-
-  # Default ASR backend (SPARKLINGKIT_ASR_BACKEND=parakeet); replaces qwen3-asr on :8333.
-  # The adapter on :8333 starts parakeet.cpp's parakeet-server on 127.0.0.1:8343, which serves one request at a time.
+  # ASR backend. The adapter on :8333 starts parakeet.cpp's parakeet-server on 127.0.0.1:8343,
+  # which serves one request at a time.
   parakeet:
     build:
       context: ./services/dgx-models/parakeet

@@ -32,7 +32,6 @@ updates:
   - package-ecosystem: docker
     directories:
       - /
-      - /services/dgx-models/asr
       - /services/dgx-models/downloader
       - /services/dgx-models/grounding
       - /services/dgx-models/hy-mt2

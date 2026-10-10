@@ -31,7 +31,7 @@ Options:
   --force-recreate         Recreate services after using the selected images
   --models-only            Run the five models and monitor without SparklingKit
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
-  --asr-backend NAME       parakeet (default) or qwen3-asr
+  --asr-backend NAME       kept for compatibility: parakeet (the only ASR backend)
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
   -h, --help               Show this help
 
@@ -97,20 +97,15 @@ case "$OCR_BACKEND" in
   paddleocr-vl) export OCR_MODEL="PaddleOCR-VL-1.6" ;;
   *) printf 'Unknown OCR backend: %s (use unlimited-ocr or paddleocr-vl)\n' "$OCR_BACKEND" >&2; exit 2 ;;
 esac
-# Parakeet answers /v1/models as soon as its adapter is up, before the engine has loaded, so it is ready on /health.
-case "$ASR_BACKEND" in
-  parakeet)
-    ASR_SERVICE=parakeet
-    ASR_READY_URL="http://127.0.0.1:8333/health"
-    export STT_MODEL="Parakeet-TDT-0.6B-v3"
-    ;;
-  qwen3-asr)
-    ASR_SERVICE=qwen3-asr
-    ASR_READY_URL="http://127.0.0.1:8333/v1/models"
-    export STT_MODEL="Qwen3-ASR-1.7B"
-    ;;
-  *) printf 'Unknown ASR backend: %s (use parakeet or qwen3-asr)\n' "$ASR_BACKEND" >&2; exit 2 ;;
-esac
+# Parakeet is the only ASR backend; its adapter answers /v1/models before the engine has loaded,
+# so readiness is checked on /health.
+if [[ "$ASR_BACKEND" != "parakeet" ]]; then
+  printf 'Unknown ASR backend: %s (parakeet is the only backend; qwen3-asr was removed)\n' "$ASR_BACKEND" >&2
+  exit 2
+fi
+ASR_SERVICE=parakeet
+ASR_READY_URL="http://127.0.0.1:8333/health"
+export STT_MODEL="Parakeet-TDT-0.6B-v3"
 case "$IMAGE_BACKEND" in
   z-image) export IMAGE_GENERATION_MODEL="Z-Image-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-26g}" ;;
   qwen-image-2.1) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
@@ -152,7 +147,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop qwen3-asr parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
+    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -198,13 +193,6 @@ fi
 require_command nvidia-smi
 if ! nvidia-smi >/dev/null 2>&1; then
   printf 'NVIDIA GPU access is unavailable. Check the DGX driver and container runtime.\n' >&2
-  exit 1
-fi
-
-# Only the Qwen3-ASR container mounts this ptxas.
-if [[ "$ASR_BACKEND" == "qwen3-asr" && ! -x /usr/local/cuda-13.0/bin/ptxas ]]; then
-  printf 'CUDA 13 ptxas was not found at /usr/local/cuda-13.0/bin/ptxas.\n' >&2
-  printf 'Update DGX OS/CUDA or adjust the ASR mount in compose.dgx.yaml.\n' >&2
   exit 1
 fi
 
@@ -300,18 +288,11 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
       "27a5997fa0524f9adcf9e2f3d5e7d3f784434fa5" \
       "baidu/Unlimited-OCR"
   fi
-  if [[ "$ASR_BACKEND" == "qwen3-asr" ]]; then
-    download_model \
-      "Qwen/Qwen3-ASR-1.7B" \
-      "7278e1e70fe206f11671096ffdd38061171dd6e5" \
-      "Qwen/Qwen3-ASR-1.7B"
-  else
     download_model \
       "mudler/parakeet-cpp-gguf" \
       "741158ae71e64ef5c89385862c18f777d07a97a1" \
       "mudler/parakeet-cpp-gguf" \
       "tdt-0.6b-v3-f16.gguf"
-  fi
   download_model \
     "tencent/Hy-MT2-1.8B-FP8" \
     "b3f6f590920726d69a5504293bd4f36d50e5f681" \
@@ -375,9 +356,7 @@ start_service() {
 }
 
 printf '\nStarting the five models sequentially...\n'
-# The two ASR backends share port 8333 and the two OCR backends port 8332: stop the one that is not selected.
-if [[ "$ASR_BACKEND" == "parakeet" ]]; then "${COMPOSE[@]}" stop qwen3-asr; else "${COMPOSE[@]}" stop parakeet; fi
-start_service "$ASR_SERVICE" "Transcription ($ASR_BACKEND)" "$ASR_READY_URL" 600
+start_service parakeet "Transcription" "http://127.0.0.1:8333/health" 600
 if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
   "${COMPOSE[@]}" stop unlimited-ocr
   start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600

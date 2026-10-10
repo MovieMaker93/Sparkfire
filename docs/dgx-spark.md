@@ -62,7 +62,7 @@ Run from the repository root:
 
 The script:
 
-1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access, and, only with `--asr-backend qwen3-asr`, the CUDA 13 toolchain that Qwen3-ASR mounts;
+1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds SparklingKit and the thin model API adapters;
 3. downloads five pinned model revisions from their publishers into `data/dgx-models/`;
 4. starts the model servers one at a time and waits for each health endpoint;
@@ -81,7 +81,7 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | ---: | --- | --- |
 | 8330 | System status | Lightweight read-only Python API |
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
-| 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 (this fork's default), or `Qwen/Qwen3-ASR-1.7B` / vLLM + Qwen ASR with `--asr-backend qwen3-asr` |
+| 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
 | 8335 | Visual grounding | `nvidia/LocateAnything-3B` / NVIDIA `la_flash` runtime |
 | 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.40.0 |
@@ -89,18 +89,14 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
 
-### Speech recognition backends
+### Speech recognition backend
 
-Port 8333 serves one of two models; the start script stops the other one's container.
+Port 8333 serves Parakeet; it replaced this fork's earlier Qwen3-ASR backend (16.5 GiB, 52 languages,
+kept only as a user-configurable endpoint the app can still talk to).
 
-| Option | Model | Container | Memory | Languages |
-| --- | --- | --- | --- | --- |
-| `--asr-backend parakeet` (default) | `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
-| `--asr-backend qwen3-asr` | `Qwen/Qwen3-ASR-1.7B` in vLLM | `sparklingkit-qwen3-asr` | 16.5 GiB | 52 |
-
-```bash
-./scripts/start-dgx-spark.sh --asr-backend qwen3-asr --accept-model-licenses
-```
+| Model | Container | Memory | Languages |
+| --- | --- | --- | --- |
+| `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
 
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
 source for the GB10. The adapter accepts WAV only, which is what SparklingKit sends, and serves one request
