@@ -187,11 +187,9 @@ show_status() {
   "${COMPOSE[@]}" ps
   printf '\nEndpoints\n'
   endpoint_status "System status" "http://127.0.0.1:8330/health"
-  endpoint_status "Multimodal LLM" "http://127.0.0.1:8331/v1/models"
   endpoint_status "OCR" "http://127.0.0.1:8332/v1/models"
-  endpoint_status "Transcription" "http://127.0.0.1:8333/v1/models"
+  endpoint_status "Transcription" "http://127.0.0.1:8333/health"
   endpoint_status "Translation" "http://127.0.0.1:8334/health"
-  endpoint_status "Grounding" "http://127.0.0.1:8335/health"
   endpoint_status "Image generation" "http://127.0.0.1:8336/health"
   if [[ "$DEPLOY_APP" == "true" ]]; then
     endpoint_status "SparklingKit" "http://127.0.0.1:54321/api/health"
