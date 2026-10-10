@@ -54,7 +54,7 @@ port. Both engines received the same clips, one request at a time:
 | --- | --- | --- | --- | --- |
 | Qwen3-ASR-1.7B (vLLM) | 3.7% | 4.4% | 7–14× realtime | about 12.6 GiB |
 | Parakeet TDT 0.6B v3, engine alone | 3.6% | 3.9% | 134–248× realtime | 1.5 GiB |
-| Parakeet TDT 0.6B v3, through the adapter | 3.6% | 3.9% | 101–181× realtime | 1.5–2.0 GiB |
+| Parakeet TDT 0.6B v3, through the adapter | 3.6% | 3.9% | 101–181× realtime | see Memory |
 
 The adapter adds about 20 ms per request (an HTTP hop and the multipart upload), which shows on short clips.
 
@@ -68,15 +68,16 @@ The adapter adds about 20 ms per request (an HTTP hop and the multipart upload),
 
 ### Through the app
 
-Measured on 2026-10-10. The app sends Parakeet chunks of at most 30 s, split at pauses, with 3 s of overlap;
-Qwen3-ASR keeps the configured 60 s. The two long files are the clips above joined with 0.6 s gaps: the 73
-English clips (8.7 min, faint noise in the gaps) and the 60 Italian clips (16.8 min).
+Measured on 2026-10-10. For Parakeet the app targets 30 s chunks, about 30–38 s each once the split snaps to
+a pause and the 3 s overlap is added; Qwen3-ASR keeps the configured 60 s target. The two long files are the
+clips above joined with 0.6 s gaps: the 73 English clips (8.7 min) with faint noise in the gaps, and the 60
+Italian clips (16.8 min) with exact digital-zero gaps.
 
 | | English, 8.7 min | Italian, 16.8 min |
 | --- | --- | --- |
-| Parakeet, 30 s chunks, through the app | 4.3% in 3.6 s | 4.9% in 6.9 s |
+| Parakeet, 30 s chunk target, through the app | 4.3% in 3.6 s | 4.9% in 6.9 s |
 | Parakeet, the whole file in one request to the adapter | 5.0% | 4.7% |
-| Qwen3-ASR, 60 s chunks, through the app | 5.9% in 35 s | 11.2% in 115 s |
+| Qwen3-ASR, 60 s chunk target, through the app | 5.9% in 35 s | 11.2% in 115 s |
 | Short clips, one request each (table above): Parakeet / Qwen3-ASR | 3.6% / 3.7% | 3.9% / 4.4% |
 
 - **Why Qwen3-ASR scores worse through the app:** it returns no word times, so the app cannot cut the
@@ -86,16 +87,18 @@ English clips (8.7 min, faint noise in the gaps) and the 60 Italian clips (16.8 
   clips the two models are close, so this table compares the app's two chunk paths more than the models.
 - **Speed:** about 145× realtime for Parakeet through the app, including audio conversion and chunking,
   against 9–15× for Qwen3-ASR.
-- **Skipped speech:** Parakeet occasionally drops a stretch of speech; see Known issues.
+- **Skipped speech:** Parakeet occasionally drops a stretch of speech; see Known issues. Qwen3-ASR also
+  lost 12 Italian words, at about 792 s, through the app.
 
-Parakeet's transcripts, 30 s chunks:
+Parakeet's transcripts with the 30 s chunk target. The Italian clip was measured before the cap; at 16 s it
+is one chunk either way.
 
 | Input | Audio | Chunks | Time in the app | Transcript lines | SRT cues | Longest cue | Most characters |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| The README demo reading (English) | 65 s | 2 | 0.6 s | 7 | 14 | 6.5 s | 84 |
+| The README demo reading (English) | 65.5 s | 2 | 0.5 s | 7 | 14 | 6.5 s | 84 |
 | One FLEURS clip (Italian) | 16 s | 1 | under 1 s | 2 | 3 | 6.7 s | 83 |
-| The English long file | 8.7 min | 17 | 3.6 s | 76 | 115 | 6.5 s | 84 |
-| The Italian long file | 16.8 min | 34 | 6.9 s | 77 | 166 | 6.96 s | 84 |
+| The English long file (noise gaps) | 8.7 min | 17 | 3.6 s | 76 | 115 | 6.5 s | 84 |
+| The Italian long file (zero gaps) | 16.8 min | 34 | 6.9 s | 77 | 166 | 6.96 s | 84 |
 
 - **Cues:** every SRT cue lasts at most 7 s and holds at most 84 characters. Each `transcript.json` has a
   `words` array (150, 27, 1,138 and 1,501 words) that matches the words of its lines.
@@ -163,7 +166,8 @@ from its configuration and the stack totals.
 | Saluki and Qwen-Image-2.1-Turbo in place of Qwen3.6 and Qwen-Image 2.1 | about 78 GiB with all services up |
 | Parakeet in place of Qwen3-ASR, everything else unchanged (2026-10-10) | 14–15 GiB less; available memory went from 35 to 49 GiB |
 
-Parakeet's peak was measured during the 16.8-minute transcription through the app.
+Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
+transcription through the app with the 30 s chunk target.
 
 ## Known issues
 
@@ -181,10 +185,11 @@ Parakeet's peak was measured during the 16.8-minute transcription through the ap
   seconds of clear speech, always in the same place for the same audio window, at every chunk length tested.
   - With 60 s chunks it skipped two sentences of about 7 s each in the English long file built with exact
     digital-zero gaps: 5.6% WER, against 4.1% for the whole file. Windows of 30–40 s around the first one
-    kept it, which is why the app caps Parakeet's chunks at 30 s.
+    kept it, which is why the app caps Parakeet's chunk target at 30 s.
   - The cap moved the problem rather than removing it. At 30 s the same file lost a different 14 s stretch
-    (5.9%). Exact digital silence makes it worse: with faint noise in the gaps, the file lost 8 words at the
-    end of one chunk (4.3%), and 13 words when sent as one request (5.0%). The Italian file lost nothing.
+    (5.9%). With faint noise in the gaps the drops moved instead of disappearing: 8 words at the end of one
+    chunk through the app (4.3%), and 13 words as one request (5.0%, against 4.1% with exact zeros). The
+    Italian file lost nothing at 30 s.
 - **Parakeet keeps its largest working memory.** A whole file sent straight to the adapter in one request
   raised the engine's GPU memory to 8.3 GiB (16.8 min of audio) or 12.1 GiB (8.7 min), and it stayed there
   until the container restarted. The app sends one chunk of about 30–38 s per request, so through the app
