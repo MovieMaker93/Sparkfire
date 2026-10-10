@@ -227,3 +227,51 @@ request hung.
   request catches this state.
 - **Fixed in this fork:** model calls were cut off after exactly 300 s by Node's fetch timeouts. 2048² images
   and long translations on a busy GPU hit this.
+
+## FastH3 video bake-off (2026-10-10)
+
+One GPU window with the whole stack resident (Parakeet ASR, PaddleOCR-VL, Qwen-Image-2.1-Turbo,
+LocateAnything, Hy-MT2; idle about 71 GiB of 121). Scripts, pins and raw logs: `~/sk-bench/fasth3` on the
+Spark. Decides the runtime for the planned `text-to-video` module; the full grilling log and plan live in
+`docs/superpowers/plans/2026-10-10-fasth3-video.md`.
+
+**Runtime bake-off.**
+
+| Contender | Outcome |
+| --- | --- |
+| Own diffusers adapter | Cannot load any FastH3 checkpoint: diffusers 0.41.0 and git main lack the Trim rank-16 AdaLN architecture (`norm_out.linear.weight` `[10752, 16]` vs `[10752, 2688]`), and transformers 5.19.0 and git main refuse every pre-quantized NVFP4 checkpoint — which all FastH3 distills bundle as their text encoder. Revisit on the next diffusers/transformers releases. |
+| ComfyUI (pinned `0df64eb`), driven headlessly over its HTTP API | **Chosen.** Official t2v and i2v templates converted to API prompts (`comfy_bench.py`); runs in the production image-generation image (torch 2.10 cu130). |
+| TensorFold int8 engine (Studio path) | Published numbers only (no install found): 7.1 s/pass at 480p, 183 s at 720p, ~195 s at 768p — but the Studio's ComfyUI setup holds ~70 GiB resident, which cannot coexist with our stack. Stays a documented fallback. |
+
+**Chosen checkpoint set** (MiniMax H3 Community License, download gated): `FastVideo/FastVideo-FastH3-Trim-Comfy`
+@ `f66c13dc` — Trim-8-Step NVFP4 DiT (19B, 11.9 GB), Qwen3-VL-32B NVFP4-AWQ text encoder (15.7 GB), int8
+video VAE, fp32 audio VAE; about 31 GB on disk. Quality option: FastH3 V2-pruned-int8 DiT (22.1 GB,
+`FastVideo/FastVideo-FastH3-Comfy` @ `ec1e3aa3`; the Comfy-Org copy of the same file is HF-gated) —
+measured ~11 s/pass at 480p (~119 s a 5 s clip, cold) and ~25.5 s/pass at 720p (~238 s warm), about twice
+the Trim times, with visibly sharper frames on the same seed (cleaner folds, droplet detail).
+
+| Measurement (8 passes, seed 42, 24 fps, h264+AAC out) | Result |
+| --- | --- |
+| 864x480, 5 s clip (124 frames), warm | ~5.3 s/pass, ~66 s end-to-end |
+| Same, cold after `POST /free` | +~11 s (weight reload) |
+| 1280x736, 5 s clip | ~17 s/pass, ~169 s end-to-end |
+| 1344x768, 5 s clip | ~176 s end-to-end |
+| 1280x736, 8 s clip (192 frames) | ~28.6 s/pass, ~283 s end-to-end |
+| Image-to-video (first-frame artifact), 864x480, 5 s | works, ~6.5 s/pass |
+| Whole-job host peak above the resident stack | +32 GiB at 480p, +35 GiB at 720p/768p (idle 71 → ~105) |
+| Unload | `POST /free {"unload_models": true}` returns ~30 GiB immediately |
+
+Decision gates from the plan: staged peak ≤ ~40 GiB (measured 32–35) and speed within 2× the engine at 480p
+(measured 5.3 s/pass vs the engine's 7.1 on a twice-bigger model; 720p wall-clock matches the engine's 183 s).
+Prompt encoding (Qwen3-VL-32B) costs ~10 s per job. Two behaviours worth keeping for the module design:
+
+- The first i2v run animated the template's example image until the prompt was rewritten to describe the
+  actual first frame — prefill the i2v prompt from the image artifact's own prompt (lineage carries it).
+- ComfyUI keeps all weights resident between jobs until `/free`; the service must unload after the warm TTL
+  or the stack idles ~30 GiB heavier.
+
+**Qwen-Image-2.1-Turbo quantization follow-up** (same window, `image_eval.py`): the Studio's ComfyUI image
+path is not worth porting. An int8 text encoder changes nothing on GB10 (17.5 GiB peak either way — their
+15 GiB figure is a Mac/MLX number and does not transfer to unified memory), and full bf16 costs 30.8 GiB
+resident while cutting sampling at 1344x768 from 15.4 s to 10.3 s. Float8 stays the image backend default;
+bf16 is a possible opt-in if 13 GiB are ever spare.
