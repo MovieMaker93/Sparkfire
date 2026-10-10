@@ -138,6 +138,12 @@ through the app.
   - 8.5 GiB of process memory, mostly the memory-mapped GGUF file. The system can reclaim it, and
     `--no-mmap` avoids holding it next to the GPU copy. The chat's thinking control maps onto its template (`enable_thinking`,
 `reasoning_effort`: low, medium, xhigh).
+- **Mind maps need thinking off.** Twice on 2026-10-10 the mind-map job on six pages of prose failed with
+  "The endpoint returned no content": Saluki's default-on reasoning consumed the module's whole
+  8192-token completion budget and the answer came back empty. The same request with
+  `chat_template_kwargs: {"enable_thinking": false}` returned valid JSON (four branches) in 32 s and
+  529 tokens. Chat already exposes the thinking control; the mind-map executor should turn thinking off
+  for a llama.cpp backend.
 
 ## Memory
 
@@ -165,9 +171,15 @@ from its configuration and the stack totals.
 | One job per module, two running at a time (the app's worker concurrency) | 93.5 GiB peak |
 | Saluki and Qwen-Image-2.1-Turbo in place of Qwen3.6 and Qwen-Image 2.1 | about 78 GiB with all services up |
 | Parakeet in place of Qwen3-ASR, everything else unchanged (2026-10-10) | 14–15 GiB less; available memory went from 35 to 49 GiB |
+| One job per module, with Saluki as the LLM and Parakeet as the ASR (2026-10-10) | 73.5 GiB peak; 92.4 GiB in a degenerate pass |
 
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
-transcription through the app with the 30 s chunk target.
+transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
+LLM (started by hand) and the mind map requested directly with thinking off, so its figures describe the
+Saluki configuration, not the default Qwen3.6 LLM; the busy peak of Qwen3.6 plus Parakeet remains the
+README's estimate. The 92.4 GiB peak belongs to the pass that ran before Hy-MT2's wedge was found (see
+Known issues): the LLM spent its whole 8192-token budget on a reasoning trace while every translation
+request hung.
 
 ## Known issues
 
@@ -194,5 +206,20 @@ transcription through the app with the 30 s chunk target.
   raised the engine's GPU memory to 8.3 GiB (16.8 min of audio) or 12.1 GiB (8.7 min), and it stayed there
   until the container restarted. The app sends one chunk of about 30–38 s per request, so through the app
   it stays at 1.6–1.8 GiB.
+- **parakeet.cpp v0.6.0 and v0.6.1 change none of this (checked 2026-10-10).** Built from source with the
+  same flags and the same GGUF, v0.6.1 returned byte-identical transcripts to the pinned v0.5.0 on the
+  English long file with both gap kinds (one request each), on the Italian long file (one request) and on
+  both 30 s-chunked passes (17 and 34 chunks), and it held the same 12.3 GiB of GPU memory after a
+  whole-file request. The releases' TDT beam-search fix and new VAD tooling do not reach the server's
+  default greedy decode of this model, and the new server flags (`--concurrency`, which adds CPU backends,
+  and `--sound-model`) do not affect the CUDA path. There is nothing to gain from repinning.
+- **The translation service can wedge with a green health check.** On 2026-10-10 Hy-MT2 answered
+  `GET /health` with 200 but every completion hung: a one-line request returned zero bytes within 120 s,
+  and app jobs failed with "The operation was aborted due to timeout". The container had been up for
+  days, so it most likely wedged during or after the OOM storms of 2026-10-05. `docker restart
+  sparklingkit-hy-mt2` fixed it: a one-line translation answered in 1.5 s and a 20-page job then completed
+  through the app. After the clean restart the service holds 3.9 GiB of GPU memory, against the 2.4 GiB
+  the table above recorded while it was wedged. The health endpoint runs no inference, so only a real
+  request catches this state.
 - **Fixed in this fork:** model calls were cut off after exactly 300 s by Node's fetch timeouts. 2048² images
   and long translations on a busy GPU hit this.
