@@ -28,6 +28,7 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `src/server/index.ts` | API routes, request validation (zod), chat streaming |
 | `src/server/store.ts` | Jobs, artifacts, chats and settings on disk; safe path helpers |
 | `src/server/processor.ts` | OCR and transcription pipelines (chunking, checkpoints, outputs) |
+| `src/server/transcript-timing.ts` | Word timestamps to transcript lines (one per sentence) and subtitle cues |
 | `src/server/ai.ts` | Every call to a model service: OCR profiles, ASR, image, chat, health checks |
 | `src/server/modules/` | Executors for translation, grounding, text-to-image, mind map and LLM prompts |
 | `src/server/workflows/` | The node-based workflow engine |
@@ -36,7 +37,7 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
-| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, ASR, translation, grounding, downloader |
+| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, Parakeet ASR, Qwen3-ASR, translation, grounding, downloader |
 | `services/dgx-status/` | The DGX system monitor service |
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
@@ -67,8 +68,8 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | Type check (client and server) | `npm run typecheck` |
 | Unit tests | `npm test` (or `npx vitest run path/to/file.test.ts`) |
 | Production build | `npm run build` |
-| Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart && python -m unittest"` (same for `paddleocr-vl`, `services/dgx-status`) |
-| Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--image-backend …]` |
+| Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `services/dgx-status`) |
+| Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--asr-backend …] [--image-backend …]` |
 | Stack status / stop | `./scripts/start-dgx-spark.sh status`, `./scripts/start-dgx-spark.sh stop` |
 
 On Windows, 8 tests in `src/server/dgx-update.test.ts` fail before any change because GNU tar reads `C:`
@@ -91,6 +92,10 @@ as a host name; they pass on Linux and in CI.
   would otherwise cut off long generations.
 - **OCR** picks its request format from the model id (`ocrProfile`): Unlimited-OCR uses chat completions,
   PaddleOCR-VL uses the adapter's `/v1/ocr` and also returns layout blocks (`document.layout.json`).
+- **Speech** picks its request from the model id (`asrProfile`): with a Parakeet id the app asks for word
+  timestamps and `src/server/transcript-timing.ts` builds one transcript line per sentence and subtitle cues
+  (at most 7 s and 84 characters) from them, and the chunk target is capped at 30 s. Any other id keeps
+  Qwen3-ASR's plain request and one line per chunk. The Parakeet adapter takes WAV only.
 - **Image generation** asks the service for `/v1/capabilities` (sizes, default and maximum steps) and
   validates requests against it.
 - **Chat** is stored in `data/chats/<id>/chat.json`, with attached files in `attachments/`. The thinking
@@ -106,7 +111,7 @@ as a host name; they pass on Linux and in CI.
 | 8330 | System monitor | | |
 | 8331 | LLM (vLLM) | Qwen3.6-35B-A3B NVFP4 | |
 | 8332 | OCR | Unlimited-OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342): `--ocr-backend paddleocr-vl` |
-| 8333 | Speech recognition | Qwen3-ASR-1.7B | |
+| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | Qwen3-ASR-1.7B: `--asr-backend qwen3-asr` |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
 | 8335 | Grounding | LocateAnything-3B | |
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
@@ -114,18 +119,20 @@ as a host name; they pass on Linux and in CI.
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
-  full stack idles around 85 GiB and peaked at 93.5 GiB under load. The start script loads the LLM first
-  because its loading peak is the largest. Do not start extra models, large builds or big downloads while
-  services are loading, and never run a second large LLM next to the stack.
+  full stack idles around 70 GiB (85 GiB with Qwen3-ASR) and peaked at 93.5 GiB under load with Qwen3-ASR.
+  The start script loads the LLM first because its loading peak is the largest. Do not start extra models,
+  large builds or big downloads while services are loading, and never run a second large LLM next to the
+  stack.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
   container images use exact tags or digests; Python requirements are pinned.
 - **Adding a model backend:** add it to the adapter's registry (for images, the `BACKENDS` dict in
   `services/dgx-models/image-generation/server.py`), add the option and its pinned download to
   `scripts/start-dgx-spark.sh`, note it in `compose.dgx.yaml`, write adapter unit tests, and document it in
-  `docs/fork.md` and the README. Upstream's defaults stay the defaults.
+  `docs/fork.md` and the README. The fork's defaults are the ones in the table above.
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
   `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) and LocateAnything-3B are
-  non-commercial. Never commit weights.
+  non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. Never commit
+  weights.
 - Validation results and known issues are in `docs/validation.md`.
 
 ## Coding conventions
