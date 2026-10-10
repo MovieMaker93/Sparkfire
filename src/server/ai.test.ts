@@ -72,6 +72,16 @@ describe("ASR requests", () => {
     expect(result.words).toEqual([{ word: "Hi", start: 10.1, end: 10.3 }]);
   });
 
+  it("drops Parakeet's <unk> marks from words", async () => {
+    // parakeet.cpp writes <unk> for characters it cannot spell ("13°"); its own text already leaves them out.
+    const baseUrl = await jsonServer(() => ({
+      text: "13 posto",
+      words: [{ word: "13<unk>", start: 0, end: 0.5 }, { word: "<unk>", start: 0.5, end: 0.6 }, { word: "posto", start: 0.6, end: 1 }],
+    }));
+    const result = await transcribeAudio({ baseUrl, model: "Parakeet-TDT-0.6B-v3", apiKey: "" }, await audioFile(), 0, { timeoutMs: 2000 });
+    expect(result.words!.map((word) => word.word)).toEqual(["13", "posto"]);
+  });
+
   it("returns no words for a silent Parakeet chunk and defaults a missing end to the start", async () => {
     const silent = await jsonServer(() => ({ text: "", segments: [] }));
     const quiet = await transcribeAudio({ baseUrl: silent, model: "Parakeet-TDT-0.6B-v3", apiKey: "" }, await audioFile(), 5, { timeoutMs: 2000 });

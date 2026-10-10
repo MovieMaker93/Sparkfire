@@ -268,7 +268,9 @@ export async function transcribeAudio(
     : (payload.segments || []).flatMap((segment) => (Array.isArray(segment.words) ? segment.words : []));
   const seconds = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
   const words = rawWords.flatMap((entry): TimedWord[] => {
-    const word = typeof entry?.word === "string" ? entry.word.trim() : "";
+    // parakeet.cpp writes <unk> for characters it cannot spell ("13°"); its own text leaves them out, and the
+    // lines are built from these words.
+    const word = typeof entry?.word === "string" ? entry.word.replaceAll("<unk>", "").trim() : "";
     if (!word) return [];
     const start = offset + (seconds(entry.start) ?? 0);
     return [{ word, start, end: offset + (seconds(entry.end) ?? seconds(entry.start) ?? 0) }];
