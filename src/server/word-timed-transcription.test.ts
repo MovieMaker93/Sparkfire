@@ -151,6 +151,18 @@ describe("word-timed transcripts", () => {
     expect(json.segments.map((segment) => segment.text)).toEqual(["Left.", "Right."]);
   });
 
+  it("sends Parakeet chunks of at most 30 s even when the setting is longer", async () => {
+    // 40 s fits one 60 s chunk, so only the Parakeet cap can make it two.
+    const audio = { chunkTargetSec: 60, chunkOverlapSec: 1 };
+    const parakeet = await runAudioJob({ model: "Parakeet-TDT-0.6B-v3", seconds: 40, audio, respond: () => ({ text: "Hello.", words: [w("Hello.", 0.2, 0.6)] }) });
+    expect(parakeet.requests).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps the configured chunk length for models that are not Parakeet", async () => {
+    const other = await runAudioJob({ model: "test-asr", seconds: 40, audio: { chunkTargetSec: 60, chunkOverlapSec: 1 }, respond: () => ({ text: "Plain words." }) });
+    expect(other.requests).toBe(1);
+  });
+
   it("keeps one segment per chunk and no words for models without word times", async () => {
     const { json, requests } = await runAudioJob({
       model: "test-asr",

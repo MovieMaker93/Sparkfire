@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { chatCompletion, ocrPage, transcribeAudio, type OcrBlock, type TimedWord, type TranscriptSegment } from "./ai.js";
+import { asrProfile, chatCompletion, ocrPage, transcribeAudio, type OcrBlock, type TimedWord, type TranscriptSegment } from "./ai.js";
 import { jobEvents, publishJob } from "./events.js";
 import { extractAudio, normalizeAudio, rasterizePdf, splitAudio, srtTimestamp, vttTimestamp } from "./media.js";
 import { executeWorkflow } from "./modules/executors.js";
@@ -16,6 +16,10 @@ import {
   updateJob,
 } from "./store.js";
 import type { JobManifest, PromptPreset, Settings, WorkflowRun } from "./models.js";
+
+// parakeet.cpp skips whole ~7 s utterances inside some 60 s chunks, always the same ones (two in 8.7 minutes of
+// English, 5.6% word error rate against 4.1% for the same audio as one request). Windows of 30 to 40 s keep them.
+const PARAKEET_MAX_CHUNK_SEC = 30;
 
 interface AudioChunk { file: string; start: number; end: number }
 // `words` is set only by ASR models that report word times; checkpoints written before they did lack it.
@@ -155,7 +159,9 @@ export async function processAudio(job: JobManifest, signal?: AbortSignal, run?:
   const planFile = path.join(runWork, "audio-plan.json");
   const configuredPlan = {
     version: 1,
-    chunkTargetSec: settings.audio.chunkTargetSec,
+    chunkTargetSec: asrProfile(settings.endpoints.stt.model) === "parakeet"
+      ? Math.min(settings.audio.chunkTargetSec, PARAKEET_MAX_CHUNK_SEC)
+      : settings.audio.chunkTargetSec,
     chunkOverlapSec: settings.audio.chunkOverlapSec,
     sampleRate: settings.audio.sampleRate,
   };
