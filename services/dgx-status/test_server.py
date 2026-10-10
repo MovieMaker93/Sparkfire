@@ -36,16 +36,15 @@ class ProcessServiceTests(unittest.TestCase):
         (directory / "cmdline").write_bytes(b"\0".join(part.encode() for part in args) + b"\0")
         (directory / "environ").write_bytes(b"\0".join(f"{key}={value}".encode() for key, value in environment.items()) + b"\0")
 
-    def test_names_the_parakeet_engine_as_asr(self):
-        # The engine is a child of the adapter and inherits its environment; no status file, so no parent to walk to.
-        self.write_process(
-            4242,
-            ["parakeet-server", "--model", "/models/x.gguf", "--host", "127.0.0.1", "--port", "8343"],
-            {"MODEL_NAME": "Parakeet-TDT-0.6B-v3", "PORT": "8333"},
-        )
+    def test_names_the_parakeet_engine_as_asr_from_its_command_line(self):
+        # In production the engine's environment is unreadable, so the command line alone has to name it.
+        directory = Path(self.proc.name) / "4242"
+        directory.mkdir()
+        args = ["/usr/local/bin/parakeet-server", "--model", "/models/x.gguf", "--host", "127.0.0.1", "--port", "8343"]
+        (directory / "cmdline").write_bytes(b"\0".join(part.encode() for part in args) + b"\0")
         self.assertEqual(
             server.resolve_process_service(4242),
-            {"service": "asr", "serviceLabel": "ASR", "port": 8343, "model": "Parakeet-TDT-0.6B-v3"},
+            {"service": "asr", "serviceLabel": "ASR", "port": 8333, "model": "Parakeet-TDT-0.6B-v3"},
         )
 
 
