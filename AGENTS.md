@@ -117,11 +117,11 @@ as a host name; they pass on Linux and in CI.
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
-stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
+  stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
   `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
-  Settings) and idles around 29 GiB. Do not
-  start extra models, large builds or big downloads while services are loading, and never run a second
-  large LLM next to the stack.
+  Settings) and idles around 29 GiB. Do not start extra models, large builds or big downloads while
+  services are loading, and check free memory (`free -g`) before running an LLM next to the stack: one
+  that needs most of the Spark does not fit beside it.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
   container images use exact tags or digests; Python requirements are pinned.
 - **Adding a model backend:** add it to the adapter's registry (for images, the `BACKENDS` dict in
