@@ -252,6 +252,10 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(command[1:6], ["/opt/ComfyUI/main.py", "--listen", "127.0.0.1", "--port", "8347"])
         self.assertIn("--disable-metadata", command)
 
+    def test_base_directory_has_the_folders_comfy_lists_at_start(self):
+        server.prepare_base_directory(self.work_dir / "fresh")
+        self.assertEqual(sorted(path.name for path in (self.work_dir / "fresh").iterdir()), ["custom_nodes", "input", "models", "output", "temp", "user"])
+
 
 @unittest.skipUnless(importlib.util.find_spec("av"), "PyAV is installed in the service image, not in CI")
 class TaggingTests(unittest.TestCase):

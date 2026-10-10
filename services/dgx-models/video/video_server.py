@@ -444,6 +444,12 @@ def watch_process(process: Any, on_exit: Callable[[int], None], interval: float 
     return thread
 
 
+def prepare_base_directory(work_dir: Path) -> None:
+    # ComfyUI lists custom_nodes in its base directory before anything else and stops if it is missing.
+    for folder in ("custom_nodes", "models", "input", "output", "temp", "user"):
+        (work_dir / folder).mkdir(parents=True, exist_ok=True)
+
+
 def comfy_command(comfy_dir: Path, port: int, work_dir: Path, model_paths: str) -> list[str]:
     # The base directory holds ComfyUI's input, output, temp and user folders; the models come from the
     # read-only mount listed in the model paths file. Metadata is off so the MP4 does not carry the graph.
@@ -470,7 +476,7 @@ def main() -> None:
     model_paths = os.getenv("MODEL_PATHS_CONFIG", "/app/extra_model_paths.yaml")
     model_name = os.getenv("MODEL_NAME", backend.model_name)
     idle_unload_seconds = float(os.getenv("IDLE_UNLOAD_SECONDS", "600"))
-    work_dir.mkdir(parents=True, exist_ok=True)
+    prepare_base_directory(work_dir)
 
     process = subprocess.Popen(comfy_command(comfy_dir, comfy_port, work_dir, model_paths), cwd=comfy_dir)
 
