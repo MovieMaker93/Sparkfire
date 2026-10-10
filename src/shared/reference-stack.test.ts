@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "../server/config.js";
-import { normalizeReferenceHost, referenceSettingsForHost } from "./reference-stack.js";
+import { REFERENCE_ENDPOINT_KINDS, normalizeReferenceHost, referenceSettingsForHost } from "./reference-stack.js";
 
 describe("reference stack settings", () => {
   it("accepts a hostname or a simple URL and rejects embedded connection details", () => {
@@ -15,13 +15,14 @@ describe("reference stack settings", () => {
     expect(settings.setup).toMatchObject({ completed: true, mode: "split", onboardingVersion: 1 });
     expect(settings.setup.completedAt).toBeTruthy();
     expect(settings.systemStatus.baseUrl).toBe("http://192.0.2.10:8330");
-    expect(settings.endpoints.llm.baseUrl).toBe("http://192.0.2.10:8331/v1");
+    // The LLM endpoint is user-configured; the reference preset must not touch it.
+    expect(settings.endpoints.llm.baseUrl).toBe("");
     expect(settings.endpoints.ocr.baseUrl).toBe("http://192.0.2.10:8332/v1");
     expect(settings.endpoints.stt.baseUrl).toBe("http://192.0.2.10:8333/v1");
     expect(settings.endpoints.translation.baseUrl).toBe("http://192.0.2.10:8334/v1");
     expect(settings.endpoints.grounding.baseUrl).toBe("http://192.0.2.10:8335/v1");
     expect(settings.endpoints["image-generation"].baseUrl).toBe("http://192.0.2.10:8336/v1");
-    expect(Object.values(settings.endpoints).every((endpoint) => endpoint.enabled)).toBe(true);
+    expect(REFERENCE_ENDPOINT_KINDS.every((kind) => settings.endpoints[kind].enabled)).toBe(true);
   });
 
   it("points speech recognition at the Parakeet service", () => {

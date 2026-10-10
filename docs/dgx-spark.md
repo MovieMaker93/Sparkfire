@@ -1,6 +1,6 @@
 # DGX Spark reference deployment
 
-SparklingKit treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the six specialized models while SparklingKit runs on another host.
+SparklingKit treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the five specialized models while SparklingKit runs on another host.
 
 ## Deployment paths
 
@@ -44,7 +44,7 @@ less install.sh
 bash install.sh
 ```
 
-Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the seven adjacent reference ports, verifies all six AI services, then stores the endpoint selection in its settings. The model host does not receive the application's job database, chat history, or durable workspace files.
+Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the six adjacent reference ports, verifies all five bundled AI services, then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
 
 Ports 8330–8336 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
@@ -64,7 +64,7 @@ The script:
 
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access, and, only with `--asr-backend qwen3-asr`, the CUDA 13 toolchain that Qwen3-ASR mounts;
 2. builds SparklingKit and the thin model API adapters;
-3. downloads six pinned model revisions from their publishers into `data/dgx-models/`;
+3. downloads five pinned model revisions from their publishers into `data/dgx-models/`;
 4. starts the model servers one at a time and waits for each health endpoint;
 5. starts the read-only system monitor; and
 6. for an all-in-one deployment, starts Redis and SparklingKit before reporting the workspace URL.
@@ -80,7 +80,6 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | Port | Service | Model/backend |
 | ---: | --- | --- |
 | 8330 | System status | Lightweight read-only Python API |
-| 8331 | Multimodal LLM | `nvidia/Qwen3.6-35B-A3B-NVFP4` / vLLM 0.24.0 |
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
 | 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 (this fork's default), or `Qwen/Qwen3-ASR-1.7B` / vLLM + Qwen ASR with `--asr-backend qwen3-asr` |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
@@ -185,7 +184,7 @@ Application upgrades are managed separately from model-stack upgrades. In the wo
 ./sparklingkit update
 ```
 
-The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the six model weights again.
+The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the five model weights again.
 
 ## Model terms
 

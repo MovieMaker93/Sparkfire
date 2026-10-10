@@ -1,13 +1,13 @@
-# Reference six-model deployment for a 128 GB NVIDIA DGX Spark.
+# Reference five-model deployment for a 128 GB NVIDIA DGX Spark.
 # Use through scripts/start-dgx-spark.sh so the memory-heavy services start
 # sequentially and are checked for readiness before the next model is loaded.
+# The stack ships no LLM: chat, mind maps and summaries use any OpenAI-compatible
+# endpoint configured in Settings (see docs/fork.md for the Saluki reference setup).
 
 services:
   app:
     environment:
       SYSTEM_STATUS_BASE_URL: http://host.docker.internal:8330
-      LLM_BASE_URL: http://host.docker.internal:8331/v1
-      LLM_MODEL: qwen36-35b-a3b-nvfp4
       OCR_BASE_URL: http://host.docker.internal:8332/v1
       OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}
       STT_BASE_URL: http://host.docker.internal:8333/v1
@@ -31,93 +31,6 @@ services:
       HF_TOKEN: ${HF_TOKEN:-}
     volumes:
       - ./data/dgx-models:/models
-
-  qwen36:
-    image: vllm/vllm-openai:v0.24.0@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f
-    container_name: sparklingkit-qwen36
-    restart: unless-stopped
-    network_mode: host
-    ipc: host
-    shm_size: "32gb"
-    mem_limit: "120g"
-    memswap_limit: "120g"
-    environment:
-      HF_HOME: /root/.cache/huggingface
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      CUTE_DSL_ARCH: sm_121a
-      CUDA_MODULE_LOADING: LAZY
-    volumes:
-      - ./data/dgx-models/nvidia/Qwen3.6-35B-A3B-NVFP4:/model:ro
-      - ./data/dgx-runtime/qwen:/root/.cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    entrypoint: ["vllm", "serve"]
-    command:
-      - /model
-      - --served-model-name
-      - qwen36-35b-a3b-nvfp4
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8331"
-      - --tensor-parallel-size
-      - "1"
-      - --trust-remote-code
-      - --dtype
-      - bfloat16
-      - --quantization
-      - modelopt
-      - --kv-cache-dtype
-      - fp8
-      - --attention-backend
-      - flashinfer
-      - --moe-backend
-      - marlin
-      - --kv-cache-memory-bytes
-      - ${QWEN_KV_CACHE_MEMORY_BYTES:-2G}
-      - --gpu-memory-utilization
-      - ${QWEN_GPU_MEMORY_UTILIZATION:-0.25}
-      - --max-model-len
-      - ${QWEN_MAX_MODEL_LEN:-65536}
-      - --max-num-seqs
-      - ${QWEN_MAX_NUM_SEQS:-1}
-      - --max-num-batched-tokens
-      - ${QWEN_MAX_NUM_BATCHED_TOKENS:-8192}
-      - --enable-chunked-prefill
-      - --async-scheduling
-      - --enable-prefix-caching
-      - --limit-mm-per-prompt
-      - '{"image":{"count":1,"width":1024,"height":1024},"video":0}'
-      - --mm-processor-kwargs
-      - '{"max_pixels":1048576}'
-      - --mm-processor-cache-gb
-      - "0.5"
-      - --speculative-config
-      - '{"method":"mtp","num_speculative_tokens":3,"moe_backend":"triton"}'
-      - --load-format
-      - fastsafetensors
-      - --reasoning-parser
-      - qwen3
-      - --tool-call-parser
-      - qwen3_xml
-      - --enable-auto-tool-choice
-      - --generation-config
-      - vllm
-      - --disable-uvicorn-access-log
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8331/v1/models >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 120
-      start_period: 5m
 
   qwen3-asr:
     build:

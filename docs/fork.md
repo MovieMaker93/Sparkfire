@@ -9,7 +9,7 @@ details. Measured results are in [`validation.md`](validation.md).
   Settings → General → Appearance switches between Dark, Light and System.
 - **Accent.** Primary actions, focus rings, the active navigation item and progress bars use one mint
   accent (`--sk-accent`).
-- **Sidebar.** One "AI services" chip with a popover replaces the six status rows. The Spark monitor
+- **Sidebar.** One "AI services" chip with a popover replaces the per-service status rows. The Spark monitor
   expands on click.
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
   and thumbnails in Recent.
@@ -53,8 +53,10 @@ API additions:
 
 ## Model backends
 
-The DGX stack keeps upstream's six services. Three of them can be switched at deploy time. OCR and images
-keep upstream's defaults; speech recognition defaults to Parakeet:
+The DGX stack drops upstream's bundled Qwen3.6 LLM: chat, mind maps and summaries use any
+OpenAI-compatible endpoint configured in Settings (this fork runs Saluki 27B in `llama-server`; an
+`--llm-backend` service is planned). Of the five remaining services, OCR and images keep upstream's
+defaults and speech recognition defaults to Parakeet; three can be switched at deploy time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
@@ -145,7 +147,7 @@ npm run dev
 
 ## Roadmap
 
-1. **LLM backend switch:** `--llm-backend qwen36|saluki`, with a llama.cpp service built for sm_121.
+1. **LLM backend service:** package Saluki as a llama.cpp service built for sm_121 (the stack itself ships no LLM).
    Saluki 27B takes half the memory and has no loading peak (see `validation.md`).
 2. **Safer LLM restarts:** start the LLM before the other services on every restart, and replace
    `restart: unless-stopped` with a bounded restart, so a crash cannot turn into an out-of-memory loop.

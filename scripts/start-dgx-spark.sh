@@ -20,7 +20,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/start-dgx-spark.sh [start|status|stop] [options]
 
-Set up and run SparklingKit's reference six-model stack on a 128 GB DGX Spark.
+Set up and run SparklingKit's reference five-model stack on a 128 GB DGX Spark.
 
 Options:
   --accept-model-licenses  Confirm that you reviewed and accept each model's terms
@@ -29,7 +29,7 @@ Options:
   --skip-pull              Reuse existing pulled service images
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
-  --models-only            Run the six models and monitor without SparklingKit
+  --models-only            Run the five models and monitor without SparklingKit
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
   --asr-backend NAME       parakeet (default) or qwen3-asr
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
@@ -152,7 +152,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop qwen36 qwen3-asr parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
+    "${COMPOSE[@]}" stop qwen3-asr parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -217,7 +217,7 @@ if [[ "$ACCEPT_MODEL_LICENSES" == "true" ]]; then
 elif [[ ! -f "$license_marker" ]]; then
   cat >&2 <<'EOF'
 The model weights are not covered by SparklingKit's Apache 2.0 license.
-Review the six publishers' model cards before downloading. In particular,
+Review the five publishers' model cards before downloading. In particular,
 nvidia/LocateAnything-3B is currently licensed for non-commercial/research use,
 and Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License.
 EOF
@@ -246,7 +246,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
   else
     "${COMPOSE[@]}" --profile tools build "${build_targets[@]}"
   fi
-  pull_targets=(qwen36)
+  pull_targets=()
   if [[ "$OCR_BACKEND" == "unlimited-ocr" ]]; then pull_targets+=(unlimited-ocr); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then pull_targets+=(redis); fi
   if [[ "$SKIP_PULL" != "true" ]]; then "${COMPOSE[@]}" pull "${pull_targets[@]}"; fi
@@ -289,10 +289,6 @@ download_model() {
 
 if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
   printf '\nDownloading pinned model revisions (existing downloads are reused)...\n'
-  download_model \
-    "nvidia/Qwen3.6-35B-A3B-NVFP4" \
-    "491c2f1ea524c639598bf8fa787a93fed5a6fbce" \
-    "nvidia/Qwen3.6-35B-A3B-NVFP4"
   if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
     download_model \
       "PaddlePaddle/PaddleOCR-VL-1.6" \
@@ -378,8 +374,7 @@ start_service() {
   wait_for_endpoint "$service" "$label" "$url" "$timeout_seconds"
 }
 
-printf '\nStarting the six models sequentially...\n'
-start_service qwen36 "Multimodal LLM" "http://127.0.0.1:8331/v1/models" 900
+printf '\nStarting the five models sequentially...\n'
 # The two ASR backends share port 8333 and the two OCR backends port 8332: stop the one that is not selected.
 if [[ "$ASR_BACKEND" == "parakeet" ]]; then "${COMPOSE[@]}" stop qwen3-asr; else "${COMPOSE[@]}" stop parakeet; fi
 start_service "$ASR_SERVICE" "Transcription ($ASR_BACKEND)" "$ASR_READY_URL" 600

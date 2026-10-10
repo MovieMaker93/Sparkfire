@@ -41,7 +41,8 @@ export const defaultSettings: Settings = {
     baseUrl: process.env.SYSTEM_STATUS_BASE_URL?.trim() || "",
   },
   endpoints: {
-    llm: { ...environmentEndpoint(process.env.LLM_BASE_URL, process.env.LLM_MODEL, BUNDLED_SERVICE_CATALOG.llm.model, ["text", "image"]), apiKey: process.env.LLM_API_KEY || "" },
+    // The reference stack ships no LLM; any OpenAI-compatible endpoint set here (env or Settings) is used as configured.
+    llm: { ...environmentEndpoint(process.env.LLM_BASE_URL, process.env.LLM_MODEL, "", ["text"]), apiKey: process.env.LLM_API_KEY || "" },
     ocr: { ...environmentEndpoint(process.env.OCR_BASE_URL, process.env.OCR_MODEL, BUNDLED_SERVICE_CATALOG.ocr.model), apiKey: process.env.OCR_API_KEY || "" },
     stt: { ...environmentEndpoint(process.env.STT_BASE_URL, process.env.STT_MODEL, BUNDLED_SERVICE_CATALOG.stt.model), apiKey: process.env.STT_API_KEY || "" },
     translation: { ...environmentEndpoint(process.env.TRANSLATION_BASE_URL, process.env.TRANSLATION_MODEL, BUNDLED_SERVICE_CATALOG.translation.model), apiKey: process.env.TRANSLATION_API_KEY || "" },

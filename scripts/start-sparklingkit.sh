@@ -89,8 +89,6 @@ if [[ -n "$MODEL_HOST" ]]; then
     exit 2
   fi
   export SYSTEM_STATUS_BASE_URL="http://$MODEL_HOST:8330"
-  export LLM_BASE_URL="http://$MODEL_HOST:8331/v1"
-  export LLM_MODEL="qwen36-35b-a3b-nvfp4"
   export OCR_BASE_URL="http://$MODEL_HOST:8332/v1"
   export OCR_MODEL="Unlimited-OCR"
   export STT_BASE_URL="http://$MODEL_HOST:8333/v1"
