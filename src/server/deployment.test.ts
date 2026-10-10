@@ -14,6 +14,17 @@ describe("DGX Spark model images", () => {
     expect(imageVersion).toBe(runtimeVersion);
   });
 
+  it("keeps the Parakeet image tag aligned with the pinned parakeet.cpp release", async () => {
+    const [dockerfile, compose] = await Promise.all([
+      fs.readFile(new URL("../../services/dgx-models/parakeet/Dockerfile", import.meta.url), "utf8"),
+      fs.readFile(new URL("../../compose.dgx.yaml", import.meta.url), "utf8"),
+    ]);
+
+    expect(dockerfile.match(/ARG PARAKEET_REF=(\S+)/)?.[1]).toBe("v0.5.0");
+    expect(dockerfile).toContain("ARG PARAKEET_COMMIT=1bfbebfaaf493866f49597cd3b7901959d395c60");
+    expect(compose.match(/image:\s+sparklingkit\/parakeet:parakeet\.cpp-(\S+)/)?.[1]).toBe("v0.5.0");
+  });
+
   it("publishes the DGX lifecycle command in the bundle and stable channel", async () => {
     const [releaseWorkflow, runSiteWorkflow, installer, manager] = await Promise.all([
       fs.readFile(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8"),
