@@ -136,6 +136,21 @@ describe("word-timed transcripts", () => {
     expect(json.segments[1].start).toBeCloseTo(9.2, 1);
   });
 
+  it("keeps today's output when one half of a split chunk has text but no words", async () => {
+    const { json, requests } = await runAudioJob({
+      model: "Parakeet-TDT-0.6B-v3",
+      seconds: 20,
+      audio: { adaptiveSplit: true, minAdaptiveChunkSec: 5 },
+      respond: (request) => {
+        if (request === 1) return { text: "repeated-block!".repeat(24) };
+        return request === 2 ? { text: "Left.", words: [w("Left.", 0.2, 0.6)] } : { text: "Right.", words: [] };
+      },
+    });
+    expect(requests).toBe(3);
+    expect(json.words).toBeUndefined();
+    expect(json.segments.map((segment) => segment.text)).toEqual(["Left.", "Right."]);
+  });
+
   it("keeps one segment per chunk and no words for models without word times", async () => {
     const { json, requests } = await runAudioJob({
       model: "test-asr",
@@ -145,6 +160,30 @@ describe("word-timed transcripts", () => {
     expect(requests).toBeGreaterThan(1);
     expect(json.words).toBeUndefined();
     expect(json.segments).toHaveLength(requests);
+  });
+
+  it("keeps the text when a Parakeet endpoint returns no word times at all", async () => {
+    const { json, md, requests } = await runAudioJob({
+      model: "Parakeet-TDT-0.6B-v3",
+      seconds: 40,
+      respond: () => ({ text: "Plain words." }),
+    });
+    expect(requests).toBeGreaterThan(1);
+    expect(json.words).toBeUndefined();
+    expect(json.segments).toHaveLength(requests);
+    expect(md).toContain("Plain words.");
+  });
+
+  it("keeps today's output when one chunk has text but no words", async () => {
+    const { json, md, requests } = await runAudioJob({
+      model: "Parakeet-TDT-0.6B-v3",
+      seconds: 40,
+      respond: (request) => (request === 2 ? { text: "Lost words.", words: [] } : { text: "Hello. Again.", words: [w("Hello.", 0.2, 0.6), w("Again.", 2.0, 2.4)] }),
+    });
+    expect(requests).toBeGreaterThan(2);
+    expect(json.words).toBeUndefined();
+    expect(json.segments).toHaveLength(requests);
+    expect(md).toContain("Lost words.");
   });
 
   it("keeps one segment per chunk when a checkpoint from before word times has none", async () => {

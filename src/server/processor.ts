@@ -21,6 +21,12 @@ interface AudioChunk { file: string; start: number; end: number }
 // `words` is set only by ASR models that report word times; checkpoints written before they did lack it.
 interface TranscriptResult { text: string; segments: TranscriptSegment[]; words?: TimedWord[] }
 
+// An endpoint that reports word times returns words wherever it heard speech. Text without any words means it
+// ignored the request for them, and the sentence output would drop that text, so such a result does not count.
+function hasWordTimes(result: TranscriptResult): result is TranscriptResult & { words: TimedWord[] } {
+  return Array.isArray(result.words) && (result.words.length > 0 || !result.text.trim());
+}
+
 async function progress(id: string, patch: Partial<JobManifest>) {
   const next = await updateJob(id, patch);
   publishJob(id, next);
@@ -120,7 +126,7 @@ async function transcribeChunk(
         text: mergeOverlappingText([left.text, right.text].filter(Boolean)),
         segments: [...left.segments, ...right.segments],
         // The halves overlap like any two chunks, so their words are joined the same way.
-        words: left.words && right.words
+        words: hasWordTimes(left) && hasWordTimes(right)
           ? joinChunkWords([{ ...leftChunk, words: left.words }, { ...rightChunk, words: right.words }])
           : undefined,
       };
@@ -217,14 +223,24 @@ export async function processAudio(job: JobManifest, signal?: AbortSignal, run?:
   await assertNotCancelled(job.id, signal);
   await progress(job.id, { status: "merging", progress: 92, stage: "Building transcript and subtitles", warnings });
   // Word times let the transcript follow the speech: sentences for the lines, short cues for the subtitles. One
-  // transcribed chunk without them (an older checkpoint, a model that does not report them) keeps the output of
-  // one segment per chunk, since mixing the two would put chunk-wide and word-level lines in one file.
-  const timedChunks = transcripts.flatMap(({ start, end, result }) => (result.words ? [{ start, end, words: result.words }] : []));
-  const words = transcripts.length && timedChunks.length === transcripts.length ? joinChunkWords(timedChunks) : undefined;
-  const sentences = words && toSentences(words);
-  const text = sentences ? toParagraphs(sentences) : mergeOverlappingText(transcripts.map(({ result }) => result.text.trim()).filter(Boolean));
-  const segments = sentences || transcripts.flatMap(({ result }) => result.segments);
-  const cues = words ? toCues(words) : segments;
+  // transcribed chunk without them (an older checkpoint, a model that does not report them, text that came back
+  // with no words) keeps the output of one segment per chunk, since mixing the two would put chunk-wide and
+  // word-level lines in one file.
+  const timedChunks = transcripts.flatMap(({ start, end, result }) => (hasWordTimes(result) ? [{ start, end, words: result.words }] : []));
+  let words: TimedWord[] | undefined;
+  let segments: TranscriptSegment[];
+  let cues: TranscriptSegment[];
+  let text: string;
+  if (transcripts.length > 0 && timedChunks.length === transcripts.length) {
+    words = joinChunkWords(timedChunks);
+    segments = toSentences(words);
+    cues = toCues(words);
+    text = toParagraphs(segments);
+  } else {
+    segments = transcripts.flatMap(({ result }) => result.segments);
+    cues = segments;
+    text = mergeOverlappingText(transcripts.map(({ result }) => result.text.trim()).filter(Boolean));
+  }
   if (!text && warnings.length) throw new Error(warnings.join("; "));
   const md = `# ${job.title}\n\n${text || "_No speech detected._"}\n`;
   const srt = cues.map((segment, index) => `${index + 1}\n${srtTimestamp(segment.start)} --> ${srtTimestamp(segment.end)}\n${segment.text}\n`).join("\n");
