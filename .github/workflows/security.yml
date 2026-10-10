@@ -57,7 +57,10 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    if: github.event_name == 'pull_request'
+    # The action needs the dependency-review API, which GitHub serves only to organization-owned
+    # repositories; on a personal repository it answers 404, no setting enables it, and the job can
+    # never succeed. Run it where the API exists.
+    if: github.event_name == 'pull_request' && github.event.repository.owner.type == 'Organization'
     runs-on: ubuntu-latest
     permissions:
       contents: read
