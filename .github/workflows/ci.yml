@@ -44,6 +44,7 @@ jobs:
         service:
           - services/dgx-models/image-generation
           - services/dgx-models/paddleocr-vl
+          - services/dgx-models/parakeet
           - services/dgx-status
           - scripts/media
     steps:
@@ -55,7 +56,7 @@ jobs:
 
       # The tests check request handling and backend settings; they import neither torch nor the models.
       - name: Install the web framework the adapters use
-        run: pip install fastapi uvicorn python-multipart
+        run: pip install fastapi uvicorn python-multipart httpx
 
       - name: Run unit tests
         working-directory: ${{ matrix.service }}
