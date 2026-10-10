@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanAsrText, DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio } from "./ai.js";
+import { asrProfile, cleanAsrText, DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio } from "./ai.js";
 
 const cleanup: Array<() => Promise<unknown>> = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((work) => work())); });
@@ -40,7 +40,64 @@ describe("ASR requests", () => {
     expect(requestBody).toContain('name="max_completion_tokens"');
     expect(requestBody).toContain("777");
   });
+
+  it("chooses the ASR profile from the model id", () => {
+    expect(asrProfile("Parakeet-TDT-0.6B-v3")).toBe("parakeet");
+    expect(asrProfile("nvidia/parakeet-tdt-0.6b-v3")).toBe("parakeet");
+    expect(asrProfile("Qwen3-ASR-1.7B")).toBe("default");
+  });
+
+  it("asks Parakeet for word timestamps and shifts them by the chunk offset", async () => {
+    const fixture = JSON.parse(await fs.readFile(new URL("./fixtures/parakeet-verbose.json", import.meta.url), "utf8")) as {
+      words: Array<{ word: string; start: number; end: number; conf: number }>;
+    };
+    let body = "";
+    const baseUrl = await jsonServer((_url, requestBody) => { body = requestBody; return fixture; });
+    const result = await transcribeAudio({ baseUrl, model: "Parakeet-TDT-0.6B-v3", apiKey: "" }, await audioFile(), 60, { timeoutMs: 2000 });
+    expect(body).toContain('name="response_format"');
+    expect(body).toContain("verbose_json");
+    expect(body).toContain('name="timestamp_granularities[]"');
+    expect(body).toMatch(/name="timestamp_granularities\[\]"\r\n\r\nword\r\n/);
+    expect(result.words!.length).toBe(fixture.words.length);
+    expect(result.words![0]).toEqual({ word: fixture.words[0].word.trim(), start: fixture.words[0].start + 60, end: fixture.words[0].end + 60 });
+    expect(Object.keys(result.words![0]).sort()).toEqual(["end", "start", "word"]);
+  });
+
+  it("reads words nested in segments and drops empty ones", async () => {
+    const baseUrl = await jsonServer(() => ({
+      text: "Hi",
+      segments: [{ start: 0, end: 1, text: "Hi", words: [{ word: " Hi ", start: 0.1, end: 0.3 }, { word: "", start: 0.4, end: 0.5 }] }],
+    }));
+    const result = await transcribeAudio({ baseUrl, model: "Parakeet-TDT-0.6B-v3", apiKey: "" }, await audioFile(), 10, { timeoutMs: 2000 });
+    expect(result.words).toEqual([{ word: "Hi", start: 10.1, end: 10.3 }]);
+  });
+
+  it("returns no words for a silent Parakeet chunk and defaults a missing end to the start", async () => {
+    const silent = await jsonServer(() => ({ text: "", segments: [] }));
+    const quiet = await transcribeAudio({ baseUrl: silent, model: "Parakeet-TDT-0.6B-v3", apiKey: "" }, await audioFile(), 5, { timeoutMs: 2000 });
+    expect(quiet.words).toEqual([]);
+    const clipped = await jsonServer(() => ({ text: "Go", words: [{ word: "Go", start: 1.5 }] }));
+    const result = await transcribeAudio({ baseUrl: clipped, model: "Parakeet-TDT-0.6B-v3", apiKey: "" }, await audioFile(), 5, { timeoutMs: 2000 });
+    expect(result.words).toEqual([{ word: "Go", start: 6.5, end: 6.5 }]);
+  });
+
+  it("keeps the plain JSON request for other models", async () => {
+    let body = "";
+    const baseUrl = await jsonServer((_url, requestBody) => { body = requestBody; return { text: "hello", words: [{ word: "hello", start: 0, end: 1 }] }; });
+    const result = await transcribeAudio({ baseUrl, model: "test-asr", apiKey: "" }, await audioFile(), 0, { timeoutMs: 2000 });
+    expect(body).not.toContain("timestamp_granularities");
+    expect(body).not.toContain("verbose_json");
+    expect(result.words).toBeUndefined();
+  });
 });
+
+async function audioFile() {
+  const folder = await fs.mkdtemp(path.join(tmpdir(), "sparklingkit-asr-"));
+  cleanup.push(() => fs.rm(folder, { recursive: true, force: true }));
+  const file = path.join(folder, "chunk.wav");
+  await fs.writeFile(file, "test audio");
+  return file;
+}
 
 async function jsonServer(handler: (url: string, body: string) => unknown) {
   const server = createServer((request, response) => {

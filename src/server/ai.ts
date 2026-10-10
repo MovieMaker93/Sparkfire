@@ -207,20 +207,37 @@ export interface TimedWord {
   end: number;
 }
 
+export type AsrProfile = "parakeet" | "default";
+
+/**
+ * Speech models differ in what the transcription endpoint accepts, so the configured model id picks a profile.
+ * Parakeet reports word timestamps; every other id keeps the plain request that Qwen3-ASR needs.
+ */
+export function asrProfile(model: string): AsrProfile {
+  return /parakeet/i.test(model) ? "parakeet" : "default";
+}
+
 export async function transcribeAudio(
   endpoint: EndpointConfig,
   file: string,
   offset = 0,
   options: { maxCompletionTokens?: number; timeoutMs?: number } = {},
   signal?: AbortSignal,
-) {
+): Promise<{ text: string; segments: TranscriptSegment[]; words?: TimedWord[] }> {
+  const profile = asrProfile(endpoint.model);
   const bytes = await fs.readFile(file);
   const form = new FormData();
   form.append("file", new Blob([bytes], { type: "audio/wav" }), path.basename(file));
   form.append("model", endpoint.model);
-  // Qwen3-ASR currently supports the OpenAI JSON response but not verbose_json.
-  // Chunk boundaries provide subtitle timing when the server omits segments.
-  form.append("response_format", "json");
+  // Qwen3-ASR (default profile) supports the OpenAI JSON response but not verbose_json, so chunk boundaries
+  // provide subtitle timing when the server omits segments. Parakeet (the adapter forwards both fields to its
+  // engine) gets verbose_json plus word granularity, so sentences and cues can follow the speech itself.
+  if (profile === "parakeet") {
+    form.append("response_format", "verbose_json");
+    form.append("timestamp_granularities[]", "word");
+  } else {
+    form.append("response_format", "json");
+  }
   form.append("temperature", "0");
   if (options.maxCompletionTokens) form.append("max_completion_tokens", String(options.maxCompletionTokens));
   const response = await fetch(url(endpoint.baseUrl, "audio/transcriptions"), {
@@ -230,9 +247,11 @@ export async function transcribeAudio(
     signal: requestSignal(options.timeoutMs || 20 * 60_000, signal),
   });
   if (!response.ok) throw new Error(await responseError(response));
+  type RawWord = { word?: unknown; start?: unknown; end?: unknown };
   const payload = (await response.json()) as {
     text?: string;
-    segments?: Array<{ start?: number; end?: number; text?: string }>;
+    segments?: Array<{ start?: number; end?: number; text?: string; words?: RawWord[] }>;
+    words?: RawWord[];
   };
   const text = cleanAsrText(payload.text || "");
   const segments: TranscriptSegment[] = (payload.segments || [])
@@ -242,7 +261,19 @@ export async function transcribeAudio(
       end: offset + (segment.end || segment.start || 0),
       text: segment.text!.trim(),
     }));
-  return { text, segments };
+  if (profile !== "parakeet") return { text, segments };
+  // Servers put the words either next to the segments (Parakeet's adapter) or inside each segment (OpenAI style).
+  const rawWords = Array.isArray(payload.words) && payload.words.length
+    ? payload.words
+    : (payload.segments || []).flatMap((segment) => (Array.isArray(segment.words) ? segment.words : []));
+  const seconds = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : undefined);
+  const words = rawWords.flatMap((entry): TimedWord[] => {
+    const word = typeof entry?.word === "string" ? entry.word.trim() : "";
+    if (!word) return [];
+    const start = offset + (seconds(entry.start) ?? 0);
+    return [{ word, start, end: offset + (seconds(entry.end) ?? seconds(entry.start) ?? 0) }];
+  });
+  return { text, segments, words };
 }
 
 /** Qwen3-ASR prefixes each stretch of audio it hears with "language X<asr_text>"; long chunks carry several. */
