@@ -1,5 +1,8 @@
-import { promises as fs } from "node:fs";
+import { createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import type { EndpointConfig, EndpointHealth } from "./models.js";
 import type { ChatEffort } from "../shared/contracts.js";
 
@@ -358,6 +361,16 @@ export const DEFAULT_IMAGE_SIZES: ImageSizeOption[] = [
   { value: "1024x1536", label: "Portrait", ratio: "2:3", quality: "standard" },
 ];
 
+/** The size list an adapter's /v1/capabilities reports, keeping only well-formed entries. */
+function sizeOptions(sizes: unknown): ImageSizeOption[] {
+  return (Array.isArray(sizes) ? sizes : []).flatMap((size): ImageSizeOption[] => {
+    const { value, label, ratio, quality } = (size || {}) as Record<string, unknown>;
+    return typeof value === "string" && /^\d{3,4}x\d{3,4}$/.test(value)
+      ? [{ value, label: typeof label === "string" ? label : value, ratio: typeof ratio === "string" ? ratio : "", quality: quality === "high" ? "high" : "standard" }]
+      : [];
+  });
+}
+
 /** Reads the SparklingKit image adapter's /v1/capabilities; other OpenAI-compatible servers get the defaults. */
 export async function imageCapabilities(endpoint: EndpointConfig, signal?: AbortSignal): Promise<ImageCapabilities> {
   const fallback: ImageCapabilities = { sizes: DEFAULT_IMAGE_SIZES, reported: false };
@@ -365,12 +378,7 @@ export async function imageCapabilities(endpoint: EndpointConfig, signal?: Abort
     const response = await fetch(url(endpoint.baseUrl, "capabilities"), { headers: headers(endpoint, false), signal: requestSignal(5000, signal) });
     if (!response.ok) return fallback;
     const payload = (await response.json()) as { model?: unknown; sizes?: unknown; defaultSteps?: unknown; maxSteps?: unknown };
-    const sizes = (Array.isArray(payload.sizes) ? payload.sizes : []).flatMap((size): ImageSizeOption[] => {
-      const { value, label, ratio, quality } = (size || {}) as Record<string, unknown>;
-      return typeof value === "string" && /^\d{3,4}x\d{3,4}$/.test(value)
-        ? [{ value, label: typeof label === "string" ? label : value, ratio: typeof ratio === "string" ? ratio : "", quality: quality === "high" ? "high" : "standard" }]
-        : [];
-    });
+    const sizes = sizeOptions(payload.sizes);
     if (!sizes.length) return fallback;
     const integer = (value: unknown) => (typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined);
     return { model: typeof payload.model === "string" ? payload.model : undefined, sizes, defaultSteps: integer(payload.defaultSteps), maxSteps: integer(payload.maxSteps), reported: true };
@@ -438,6 +446,133 @@ export async function generateImage(
     model: typeof payload.model === "string" ? payload.model : undefined,
     seed: integer(payload.seed),
     steps: integer(payload.steps),
+  };
+}
+
+export interface VideoVariantOption { id: string; label: string; description: string }
+
+export interface VideoCapabilities {
+  model?: string;
+  sizes: ImageSizeOption[];
+  /** Clip lengths in seconds. */
+  durations: number[];
+  variants: VideoVariantOption[];
+  defaultVariant?: string;
+  /** Whether the service can start a video from an image. */
+  firstFrame: boolean;
+  /** The line the model's license asks shared videos to carry. */
+  disclosure?: string;
+  /** False when the endpoint does not describe itself and these are SparklingKit's defaults. */
+  reported: boolean;
+}
+
+export const DEFAULT_VIDEO_CAPABILITIES: VideoCapabilities = {
+  sizes: [{ value: "864x480", label: "480p", ratio: "16:9", quality: "standard" }],
+  durations: [5],
+  variants: [],
+  firstFrame: false,
+  reported: false,
+};
+
+/** Reads the SparklingKit video adapter's /v1/capabilities; other servers get one conservative option. */
+export async function videoCapabilities(endpoint: EndpointConfig, signal?: AbortSignal): Promise<VideoCapabilities> {
+  try {
+    const response = await fetch(url(endpoint.baseUrl, "capabilities"), { headers: headers(endpoint, false), signal: requestSignal(5000, signal) });
+    if (!response.ok) return DEFAULT_VIDEO_CAPABILITIES;
+    const payload = (await response.json()) as Record<string, unknown>;
+    const sizes = sizeOptions(payload.sizes);
+    const durations = (Array.isArray(payload.durations) ? payload.durations : []).filter((value): value is number => typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 60);
+    if (!sizes.length || !durations.length) return DEFAULT_VIDEO_CAPABILITIES;
+    const variants = (Array.isArray(payload.variants) ? payload.variants : []).flatMap((variant): VideoVariantOption[] => {
+      const { id, label, description } = (variant || {}) as Record<string, unknown>;
+      return typeof id === "string" && /^[a-z0-9-]{1,40}$/.test(id)
+        ? [{ id, label: typeof label === "string" ? label : id, description: typeof description === "string" ? description : "" }]
+        : [];
+    });
+    const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined);
+    const defaultVariant = text(payload.defaultVariant);
+    return {
+      model: text(payload.model),
+      sizes,
+      durations,
+      variants,
+      defaultVariant: variants.some((variant) => variant.id === defaultVariant) ? defaultVariant : variants[0]?.id,
+      firstFrame: payload.firstFrame === true,
+      disclosure: text(payload.disclosure),
+      reported: true,
+    };
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return DEFAULT_VIDEO_CAPABILITIES;
+  }
+}
+
+export interface VideoRequest {
+  prompt: string;
+  sound?: string;
+  music?: string;
+  size: string;
+  duration: number;
+  variant?: string;
+  seed?: number;
+  firstFrame?: { bytes: Buffer; mimeType: string };
+}
+
+export interface GeneratedVideoResult {
+  bytes: number;
+  /** Reported by the server when it can, so the gallery records what actually produced the video. */
+  model?: string;
+  seed?: number;
+  variant?: string;
+  frames?: number;
+  elapsedSeconds?: number;
+  /** The line the model's license asks shared outputs to carry. */
+  disclosure?: string;
+}
+
+/** Asks the video service for one video and streams the MP4 into `destination`, so it never sits in memory. */
+export async function generateVideo(endpoint: EndpointConfig, request: VideoRequest, destination: string, signal?: AbortSignal): Promise<GeneratedVideoResult> {
+  const response = await fetch(url(endpoint.baseUrl, "videos/generations"), {
+    method: "POST",
+    headers: headers(endpoint),
+    body: JSON.stringify({
+      model: endpoint.model,
+      prompt: request.prompt,
+      size: request.size,
+      duration: request.duration,
+      ...(request.sound ? { sound: request.sound } : {}),
+      ...(request.music ? { music: request.music } : {}),
+      ...(request.variant ? { variant: request.variant } : {}),
+      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      ...(request.firstFrame ? { first_frame: `data:${request.firstFrame.mimeType};base64,${request.firstFrame.bytes.toString("base64")}` } : {}),
+    }),
+    // The service answers only once the whole video exists, which takes minutes for long or sharp clips.
+    signal: requestSignal(60 * 60_000, signal),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  if (!response.body || !(response.headers.get("content-type") || "").startsWith("video/")) throw new Error("The video endpoint did not return a video");
+  const partial = `${destination}.part`;
+  let bytes = 0;
+  try {
+    await pipeline(Readable.fromWeb(response.body as unknown as NodeReadableStream), createWriteStream(partial));
+    bytes = (await fs.stat(partial)).size;
+    if (!bytes) throw new Error("The video endpoint returned an empty video");
+    await fs.rename(partial, destination);
+  } catch (error) {
+    await fs.rm(partial, { force: true });
+    throw error;
+  }
+  const header = (name: string) => response.headers.get(name) || undefined;
+  const integer = (value?: string) => (value && /^\d+$/.test(value) ? Number(value) : undefined);
+  const elapsed = Number(header("x-elapsed-seconds"));
+  return {
+    bytes,
+    model: header("x-model"),
+    seed: integer(header("x-seed")),
+    variant: header("x-variant"),
+    frames: integer(header("x-frames")),
+    elapsedSeconds: Number.isFinite(elapsed) && elapsed > 0 ? elapsed : undefined,
+    disclosure: header("x-disclosure"),
   };
 }
 

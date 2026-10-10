@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
+import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Film, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
 import { api } from "../api";
 import { cn } from "../components/ui";
 import { SearchSelect } from "../components/SearchSelect";
@@ -18,6 +18,7 @@ const endpointMeta: Record<EndpointKind, { title: string; caption: string; tint:
   translation: { title: "Translation", caption: "Dedicated multilingual translation model", tint: "endpoint-icon endpoint-translation", icon: Languages },
   grounding: { title: "Grounding", caption: "Evidence location, highlighting, and redaction", tint: "endpoint-icon endpoint-grounding", icon: ScanSearch },
   "image-generation": { title: "Image generation", caption: "Text prompts to generated images", tint: "endpoint-icon endpoint-image-generation", icon: ImageIcon },
+  "video-generation": { title: "Video generation", caption: "Text prompts and images to videos with sound", tint: "endpoint-icon endpoint-video-generation", icon: Film },
 };
 
 const systemStatusMeta = {
@@ -220,7 +221,7 @@ export function SettingsPage() {
               </button>
             </div>
             <h3 className="settings-service-section-title">AI services</h3>
-            <div className="settings-group settings-service-list">{(["stt", "ocr", "llm", "translation", "grounding", "image-generation"] as EndpointKind[]).map((kind) => {
+            <div className="settings-group settings-service-list">{(["stt", "ocr", "llm", "translation", "grounding", "image-generation", "video-generation"] as EndpointKind[]).map((kind) => {
               const meta = endpointMeta[kind]; const endpoint = settings.endpoints[kind]; const Icon = meta.icon;
               const configured = Boolean(endpoint.baseUrl && endpoint.model);
               const state = !endpoint.enabled ? "Disabled" : configured ? "Enabled" : "Needs setup";

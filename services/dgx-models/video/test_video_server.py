@@ -178,6 +178,7 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(response.headers["content-type"], "video/mp4")
         self.assertEqual(response.content, FAKE_MP4)
         self.assertEqual((response.headers["x-seed"], response.headers["x-variant"], response.headers["x-frames"], response.headers["x-size"]), ("7", "fast", "192", "1280x736"))
+        self.assertEqual(response.headers["x-disclosure"], "AI-generated with MiniMax H3 (FastH3)")
         graph = FakeComfy.graphs[0]
         self.assertEqual(graph["unet"]["inputs"]["unet_name"], "fastvideo_fasth3_trim_8step_nvfp4.safetensors")
         self.assertEqual((graph["conditioning"]["inputs"]["width"], graph["conditioning"]["inputs"]["height"], graph["conditioning"]["inputs"]["length"]), (1280, 736, 192))

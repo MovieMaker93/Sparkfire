@@ -27,7 +27,7 @@ const configuredMode = DEPLOYMENT_MODES.includes(process.env.SPARKLINGKIT_DEPLOY
   ? process.env.SPARKLINGKIT_DEPLOYMENT_MODE as Settings["setup"]["mode"]
   : "custom";
 const explicitlyComplete = process.env.SPARKLINGKIT_SETUP_COMPLETE;
-const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
+const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
 
 export const defaultSettings: Settings = {
   schemaVersion: 2,
@@ -49,6 +49,7 @@ export const defaultSettings: Settings = {
     // Like the LLM, grounding has no bundled service; any configured endpoint is used as-is.
     grounding: { ...environmentEndpoint(process.env.GROUNDING_BASE_URL, process.env.GROUNDING_MODEL, ""), apiKey: process.env.GROUNDING_API_KEY || "" },
     "image-generation": { ...environmentEndpoint(process.env.IMAGE_GENERATION_BASE_URL, process.env.IMAGE_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.imageGeneration.model), apiKey: process.env.IMAGE_GENERATION_API_KEY || "" },
+    "video-generation": { ...environmentEndpoint(process.env.VIDEO_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.videoGeneration.model), apiKey: process.env.VIDEO_GENERATION_API_KEY || "" },
   },
   audio: {
     chunkTargetSec: 60,

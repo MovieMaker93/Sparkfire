@@ -184,6 +184,7 @@ export function Dashboard() {
     const workflowJob = job.workflowId.startsWith("flow:");
     if (filter === "workflow") return workflowJob;
     if (workflowJob) return false;
+    if (filter === "generated") return job.moduleId === "text-to-image" || job.moduleId === "text-to-video";
     return job.moduleId === ({ audio: "transcription", ocr: "ocr", translation: "translation", grounding: "grounding", generated: "text-to-image", mindmap: "mindmap" } as const)[filter];
   });
   const enabledWorkflows = workflows.filter((workflow) => workflow.enabled);
