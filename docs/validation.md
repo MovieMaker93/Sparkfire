@@ -68,37 +68,48 @@ The adapter adds about 20 ms per request (an HTTP hop and the multipart upload),
 
 ### Through the app
 
-Measured on 2026-10-10, with Parakeet as the app's speech model and the default audio settings (chunks of
-about 60 s, split at pauses, with 3 s of overlap):
+Measured on 2026-10-10. The app sends Parakeet chunks of at most 30 s, split at pauses, with 3 s of overlap;
+Qwen3-ASR keeps the configured 60 s. The two long files are the clips above joined with 0.6 s gaps: the 73
+English clips (8.7 min, faint noise in the gaps) and the 60 Italian clips (16.8 min).
 
-| Input | Audio | Time in the app | Transcript lines | SRT cues | Longest cue | Most characters |
-| --- | --- | --- | --- | --- | --- | --- |
-| The README demo reading (English) | 65 s | 0.6 s | 6 | 14 | 6.5 s | 84 |
-| One FLEURS clip (Italian) | 16 s | under 1 s | 2 | 3 | 6.7 s | 83 |
-| The 73 LibriSpeech clips as one file | 8.7 min | 3.3 s | 73 | 115 | 6.5 s | 84 |
-| The 60 FLEURS clips as one file | 16.8 min | 6.2 s | 82 | 171 | 6.96 s | 84 |
+| | English, 8.7 min | Italian, 16.8 min |
+| --- | --- | --- |
+| Parakeet, 30 s chunks, through the app | 4.3% in 3.6 s | 4.9% in 6.9 s |
+| Parakeet, the whole file in one request to the adapter | 5.0% | 4.7% |
+| Qwen3-ASR, 60 s chunks, through the app | 5.9% in 35 s | 11.2% in 115 s |
+| Short clips, one request each (table above): Parakeet / Qwen3-ASR | 3.6% / 3.7% | 3.9% / 4.4% |
 
-- **Speed:** about 160× realtime on the long files, including the app's audio conversion and chunking.
-- **Cues:** every SRT cue in the four transcripts lasts at most 7 s and holds at most 84 characters. Each
-  `transcript.json` has a `words` array (150, 27, 1,120 and 1,503 words) that matches the words of its lines.
+- **Why Qwen3-ASR scores worse through the app:** it returns no word times, so the app cannot cut the
+  overlap between chunks by time, and the overlap is often transcribed twice ("…used to flash his teeth.
+  Used to flash his teeth, and Mr. John Collier…"). Without those repeats its English is 3.7%. In Italian
+  the seams are also garbled, with paraphrased repeats and spliced sentences, which leaves 9.6%. On short
+  clips the two models are close, so this table compares the app's two chunk paths more than the models.
+- **Speed:** about 145× realtime for Parakeet through the app, including audio conversion and chunking,
+  against 9–15× for Qwen3-ASR.
+- **Skipped speech:** Parakeet occasionally drops a stretch of speech; see Known issues.
+
+Parakeet's transcripts, 30 s chunks:
+
+| Input | Audio | Chunks | Time in the app | Transcript lines | SRT cues | Longest cue | Most characters |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| The README demo reading (English) | 65 s | 2 | 0.6 s | 7 | 14 | 6.5 s | 84 |
+| One FLEURS clip (Italian) | 16 s | 1 | under 1 s | 2 | 3 | 6.7 s | 83 |
+| The English long file | 8.7 min | 17 | 3.6 s | 76 | 115 | 6.5 s | 84 |
+| The Italian long file | 16.8 min | 34 | 6.9 s | 77 | 166 | 6.96 s | 84 |
+
+- **Cues:** every SRT cue lasts at most 7 s and holds at most 84 characters. Each `transcript.json` has a
+  `words` array (150, 27, 1,138 and 1,501 words) that matches the words of its lines.
 - **Sentence lines:** one line per sentence, with two exceptions the rules make on purpose:
-  - A dot followed by a lowercase word does not end a sentence, and Parakeet sometimes writes "Mr." as
-    "mister", lowercase even at the start of a sentence, so "…as a jingo poem. mister Burkett Foster's
-    landscapes…" stays one line.
+  - A dot followed by a lowercase word does not end a sentence. Parakeet sometimes writes "Mr." as
+    "mister", lowercase even at the start of a sentence, so in one run "…as a jingo poem. mister Burkett
+    Foster's landscapes…" stayed one line.
   - A single capital letter with a dot reads as an initial: "…posto nel Super G. Il sudcoreano…".
-- **`<unk>` in lines:** Parakeet marks a character it cannot spell, here "°", with `<unk>` in its word list,
-  while its own `text` leaves it out. The app builds lines from the words, so "13<unk> posto" and
-  "24<unk> posto" appeared in the Italian file.
-- **Accuracy:** on the two long files, 5.6% WER in English and 5.2% in Italian, against 4.1% and 4.7%
-  when each file went to the adapter as one request.
-  - In English, 27 of the 31 missing words are two whole sentences, about 7 s of speech each, that
-    Parakeet skipped, each in the middle of a 60 s chunk. Sending those chunks again skipped them again;
-    the whole file, and a 30–40 s window around the first sentence, kept them.
-  - Chunk seams lost or repeated no words. The other errors are mostly spellings ("Mr." for "mister",
-    "calico" for "Kaliko") and numbers.
-- **Health while busy:** the adapter's `GET /health`, probed every 0.2 s, answered 200 within 50 ms
-  throughout the 16.8-minute job and throughout one 16.8-minute request sent straight to the adapter, so
-  the container's health check does not fail while it transcribes.
+- **`<unk>`:** Parakeet marks a character it cannot spell, such as "°", with `<unk>` in its word list. The
+  app removes the mark, as Parakeet's own `text` does, so it no longer reaches transcripts.
+- **Health while busy:** the adapter's `GET /health`, probed every 0.2 s, answered 200 within 65 ms
+  throughout the long jobs and throughout one 16.8-minute request sent straight to the adapter, so the
+  container's health check does not fail while it transcribes.
+- **Status page:** the system monitor labels the engine's GPU process "ASR" and names its model.
 
 ## LLM: Underdog Saluki 27B (evaluated, not integrated)
 
@@ -136,7 +147,7 @@ from its configuration and the stack totals.
 | `sparklingkit-qwen36` (Qwen3.6-35B-A3B, vLLM) | ≈ 27 GiB | ≈ 4 GiB | ≈ 31 GiB; about 60 GB while loading |
 | `sparklingkit-image-generation` (Qwen-Image-2.1-Turbo, float8) | 17.1 GiB | 1.9 GiB | 19.0 GiB |
 | `sparklingkit-qwen3-asr` | 12.6 GiB | 3.9 GiB | 16.5 GiB |
-| `sparklingkit-parakeet` (instead of `qwen3-asr`) | 1.5 GiB on start, 2.0 GiB after jobs | 0.2–0.6 GiB, 1.6 GiB peak | 1.7–3.6 GiB |
+| `sparklingkit-parakeet` (instead of `qwen3-asr`) | 1.5 GiB on start, 1.6–1.8 GiB during jobs | 0.2 GiB on start, up to 1.5 GiB during jobs | 1.7–3.4 GiB |
 | `sparklingkit-locateanything` | 8.4 GiB | 2.5 GiB | 10.9 GiB |
 | `sparklingkit-paddleocr-vlm` | 5.4 GiB | 3.6 GiB | 9.0 GiB |
 | `sparklingkit-hy-mt2` | 2.4 GiB | 3.0 GiB | 5.4 GiB |
@@ -166,9 +177,17 @@ Parakeet's peak was measured during the 16.8-minute transcription through the ap
     service stopped.
   - **Fixes under consideration:** a bounded restart policy, testing without `--async-scheduling`, or a
     llama.cpp LLM backend such as Saluki, which has no loading peak.
-- **Parakeet keeps its largest working memory.** One 16.8-minute file sent straight to the adapter, in a
-  single request, raised the engine's GPU memory from 2.0 to 8.3 GiB, and it stayed there until the
-  container restarted. The app sends one chunk of about 60–70 s per request, so through the app the peak
-  stays at 2.0 GiB.
+- **Parakeet occasionally skips a stretch of speech.** parakeet.cpp sometimes emits nothing for several
+  seconds of clear speech, always in the same place for the same audio window, at every chunk length tested.
+  - With 60 s chunks it skipped two sentences of about 7 s each in the English long file built with exact
+    digital-zero gaps: 5.6% WER, against 4.1% for the whole file. Windows of 30–40 s around the first one
+    kept it, which is why the app caps Parakeet's chunks at 30 s.
+  - The cap moved the problem rather than removing it. At 30 s the same file lost a different 14 s stretch
+    (5.9%). Exact digital silence makes it worse: with faint noise in the gaps, the file lost 8 words at the
+    end of one chunk (4.3%), and 13 words when sent as one request (5.0%). The Italian file lost nothing.
+- **Parakeet keeps its largest working memory.** A whole file sent straight to the adapter in one request
+  raised the engine's GPU memory to 8.3 GiB (16.8 min of audio) or 12.1 GiB (8.7 min), and it stayed there
+  until the container restarted. The app sends one chunk of about 30–38 s per request, so through the app
+  it stays at 1.6–1.8 GiB.
 - **Fixed in this fork:** model calls were cut off after exactly 300 s by Node's fetch timeouts. 2048² images
   and long translations on a busy GPU hit this.
