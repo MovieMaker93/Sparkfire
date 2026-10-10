@@ -142,7 +142,27 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
+# Containers of services this stack no longer ships. Compose neither starts nor stops them any more, so one
+# left by an earlier install keeps restarting (unless-stopped) and holding memory the stack's budget assumes
+# is free.
+RETIRED_CONTAINERS=(sparklingkit-qwen36 sparklingkit-qwen3-asr sparklingkit-locateanything)
+
+retire_old_containers() {
+  local action="$1" name
+  for name in "${RETIRED_CONTAINERS[@]}"; do
+    docker container inspect "$name" >/dev/null 2>&1 || continue
+    if [[ "$action" == "remove" ]]; then
+      docker rm -f "$name" >/dev/null
+      printf 'Removed %s: this stack no longer ships that service.\n' "$name"
+    elif [[ "$(docker inspect -f '{{.State.Running}}' "$name")" == "true" ]]; then
+      docker stop "$name" >/dev/null
+      printf 'Stopped %s: this stack no longer ships that service.\n' "$name"
+    fi
+  done
+}
+
 if [[ "$ACTION" == "stop" ]]; then
+  retire_old_containers stop
   if [[ "$DEPLOY_APP" == "true" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
@@ -350,6 +370,7 @@ start_service() {
   wait_for_endpoint "$service" "$label" "$url" "$timeout_seconds"
 }
 
+retire_old_containers remove
 printf '\nStarting the four models sequentially...\n'
 start_service parakeet "Transcription" "http://127.0.0.1:8333/health" 600
 if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then

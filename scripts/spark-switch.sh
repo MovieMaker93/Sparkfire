@@ -37,7 +37,9 @@ done
 
 available_gib() { free -g | awk '/^Mem:/ {print $7}'; }
 container_running() { [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" == "true" ]]; }
-sparklingkit_running() { docker ps --format '{{.Names}}' | grep -qE '^sparklingkit-(parakeet|unlimited-ocr|paddleocr-vlm|hy-mt2|image-generation)$'; }
+# Also matches the retired qwen36, qwen3-asr and locateanything containers, which start-dgx-spark.sh stop
+# still stops when an earlier install left them running.
+sparklingkit_running() { docker ps --format '{{.Names}}' | grep -qE '^sparklingkit-(parakeet|unlimited-ocr|paddleocr-vlm|hy-mt2|image-generation|qwen36|qwen3-asr|locateanything)$'; }
 
 confirm() {
   [[ "$ASSUME_YES" == "true" ]] && return 0
