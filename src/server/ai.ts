@@ -200,6 +200,13 @@ export interface TranscriptSegment {
   text: string;
 }
 
+// One recognised word with absolute times in seconds, as ASR models that report word timestamps return it.
+export interface TimedWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
 export async function transcribeAudio(
   endpoint: EndpointConfig,
   file: string,
