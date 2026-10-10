@@ -205,6 +205,50 @@ describe("toCues", () => {
     expect(toCues([w("a", 0, 0.25), w(long, 0.25, 0.5), w(".", 0.5, 0.5), w("b", 0.5, 0.75)]).map((cue) => cue.text)).toEqual(["a", `${long}.`, "b"]);
   });
 
+  describe("when closing tokens follow a cue that is exactly at a cap", () => {
+    // 17 contiguous quarter-second "abcd" words are exactly 84 characters over 4.25 s
+    const full = Array.from({ length: 17 }, (_, i) => w("abcd", i * 0.25, i * 0.25 + 0.25));
+
+    it("moves the last word out when one dot would pass 84 characters", () => {
+      const cues = toCues([...full, w(".", 4.25, 4.25)]);
+      expect(cues.map((cue) => cue.text.length)).toEqual([79, 5]);
+      expect(cues[1].text).toBe("abcd.");
+    });
+
+    it("moves the last word out when two closing tokens would pass 84 characters", () => {
+      const cues = toCues([...full, w(".", 4.25, 4.25), w("”", 4.25, 4.25)]);
+      expect(cues.map((cue) => cue.text.length)).toEqual([79, 6]);
+      expect(cues[1].text).toBe("abcd.”");
+    });
+
+    it("keeps the word and its tokens together when they land exactly on 84 characters", () => {
+      // 16 x "abcd" is 79 characters; " abc." brings it to exactly 84
+      const fit = [...full.slice(0, 16), w("abc", 4, 4.25), w(".", 4.25, 4.25)];
+      expect(toCues(fit).map((cue) => cue.text.length)).toEqual([84]);
+    });
+
+    it("moves the last word out when a dot would pass 7 s", () => {
+      // 14 contiguous half-second words are exactly 7 s; a dot ending at 7.25 would stretch the cue to 7.25 s
+      const half = Array.from({ length: 14 }, (_, i) => w(`w${i}`, i * 0.5, i * 0.5 + 0.5));
+      const cues = toCues([...half, w(".", 7, 7.25)]);
+      expect(cues.map((cue) => cue.text.split(" ").length)).toEqual([13, 1]);
+      expect(cues[1].text).toBe("w13.");
+      for (const cue of cues) expect(cue.end - cue.start).toBeLessThanOrEqual(CUE_MAX_SEC);
+    });
+
+    it("keeps a cue of exactly 7 s when the closing token ends with the last word", () => {
+      const half = Array.from({ length: 14 }, (_, i) => w(`w${i}`, i * 0.5, i * 0.5 + 0.5));
+      const cues = toCues([...half, w(".", 7, 7)]);
+      expect(cues).toHaveLength(1);
+      expect(cues[0].end - cues[0].start).toBe(7);
+    });
+
+    it("never starts a cue with a closing token", () => {
+      const tokens = [w(".", 4.25, 4.25), w("”", 4.25, 4.25), w(",", 4.25, 4.25)];
+      for (const cue of toCues([...full, ...tokens, w("Next", 4.25, 4.5)])) expect(cue.text).not.toMatch(/^[.,;:!?…)\]}"”’]/);
+    });
+  });
+
   it("puts a word longer than the caps in a cue of its own", () => {
     const long = "x".repeat(90);
     const cues = toCues([w("short", 0, 0.25), w(long, 0.25, 0.5), w("tail", 0.5, 0.75)]);

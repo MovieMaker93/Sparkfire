@@ -64,17 +64,20 @@ export function toCues(words: TimedWord[]): TranscriptSegment[] {
     group = [];
     text = "";
   };
-  words.forEach((word, index) => {
-    // A closing token never opens a cue: it has to stay with the word it closes, even if that fills the cue.
-    if (group.length && !isClosingOnly(word.word)) {
-      if (word.end - group[0].start > CUE_MAX_SEC || appendWord(text, word.word).length > CUE_MAX_CHARS) flush();
-    }
-    group.push(word);
-    text = appendWord(text, word.word);
-    const next = words[index + 1];
-    const pause = next && !isClosingOnly(next.word) && next.start - word.end >= CUE_PAUSE_SEC;
-    if (pause || endsSentence(words, index)) flush();
-  });
+  for (let first = 0; first < words.length; ) {
+    // A word and the closing tokens after it are admitted or refused together: the tokens never open a cue,
+    // and the caps are checked with them included. A unit that is over a cap on its own still becomes a cue.
+    let last = first;
+    while (last + 1 < words.length && isClosingOnly(words[last + 1].word)) last += 1;
+    const unit = words.slice(first, last + 1);
+    const withUnit = (base: string) => unit.reduce((joined, word) => appendWord(joined, word.word), base);
+    if (group.length && (words[last].end - group[0].start > CUE_MAX_SEC || withUnit(text).length > CUE_MAX_CHARS)) flush();
+    group.push(...unit);
+    text = withUnit(text);
+    const next = words[last + 1];
+    if ((next && next.start - words[last].end >= CUE_PAUSE_SEC) || endsSentence(words, last)) flush();
+    first = last + 1;
+  }
   flush();
   return cues;
 }
