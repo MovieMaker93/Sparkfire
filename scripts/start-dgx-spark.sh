@@ -372,7 +372,7 @@ start_service() {
 
 retire_old_containers remove
 printf '\nStarting the four models sequentially...\n'
-start_service parakeet "Transcription" "http://127.0.0.1:8333/health" 600
+start_service "$ASR_SERVICE" "Transcription" "$ASR_READY_URL" 600
 if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
   "${COMPOSE[@]}" stop unlimited-ocr
   start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600
