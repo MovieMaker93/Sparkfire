@@ -26,6 +26,7 @@ const executors: Record<string, WorkflowExecutor> = {
   "translation.default": async (job, run, signal) => (await import("./translation/executor.js")).processTranslation(job, run, signal),
   "grounding.image": async (job, run, signal) => (await import("./grounding/executor.js")).processGrounding(job, run, signal),
   "text-to-image.default": async (job, run, signal) => (await import("./text-to-image/executor.js")).processTextToImage(job, run, signal),
+  "text-to-video.default": async (job, run, signal) => (await import("./text-to-video/executor.js")).processTextToVideo(job, run, signal),
   "mindmap.default": async (job, run, signal) => (await import("./mindmap/executor.js")).processMindMap(job, run, signal),
   "llm.prompt": async (job, run, signal) => (await import("./llm-prompt/executor.js")).processLlmPrompt(job, run, signal),
 };

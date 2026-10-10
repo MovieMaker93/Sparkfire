@@ -42,6 +42,17 @@ describe("gallery", () => {
     expect(items[1].prompt).toBeUndefined();
   });
 
+  it("lists generated videos with their length and variant, but not uploaded recordings", () => {
+    const video = job("video", [artifact({ id: "v1", kind: "generated-video", name: "generated-video.mp4", path: "output/generated-video.mp4", mimeType: "video/mp4", createdAt: "2026-09-30T13:00:00.000Z" })], {
+      moduleId: "text-to-video", workflowId: "text-to-video.default", params: { prompt: "a paper boat", size: "864x480", duration: 5, variant: "fast", model: "FastH3" },
+    });
+    const recording = job("rec", [artifact({ id: "r1", role: "source", kind: "source-video", name: "talk.mp4", path: "input/001-talk.mp4", mimeType: "video/mp4" })], { type: "audio", moduleId: "transcription", workflowId: "transcription.default" });
+    const items = galleryItems([recording, video, generated]);
+    expect(items.map((item) => item.artifactId)).toEqual(["v1", "g1"]);
+    expect(items[0]).toMatchObject({ kind: "generated-video", prompt: "a paper boat", model: "FastH3", size: "864x480", duration: 5, variant: "fast" });
+    expect(items[1].duration).toBeUndefined();
+  });
+
   it("filters by source and model", () => {
     expect(galleryItems([uploaded, generated], { source: "uploaded" }).map((item) => item.artifactId)).toEqual(["s1"]);
     expect(galleryItems([uploaded, generated], { source: "generated" }).map((item) => item.artifactId)).toEqual(["g1"]);

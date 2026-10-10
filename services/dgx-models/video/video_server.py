@@ -420,6 +420,7 @@ def create_app(service: VideoService, model_name: str, idle_check_seconds: float
             "X-Frames": str(video.frames),
             "X-Size": video.size,
             "X-Elapsed-Seconds": str(video.elapsed_seconds),
+            "X-Disclosure": service.backend.disclosure,
         }
         return FileResponse(video.path, media_type="video/mp4", headers=headers, background=BackgroundTask(remove_files, video.cleanup))
 
