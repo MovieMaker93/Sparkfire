@@ -151,18 +151,21 @@ Per container, with every service loaded and idle (`nvidia-smi` per process for 
 the container's own RAM). The LLM was replaced by Saluki for this measurement, so its row is an estimate
 from its configuration and the stack totals.
 
+Rows for services this fork has since removed stay for the record and are marked; everything else was
+measured with every service loaded and idle.
+
 | Container | GPU | RAM | Total |
 | --- | --- | --- | --- |
-| `sparklingkit-qwen36` (Qwen3.6-35B-A3B, vLLM) | ≈ 27 GiB | ≈ 4 GiB | ≈ 31 GiB; about 60 GB while loading |
+| `sparklingkit-qwen36` (Qwen3.6-35B-A3B, vLLM) — *removed from the stack 2026-10-10* | ≈ 27 GiB | ≈ 4 GiB | ≈ 31 GiB; about 60 GB while loading |
 | `sparklingkit-image-generation` (Qwen-Image-2.1-Turbo, float8) | 17.1 GiB | 1.9 GiB | 19.0 GiB |
-| `sparklingkit-qwen3-asr` | 12.6 GiB | 3.9 GiB | 16.5 GiB |
-| `sparklingkit-parakeet` (instead of `qwen3-asr`) | 1.5 GiB on start, 1.6–1.8 GiB during jobs | 0.2 GiB on start, up to 1.5 GiB during jobs | 1.7–3.4 GiB |
-| `sparklingkit-locateanything` | 8.4 GiB | 2.5 GiB | 10.9 GiB |
+| `sparklingkit-qwen3-asr` — *removed from the stack 2026-10-10* | 12.6 GiB | 3.9 GiB | 16.5 GiB |
+| `sparklingkit-parakeet` (the only ASR since 2026-10-10) | 1.5 GiB on start, 1.6–1.8 GiB during jobs | 0.2 GiB on start, up to 1.5 GiB during jobs | 1.7–3.4 GiB |
+| `sparklingkit-locateanything` — *removed from the stack 2026-10-10* | 8.4 GiB | 2.5 GiB | 10.9 GiB |
 | `sparklingkit-paddleocr-vlm` | 5.4 GiB | 3.6 GiB | 9.0 GiB |
 | `sparklingkit-hy-mt2` | 2.4 GiB | 3.0 GiB | 5.4 GiB |
 | `sparklingkit-paddleocr-vl` (layout, CPU) | — | 0.8 GiB | 0.8 GiB |
 | `sparklingkit-app-1`, `sparklingkit-redis-1`, `sparklingkit-dgx-status` | — | 0.1 GiB together | 0.1 GiB |
-| Saluki 27B in `llama-server` (instead of `qwen36`) | 13.0 GiB | 8.5 GiB, reclaimable | 13–21.5 GiB |
+| Saluki 27B in `llama-server` (the fork's reference LLM, run next to the stack) | 13.0 GiB | 8.5 GiB, reclaimable | 13–21.5 GiB |
 
 | State | Used |
 | --- | --- |
@@ -172,6 +175,7 @@ from its configuration and the stack totals.
 | Saluki and Qwen-Image-2.1-Turbo in place of Qwen3.6 and Qwen-Image 2.1 | about 78 GiB with all services up |
 | Parakeet in place of Qwen3-ASR, everything else unchanged (2026-10-10) | 14–15 GiB less; available memory went from 35 to 49 GiB |
 | One job per module, with Saluki as the LLM and Parakeet as the ASR (2026-10-10) | 73.5 GiB peak; 92.4 GiB in a degenerate pass |
+| Four-service stack: LLM, Qwen3-ASR and grounding removed (2026-10-10) | ≈ 29 GiB idle, ≈ 38 GiB at the old busy peak — derived by subtracting their rows above |
 
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
 transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
