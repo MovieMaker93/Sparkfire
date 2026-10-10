@@ -55,8 +55,10 @@ API additions:
 
 The DGX stack drops upstream's bundled Qwen3.6 LLM: chat, mind maps and summaries use any
 OpenAI-compatible endpoint configured in Settings (this fork runs Saluki 27B in `llama-server`; an
-`--llm-backend` service is planned). Of the five remaining services, OCR and images keep upstream's
-defaults and speech recognition defaults to Parakeet; three can be switched at deploy time:
+`--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
+from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
+grounding endpoint is configured in Settings). Of the four bundled services, OCR and images keep
+upstream's defaults and speech is Parakeet only; two can be switched at deploy time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
@@ -158,8 +160,6 @@ npm run dev
    - Add a host allowlist and an optional access token.
    - Run the app and service containers as a non-root user (Trivy DS-0002); existing `data/` folders need
      their ownership migrated.
-   - Update the grounding adapter's Pillow (11 → 12) and transformers (4.57 → 5.x), which carry known
-     advisories, after testing LocateAnything on a Spark.
 5. **Correctness and speed:**
    - Add a per-job lock in `updateJob`.
    - Send OCR pages and ASR chunks with bounded concurrency.

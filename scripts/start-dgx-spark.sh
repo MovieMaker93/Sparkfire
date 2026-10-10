@@ -20,7 +20,7 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/start-dgx-spark.sh [start|status|stop] [options]
 
-Set up and run SparklingKit's reference five-model stack on a 128 GB DGX Spark.
+Set up and run SparklingKit's reference four-model stack on a 128 GB DGX Spark.
 
 Options:
   --accept-model-licenses  Confirm that you reviewed and accept each model's terms
@@ -29,7 +29,7 @@ Options:
   --skip-pull              Reuse existing pulled service images
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
-  --models-only            Run the five models and monitor without SparklingKit
+  --models-only            Run the four models and monitor without SparklingKit
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
   --asr-backend NAME       kept for compatibility: parakeet (the only ASR backend)
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
@@ -147,7 +147,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 locateanything z-image dgx-status
+    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -205,9 +205,8 @@ if [[ "$ACCEPT_MODEL_LICENSES" == "true" ]]; then
 elif [[ ! -f "$license_marker" ]]; then
   cat >&2 <<'EOF'
 The model weights are not covered by SparklingKit's Apache 2.0 license.
-Review the five publishers' model cards before downloading. In particular,
-nvidia/LocateAnything-3B is currently licensed for non-commercial/research use,
-and Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License.
+Review the four publishers' model cards before downloading. In particular,
+Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License.
 EOF
   if [[ -t 0 ]]; then
     printf 'Have you reviewed and accepted the model terms? [y/N] ' >&2
@@ -226,7 +225,7 @@ fi
 
 if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding SparklingKit and DGX service images...\n'
-  build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 locateanything z-image dgx-status)
+  build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 z-image dgx-status)
   if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
@@ -297,10 +296,6 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
     "tencent/Hy-MT2-1.8B-FP8" \
     "b3f6f590920726d69a5504293bd4f36d50e5f681" \
     "tencent/Hy-MT2-1.8B-FP8"
-  download_model \
-    "nvidia/LocateAnything-3B" \
-    "c32291ca5e996f5a7a485845b4f57a233936bba0" \
-    "nvidia/LocateAnything-3B"
   if [[ "$IMAGE_BACKEND" == "qwen-image-2.1" ]]; then
     download_model \
       "Qwen/Qwen-Image-2.1" \
@@ -355,7 +350,7 @@ start_service() {
   wait_for_endpoint "$service" "$label" "$url" "$timeout_seconds"
 }
 
-printf '\nStarting the five models sequentially...\n'
+printf '\nStarting the four models sequentially...\n'
 start_service parakeet "Transcription" "http://127.0.0.1:8333/health" 600
 if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
   "${COMPOSE[@]}" stop unlimited-ocr
@@ -366,7 +361,6 @@ else
   start_service unlimited-ocr "OCR" "http://127.0.0.1:8332/v1/models" 600
 fi
 start_service hy-mt2 "Translation" "http://127.0.0.1:8334/health" 600
-start_service locateanything "Grounding" "http://127.0.0.1:8335/health" 900
 start_service z-image "Image generation ($IMAGE_BACKEND)" "http://127.0.0.1:8336/health" 1800
 start_service dgx-status "System status" "http://127.0.0.1:8330/health" 120
 

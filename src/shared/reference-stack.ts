@@ -5,13 +5,13 @@ export const REFERENCE_SERVICE_CATALOG = {
   ocr: { port: 8332, model: "Unlimited-OCR" },
   stt: { port: 8333, model: "Parakeet-TDT-0.6B-v3" },
   translation: { port: 8334, model: "Hy-MT2-1.8B-FP8" },
-  grounding: { port: 8335, model: "nvidia/LocateAnything-3B" },
   imageGeneration: { port: 8336, model: "Z-Image-Turbo" },
 } as const;
 
 // The endpoint kinds the reference deployment provides. The LLM is not bundled:
-// chat, mind maps and summaries use any OpenAI-compatible endpoint configured in Settings.
-export const REFERENCE_ENDPOINT_KINDS = ["ocr", "stt", "translation", "grounding", "image-generation"] as const;
+// chat, mind maps and summaries use any OpenAI-compatible endpoint configured in Settings,
+// and neither is grounding (the module stays available through Settings).
+export const REFERENCE_ENDPOINT_KINDS = ["ocr", "stt", "translation", "image-generation"] as const;
 
 export function normalizeReferenceHost(value: string) {
   const trimmed = value.trim();
@@ -42,7 +42,6 @@ export function referenceSettingsForHost(settings: Settings, hostInput: string, 
       ocr: endpoint("ocr", REFERENCE_SERVICE_CATALOG.ocr.port, REFERENCE_SERVICE_CATALOG.ocr.model),
       stt: endpoint("stt", REFERENCE_SERVICE_CATALOG.stt.port, REFERENCE_SERVICE_CATALOG.stt.model),
       translation: endpoint("translation", REFERENCE_SERVICE_CATALOG.translation.port, REFERENCE_SERVICE_CATALOG.translation.model),
-      grounding: endpoint("grounding", REFERENCE_SERVICE_CATALOG.grounding.port, REFERENCE_SERVICE_CATALOG.grounding.model),
       "image-generation": endpoint("image-generation", REFERENCE_SERVICE_CATALOG.imageGeneration.port, REFERENCE_SERVICE_CATALOG.imageGeneration.model),
     },
   };

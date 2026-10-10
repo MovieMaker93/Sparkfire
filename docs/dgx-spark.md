@@ -83,7 +83,6 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
 | 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
-| 8335 | Visual grounding | `nvidia/LocateAnything-3B` / NVIDIA `la_flash` runtime |
 | 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.40.0 |
 | 54321 | SparklingKit | Web application and API |
 
@@ -186,7 +185,7 @@ The prebuilt image is pulled and recreated while `./data` remains mounted in pla
 
 SparklingKit and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
 
-At the time this reference stack was prepared, `nvidia/LocateAnything-3B` was published for non-commercial and research use. Do not assume SparklingKit's Apache 2.0 license grants commercial rights to that model. Recheck the upstream terms when deploying, because model publishers may update them independently.
+The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app and works once a grounding endpoint is configured in Settings; recheck any such model's terms when deploying, because model publishers may update them independently.
 
 ## Using different services
 

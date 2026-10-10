@@ -37,7 +37,7 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
-| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, Parakeet ASR, translation, grounding, downloader |
+| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, Parakeet ASR, translation, downloader |
 | `services/dgx-status/` | The DGX system monitor service |
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
@@ -112,14 +112,14 @@ as a host name; they pass on Linux and in CI.
 | 8332 | OCR | Unlimited-OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342): `--ocr-backend paddleocr-vl` |
 | 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
-| 8335 | Grounding | LocateAnything-3B | |
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
 
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
 stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
-  `llama-server`, ~13 GiB) and idles around 40 GiB. Do not
+  `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
+  Settings) and idles around 29 GiB. Do not
   start extra models, large builds or big downloads while services are loading, and never run a second
   large LLM next to the stack.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
@@ -129,8 +129,7 @@ stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork'
   `scripts/start-dgx-spark.sh`, note it in `compose.dgx.yaml`, write adapter unit tests, and document it in
   `docs/fork.md` and the README. The fork's defaults are the ones in the table above.
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
-  `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) and LocateAnything-3B are
-  non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. Never commit
+  `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. Never commit
   weights.
 - Validation results and known issues are in `docs/validation.md`.
 

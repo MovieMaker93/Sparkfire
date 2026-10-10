@@ -1,8 +1,8 @@
-# Reference five-model deployment for a 128 GB NVIDIA DGX Spark.
+# Reference four-model deployment for a 128 GB NVIDIA DGX Spark.
 # Use through scripts/start-dgx-spark.sh so the memory-heavy services start
 # sequentially and are checked for readiness before the next model is loaded.
-# The stack ships no LLM: chat, mind maps and summaries use any OpenAI-compatible
-# endpoint configured in Settings (see docs/fork.md for the Saluki reference setup).
+# The stack ships no LLM (chat and mind maps use an endpoint configured in Settings) and no
+# grounding service (the module stays available through Settings).
 
 services:
   app:
@@ -14,8 +14,6 @@ services:
       STT_MODEL: ${STT_MODEL:-Parakeet-TDT-0.6B-v3}
       TRANSLATION_BASE_URL: http://host.docker.internal:8334/v1
       TRANSLATION_MODEL: Hy-MT2-1.8B-FP8
-      GROUNDING_BASE_URL: http://host.docker.internal:8335/v1
-      GROUNDING_MODEL: nvidia/LocateAnything-3B
       IMAGE_GENERATION_BASE_URL: http://host.docker.internal:8336/v1
       IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
       SPARKLINGKIT_SETUP_COMPLETE: "true"
@@ -230,50 +228,6 @@ services:
       timeout: 10s
       retries: 120
       start_period: 3m
-
-  locateanything:
-    build:
-      context: ./services/dgx-models/grounding
-    image: sparklingkit/locateanything-3b:hybrid-la-flash
-    container_name: sparklingkit-locateanything
-    restart: unless-stopped
-    network_mode: host
-    ipc: host
-    shm_size: "32gb"
-    environment:
-      HF_HOME: /root/.cache/huggingface
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      MODEL_PATH: /models/nvidia/LocateAnything-3B
-      MODEL_NAME: nvidia/LocateAnything-3B
-      PYTHONPATH: /app:/models/nvidia/LocateAnything-3B
-      PORT: "8335"
-      DEVICE: cuda
-      DTYPE: bfloat16
-      GENERATION_MODE: hybrid
-      MAX_NEW_TOKENS: ${LOCATE_MAX_NEW_TOKENS:-2048}
-      USE_BATCH_RUNTIME: "true"
-      LA_ATTN: la_flash
-      LA_VISION_ATTN: flash_attention_2
-      LA_SCHEDULER: pipeline
-    volumes:
-      - ./data/dgx-models:/models:ro
-      - ./data/dgx-runtime/locateanything:/root/.cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8335/health >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 120
-      start_period: 5m
 
   # One image service on :8336 whose model is chosen at deploy time with SPARKLINGKIT_IMAGE_BACKEND:
   # z-image (Z-Image-Turbo, default), qwen-image-2.1 (Qwen-Image 2.1, float8 weights, ~34 GB cap) or

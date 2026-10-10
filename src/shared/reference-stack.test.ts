@@ -20,7 +20,6 @@ describe("reference stack settings", () => {
     expect(settings.endpoints.ocr.baseUrl).toBe("http://192.0.2.10:8332/v1");
     expect(settings.endpoints.stt.baseUrl).toBe("http://192.0.2.10:8333/v1");
     expect(settings.endpoints.translation.baseUrl).toBe("http://192.0.2.10:8334/v1");
-    expect(settings.endpoints.grounding.baseUrl).toBe("http://192.0.2.10:8335/v1");
     expect(settings.endpoints["image-generation"].baseUrl).toBe("http://192.0.2.10:8336/v1");
     expect(REFERENCE_ENDPOINT_KINDS.every((kind) => settings.endpoints[kind].enabled)).toBe(true);
   });

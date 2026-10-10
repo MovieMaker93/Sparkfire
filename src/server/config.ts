@@ -46,7 +46,8 @@ export const defaultSettings: Settings = {
     ocr: { ...environmentEndpoint(process.env.OCR_BASE_URL, process.env.OCR_MODEL, BUNDLED_SERVICE_CATALOG.ocr.model), apiKey: process.env.OCR_API_KEY || "" },
     stt: { ...environmentEndpoint(process.env.STT_BASE_URL, process.env.STT_MODEL, BUNDLED_SERVICE_CATALOG.stt.model), apiKey: process.env.STT_API_KEY || "" },
     translation: { ...environmentEndpoint(process.env.TRANSLATION_BASE_URL, process.env.TRANSLATION_MODEL, BUNDLED_SERVICE_CATALOG.translation.model), apiKey: process.env.TRANSLATION_API_KEY || "" },
-    grounding: { ...environmentEndpoint(process.env.GROUNDING_BASE_URL, process.env.GROUNDING_MODEL, BUNDLED_SERVICE_CATALOG.grounding.model), apiKey: process.env.GROUNDING_API_KEY || "" },
+    // Like the LLM, grounding has no bundled service; any configured endpoint is used as-is.
+    grounding: { ...environmentEndpoint(process.env.GROUNDING_BASE_URL, process.env.GROUNDING_MODEL, ""), apiKey: process.env.GROUNDING_API_KEY || "" },
     "image-generation": { ...environmentEndpoint(process.env.IMAGE_GENERATION_BASE_URL, process.env.IMAGE_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.imageGeneration.model), apiKey: process.env.IMAGE_GENERATION_API_KEY || "" },
   },
   audio: {

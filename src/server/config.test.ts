@@ -8,7 +8,6 @@ describe("bundled service catalog", () => {
       ocr: 8332,
       stt: 8333,
       translation: 8334,
-      grounding: 8335,
       imageGeneration: 8336,
     });
   });
