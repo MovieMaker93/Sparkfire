@@ -94,7 +94,7 @@ if [[ -n "$MODEL_HOST" ]]; then
   export OCR_BASE_URL="http://$MODEL_HOST:8332/v1"
   export OCR_MODEL="Unlimited-OCR"
   export STT_BASE_URL="http://$MODEL_HOST:8333/v1"
-  export STT_MODEL="Qwen3-ASR-1.7B"
+  export STT_MODEL="Parakeet-TDT-0.6B-v3"
   export TRANSLATION_BASE_URL="http://$MODEL_HOST:8334/v1"
   export TRANSLATION_MODEL="Hy-MT2-1.8B-FP8"
   export GROUNDING_BASE_URL="http://$MODEL_HOST:8335/v1"

@@ -39,9 +39,9 @@ Every source and every result stays an ordinary file with its history, so one re
 | --- | --- |
 | **Interface** | Light, dark and system themes; a mint accent; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench |
 | **Gallery** | Every image with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
-| **Job pages** | Transcript lines that seek the player, image zoom with a before/after slider, a document outline, and run history |
+| **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control (Off, Low, Medium, High) with the reasoning shown live |
-| **Models** | PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; seed and step controls |
+| **Models** | Parakeet-TDT-0.6B-v3 for speech (Qwen3-ASR stays an option); PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; seed and step controls |
 | **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
 | **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
 
@@ -67,9 +67,9 @@ PaddleOCR-VL-1.6 turns PDFs and scans into Markdown, keeping headings, tables an
 
 ### Transcribe recordings
 
-Qwen3-ASR turns audio and video into a transcript, subtitles (SRT and WebVTT) and timed lines. Click a line and the player jumps there.
+Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. On long files it runs 10 to 16 times faster than Qwen3-ASR did, and it needs 1.7 GiB instead of 16.5 GiB. It covers 25 European languages; for other languages, [keep Qwen3-ASR](#quick-start) (52 languages).
 
-[![A transcript whose timed lines move the audio player (click for the MP4)](.github/media/transcript.webp)](.github/media/transcript.mp4)
+[![A transcript with one timed line per sentence; clicking a line moves the audio player (click for the MP4)](.github/media/transcript.webp)](.github/media/transcript.mp4)
 
 ### Generate images
 
@@ -125,11 +125,14 @@ cd SparklingKit
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
-| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend` |
-| Use upstream's models instead | leave out `--ocr-backend` and `--image-backend` |
+| Switch a model | run the start script again with another `--image-backend`, `--ocr-backend` or `--asr-backend` |
+| Keep Qwen3-ASR for speech | add `--asr-backend qwen3-asr`: 52 languages instead of Parakeet's 25, but 16.5 GiB instead of 1.7 GiB |
+| Use upstream's models instead | leave out `--ocr-backend` and `--image-backend`, and add `--asr-backend qwen3-asr` |
 | Update | `git pull`, then run the start script again |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparklingkit` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
 | Run only the app against models you already host | `cp .env.example .env`, set the endpoint URLs, then `docker compose up -d --build` |
+
+**Updating an install that used Qwen3-ASR?** Run the start script again, then choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Saved settings are never rewritten. Until you change it, transcription still works, with minute-long lines instead of sentences. If you switch an existing install back with `--asr-backend qwen3-asr`, set `Qwen3-ASR-1.7B` there.
 
 The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described further down install **upstream** SparklingKit, not this fork.
 
@@ -146,27 +149,30 @@ Measured on one Spark with every service loaded and idle. GPU is what the contai
 | 3 | `sparklingkit-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
 | 4 | `sparklingkit-qwen36` | LLM: Qwen3.6-35B-A3B NVFP4 in vLLM, 64k context | ≈ 27 GiB | ≈ 4 GiB | **≈ 31 GiB**, and about 60 GB while it loads |
 | 5 | `sparklingkit-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
-| 6 | `sparklingkit-qwen3-asr` | Qwen3-ASR-1.7B in vLLM | 12.6 GiB | 3.9 GiB | **16.5 GiB** |
+| 6 | `sparklingkit-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
 | 7 | `sparklingkit-locateanything` | LocateAnything-3B grounding | 8.4 GiB | 2.5 GiB | **10.9 GiB** |
 | 8 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
 | 9 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
 | 10 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
 
-The LLM row is estimated from its configuration (`--kv-cache-memory-bytes 2G`, `--gpu-memory-utilization 0.25`) and the stack's totals; every other row is measured.
+The LLM row is estimated from its configuration (`--kv-cache-memory-bytes 2G`, `--gpu-memory-utilization 0.25`) and the stack's totals; every other row is measured. Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes.
 
 The alternatives change single rows:
 
 | Instead of | You run | Memory |
 | --- | --- | --- |
+| Row 6 | `sparklingkit-qwen3-asr` (Qwen3-ASR-1.7B in vLLM, upstream's default): `--asr-backend qwen3-asr` | 12.6 GiB GPU, 3.9 GiB RAM, 16.5 GiB in total |
 | Rows 8 and 10 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, upstream's default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
 | Row 5's model | Z-Image-Turbo (upstream's default) | Not measured; the container is capped at 26 GiB. |
 | Row 4 | Saluki 27B in `llama-server`, 64k of its 256k context (evaluated, not yet in the stack) | 13.0 GiB GPU, plus 8.5 GiB for its memory-mapped model file, which the system can reclaim |
 
-| State | Memory used |
-| --- | --- |
-| All services idle | about 85 GiB |
-| Busy (two jobs at a time, the app's default) | 93.5 GiB at peak |
-| Starting up | 95.8 GiB at peak |
+| State | With Parakeet (the default) | With Qwen3-ASR |
+| --- | --- | --- |
+| All services idle | about 70 GiB | about 85 GiB |
+| Busy (two jobs at a time, the app's default) | about 80 GiB at peak | 93.5 GiB at peak |
+| Starting up | about 81 GiB at peak | 95.8 GiB at peak |
+
+The idle figure for Parakeet was measured: 14–15 GiB less than with Qwen3-ASR. The two peaks are the Qwen3-ASR peaks minus its 16.5 GiB plus Parakeet's 1.7 GiB (3.3 GiB while it transcribes); they were not measured again.
 
 That leaves room for the system, but not for another large model: stop other LLMs first, or use `spark-switch.sh`. Full measurements are in [docs/validation.md](docs/validation.md).
 
@@ -190,7 +196,7 @@ The reference stack deliberately fits six complementary models onto one DGX Spar
 | --- | --- | --- |
 | Multimodal LLM | [`nvidia/Qwen3.6-35B-A3B-NVFP4`](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4) | Chat, vision-aware references, summarization, and workflow prompts |
 | OCR | [`baidu/Unlimited-OCR`](https://huggingface.co/baidu/Unlimited-OCR) | Page and image text extraction |
-| Speech recognition | [`Qwen/Qwen3-ASR-1.7B`](https://huggingface.co/Qwen/Qwen3-ASR-1.7B) | Audio/video transcription and subtitles |
+| Speech recognition | [`nvidia/parakeet-tdt-0.6b-v3`](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) in this fork; [`Qwen/Qwen3-ASR-1.7B`](https://huggingface.co/Qwen/Qwen3-ASR-1.7B) upstream and with `--asr-backend qwen3-asr` | Audio/video transcription and subtitles |
 | Translation | [`tencent/Hy-MT2-1.8B-FP8`](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | Dedicated multilingual translation |
 | Visual grounding | [`nvidia/LocateAnything-3B`](https://huggingface.co/nvidia/LocateAnything-3B) | Query-driven object and region location |
 | Image generation | [`Tongyi-MAI/Z-Image-Turbo`](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Fast text-to-image generation |
@@ -295,7 +301,7 @@ The DGX starter enables the status reporter, which surfaces unified-memory use, 
 | Module | Typical input | Output |
 | --- | --- | --- |
 | OCR | Images, scanned PDFs | Markdown documents and structured page data |
-| Transcription | Audio and video | Markdown transcripts, JSON segments, SRT, and VTT |
+| Transcription | Audio and video | Markdown transcripts, JSON segments (and word times with Parakeet), SRT, and VTT |
 | Translation | Pasted text, documents, transcripts | Translated text or document artifacts |
 | Grounding | Images and text queries | Framed image preview and normalized box annotations |
 | Text to image | Prompt or compatible text result | Generated image |
@@ -388,7 +394,7 @@ Every provider can be enabled, edited, and tested independently. The same six-mo
 | 8330 | Optional system status | Lightweight Python API |
 | 8331 | Multimodal LLM | Qwen3.6-35B-A3B NVFP4 / vLLM |
 | 8332 | OCR | Unlimited-OCR |
-| 8333 | Speech recognition | Qwen3-ASR-1.7B |
+| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 / parakeet.cpp (or Qwen3-ASR-1.7B / vLLM with `--asr-backend qwen3-asr`) |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 |
 | 8335 | Grounding | LocateAnything-3B |
 | 8336 | Image generation | Z-Image-Turbo / Diffusers |
@@ -537,15 +543,15 @@ Copyright 2026 Steven Lei.
 
 This fork is distributed under the same Apache License 2.0 and keeps upstream's [LICENSE](LICENSE) and [NOTICE](NOTICE). Its changes are recorded in the commit history and summarised in [docs/fork.md](docs/fork.md). "SparklingKit" is the upstream project's name; the fork uses it only to say where the code comes from.
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License, and nvidia/LocateAnything-3B, upstream's grounding model, is licensed for non-commercial and research use.
+Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License, and nvidia/LocateAnything-3B, upstream's grounding model, is licensed for non-commercial and research use. Parakeet-TDT-0.6B-v3, the default speech model, is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
 Fork changes copyright 2026 MovieMaker93.
 
 ## Acknowledgements
 
 - [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project this fork builds on.
-- The model teams whose open weights do the work: Qwen ([Qwen3.6](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4), [Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR-1.7B), [Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([LocateAnything](https://huggingface.co/nvidia/LocateAnything-3B)) and Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)).
-- Models evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) and [parakeet.cpp](https://github.com/mudler/parakeet.cpp).
-- The serving and tooling stack: [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
+- The model teams whose open weights do the work: Qwen ([Qwen3.6](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4), [Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR-1.7B), [Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([LocateAnything](https://huggingface.co/nvidia/LocateAnything-3B) and [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), the latter under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) and Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)).
+- A model evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0).
+- The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
 - The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.
 - The README layout takes its cue from [sparkDash](https://github.com/MiaAI-Lab/sparkDash).

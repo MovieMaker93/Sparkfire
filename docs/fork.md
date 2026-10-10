@@ -16,7 +16,7 @@ details. Measured results are in [`validation.md`](validation.md).
 - **Gallery** (`/gallery`). Every image across jobs, with source and model filters, a lightbox, and a
   pick-two side-by-side compare.
 - **Job viewers.**
-  - Transcripts as timed lines that seek the player.
+  - Transcripts as timed lines, one per sentence with Parakeet, that seek the player.
   - Images with zoom, pan and a before/after slider for grounding results.
   - A heading outline for long documents.
   - A run history in the file sidebar.
@@ -53,22 +53,65 @@ API additions:
 
 ## Model backends
 
-The DGX stack keeps upstream's six services and defaults. Two of them can be switched at deploy time:
+The DGX stack keeps upstream's six services. Three of them can be switched at deploy time. OCR and images
+keep upstream's defaults; speech recognition defaults to Parakeet:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
 | OCR (:8332) | Unlimited-OCR | PaddleOCR-VL-1.6 (layout adapter + vLLM VLM on :8342) | `--ocr-backend paddleocr-vl` |
+| Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) | Qwen3-ASR-1.7B in vLLM (upstream's default; 52 languages) | `--asr-backend qwen3-asr` |
 | Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
 
 ```bash
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
+./scripts/start-dgx-spark.sh --asr-backend qwen3-asr --accept-model-licenses
 ```
 
 SparklingKit chooses the OCR request format from the model id. After switching the OCR backend on an
 existing install, set the OCR model to `PaddleOCR-VL-1.6` in Settings → Services. The adapter also
 accepts chat-style OCR requests, so a stale setting keeps working, but layout blocks
 (`document.layout.json`) need the new model id.
+
+## Speech recognition: Parakeet
+
+Parakeet TDT 0.6B v3 is the default speech model, run by [parakeet.cpp](https://github.com/mudler/parakeet.cpp)
+(MIT) from the f16 GGUF in `mudler/parakeet-cpp-gguf`. The weights are NVIDIA's, under CC BY 4.0, which allows
+commercial use with credit. It needs 1.7 GiB instead of Qwen3-ASR's 16.5 GiB, runs 10 to 16 times faster
+through the app on long files, and is as accurate on short clips (3.6% against 3.7% word error rate in
+English, 3.9% against 4.4% in Italian). Its limit is language: 25 European languages against 52. Use
+`--asr-backend qwen3-asr` for the rest.
+
+- **Service.**
+  - `sparklingkit-parakeet` (image `sparklingkit/parakeet:parakeet.cpp-v0.5.0`) builds the engine from
+    pinned source for sm_121 and puts a small FastAPI adapter on :8333, so the app's endpoint is unchanged.
+    The adapter starts the engine on 127.0.0.1:8343 and exits if it dies, so Docker restarts the container.
+  - The engine serves one request at a time, and the adapter queues them. It accepts WAV only, which is
+    what the app sends (16 kHz chunks); anything else gets a 400.
+  - Both speech backends use :8333, so the start script stops the one you did not choose. It downloads only
+    the chosen model, and only the one GGUF file of its repository, at a pinned revision.
+- **Sentences.** SparklingKit picks the speech request from the model id. For Parakeet it asks for word
+  timestamps and builds the output from them (`src/server/transcript-timing.ts`):
+  - One transcript line per sentence, saved as `segments` in `transcript.json` next to the `words`. A
+    pause of 1.5 s also ends a line, and the Markdown text starts a new paragraph at a pause of 2 s.
+  - SRT and WebVTT cues end at a sentence end or before a pause of 0.8 s, and last at most 7 s and 84
+    characters. Words are never split.
+  - A dot before a lowercase word, after an abbreviation such as Mr. or Dr., or after a single initial does
+    not end a sentence.
+  - Other speech models keep the plain transcript: one line per chunk.
+- **Chunks.** For Parakeet the app caps the processing window at 30 s (a chunk is about 30–38 s with its
+  3 s overlap), because parakeet.cpp skipped whole utterances inside some 60 s chunks. The overlap between
+  chunks is cut by word times, so no word appears twice.
+- **Known issue.** parakeet.cpp occasionally drops a stretch of speech for a given audio window. See
+  [`validation.md`](validation.md#known-issues).
+- **Updating an existing install.** Saved settings are never rewritten. After the start script switches the
+  service, choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Until then,
+  transcription still works, with minute-long lines. The same applies when you switch back to Qwen3-ASR
+  (`Qwen3-ASR-1.7B`).
+- **Split mode.** `scripts/start-sparklingkit.sh` with a model host assumes the Parakeet id. A Spark started
+  with `--asr-backend qwen3-asr` needs the speech model changed in Settings, as for the OCR and image ids.
+- **System monitor.** `services/dgx-status` reads `ASR_MODEL_NAME` (default `Parakeet-TDT-0.6B-v3`) to
+  label the engine's GPU process.
 
 ## Sharing the Spark with another LLM
 
@@ -94,11 +137,11 @@ npm run dev
 ## Status
 
 - **Unit tests** cover:
-  - the image and PaddleOCR adapters, without a GPU
-  - OCR profiles, thumbnails, the gallery and the viewer helpers
+  - the image, PaddleOCR and Parakeet adapters, without a GPU
+  - OCR and speech profiles, sentence and cue building, thumbnails, the gallery and the viewer helpers
   - chat thinking options, stream parsing, and attachments
-- **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Qwen-Image 2.1 and its Turbo version, and the memory of
-  the full stack. Results and known issues are in [`validation.md`](validation.md).
+- **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Parakeet TDT 0.6B v3, Qwen-Image 2.1 and its Turbo
+  version, and the memory of the full stack. Results and known issues are in [`validation.md`](validation.md).
 
 ## Roadmap
 
@@ -106,11 +149,9 @@ npm run dev
    Saluki 27B takes half the memory and has no loading peak (see `validation.md`).
 2. **Safer LLM restarts:** start the LLM before the other services on every restart, and replace
    `restart: unless-stopped` with a bounded restart, so a crash cannot turn into an out-of-memory loop.
-3. **Parakeet as the ASR backend,** with word timestamps for word-accurate subtitles. It is as accurate
-   as Qwen3-ASR, much faster, and frees about 11 GiB.
-4. **Image defaults:** make Qwen-Image-2.1-Turbo the default Qwen backend, and its 2K sizes the default for
+3. **Image defaults:** make Qwen-Image-2.1-Turbo the default Qwen backend, and its 2K sizes the default for
    prompts with text.
-5. **Security:**
+4. **Security:**
    - Remove the open `cors()`.
    - Redact API keys in `GET /api/settings`.
    - Add a host allowlist and an optional access token.
@@ -118,10 +159,10 @@ npm run dev
      their ownership migrated.
    - Update the grounding adapter's Pillow (11 → 12) and transformers (4.57 → 5.x), which carry known
      advisories, after testing LocateAnything on a Spark.
-6. **Correctness and speed:**
+5. **Correctness and speed:**
    - Add a per-job lock in `updateJob`.
    - Send OCR pages and ASR chunks with bounded concurrency.
-7. **Long documents:**
+6. **Long documents:**
    - Give chat and mind maps a token budget, then retrieval.
    - Add full-text search.
-8. **Image editing** with Qwen-Image 2.1: reference images, masks, and grounding → edit.
+7. **Image editing** with Qwen-Image 2.1: reference images, masks, and grounding → edit.

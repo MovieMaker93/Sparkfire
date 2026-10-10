@@ -1,0 +1,160 @@
+{
+  "task": "transcribe",
+  "language": "en",
+  "duration": 9.9,
+  "text": "He has grave doubts whether Sir Frederick Leighton's work is really Greek after all, and can discover in it but little of Rocky Ithaca.",
+  "segments": [
+    {
+      "id": 0,
+      "start": 0,
+      "end": 9.9,
+      "text": "He has grave doubts whether Sir Frederick Leighton's work is really Greek after all, and can discover in it but little of Rocky Ithaca."
+    }
+  ],
+  "words": [
+    {
+      "word": "He",
+      "start": 0.32,
+      "end": 0.64,
+      "conf": 0.9879
+    },
+    {
+      "word": "has",
+      "start": 0.64,
+      "end": 0.88,
+      "conf": 0.9998
+    },
+    {
+      "word": "grave",
+      "start": 0.88,
+      "end": 1.28,
+      "conf": 0.9997
+    },
+    {
+      "word": "doubts",
+      "start": 1.28,
+      "end": 1.68,
+      "conf": 0.9999
+    },
+    {
+      "word": "whether",
+      "start": 1.68,
+      "end": 2.08,
+      "conf": 0.9999
+    },
+    {
+      "word": "Sir",
+      "start": 2.08,
+      "end": 2.32,
+      "conf": 0.9961
+    },
+    {
+      "word": "Frederick",
+      "start": 2.32,
+      "end": 2.72,
+      "conf": 0.9813
+    },
+    {
+      "word": "Leighton's",
+      "start": 2.72,
+      "end": 3.52,
+      "conf": 0.7121
+    },
+    {
+      "word": "work",
+      "start": 3.52,
+      "end": 3.76,
+      "conf": 0.9994
+    },
+    {
+      "word": "is",
+      "start": 3.76,
+      "end": 4,
+      "conf": 1
+    },
+    {
+      "word": "really",
+      "start": 4,
+      "end": 4.32,
+      "conf": 0.9986
+    },
+    {
+      "word": "Greek",
+      "start": 4.32,
+      "end": 4.8,
+      "conf": 0.9952
+    },
+    {
+      "word": "after",
+      "start": 4.88,
+      "end": 5.44,
+      "conf": 0.9997
+    },
+    {
+      "word": "all,",
+      "start": 5.44,
+      "end": 5.76,
+      "conf": 0.9426
+    },
+    {
+      "word": "and",
+      "start": 6,
+      "end": 6.24,
+      "conf": 1
+    },
+    {
+      "word": "can",
+      "start": 6.24,
+      "end": 6.48,
+      "conf": 0.9999
+    },
+    {
+      "word": "discover",
+      "start": 6.48,
+      "end": 6.96,
+      "conf": 1
+    },
+    {
+      "word": "in",
+      "start": 6.96,
+      "end": 7.12,
+      "conf": 0.9999
+    },
+    {
+      "word": "it",
+      "start": 7.12,
+      "end": 7.36,
+      "conf": 0.9999
+    },
+    {
+      "word": "but",
+      "start": 7.36,
+      "end": 7.6,
+      "conf": 0.9996
+    },
+    {
+      "word": "little",
+      "start": 7.6,
+      "end": 7.92,
+      "conf": 1
+    },
+    {
+      "word": "of",
+      "start": 7.92,
+      "end": 8.16,
+      "conf": 0.9998
+    },
+    {
+      "word": "Rocky",
+      "start": 8.16,
+      "end": 8.64,
+      "conf": 0.6073
+    },
+    {
+      "word": "Ithaca.",
+      "start": 8.8,
+      "end": 9.52,
+      "conf": 0.9834
+    }
+  ]
+}

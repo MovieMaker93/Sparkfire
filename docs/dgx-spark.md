@@ -62,7 +62,7 @@ Run from the repository root:
 
 The script:
 
-1. verifies Linux ARM64, Docker Compose, NVIDIA GPU access, and the CUDA 13 toolchain used by Qwen3-ASR;
+1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access, and, only with `--asr-backend qwen3-asr`, the CUDA 13 toolchain that Qwen3-ASR mounts;
 2. builds SparklingKit and the thin model API adapters;
 3. downloads six pinned model revisions from their publishers into `data/dgx-models/`;
 4. starts the model servers one at a time and waits for each health endpoint;
@@ -82,13 +82,37 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | 8330 | System status | Lightweight read-only Python API |
 | 8331 | Multimodal LLM | `nvidia/Qwen3.6-35B-A3B-NVFP4` / vLLM 0.24.0 |
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
-| 8333 | Speech recognition | `Qwen/Qwen3-ASR-1.7B` / vLLM + Qwen ASR |
+| 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 (this fork's default), or `Qwen/Qwen3-ASR-1.7B` / vLLM + Qwen ASR with `--asr-backend qwen3-asr` |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
 | 8335 | Visual grounding | `nvidia/LocateAnything-3B` / NVIDIA `la_flash` runtime |
 | 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.40.0 |
 | 54321 | SparklingKit | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
+
+### Speech recognition backends
+
+Port 8333 serves one of two models; the start script stops the other one's container.
+
+| Option | Model | Container | Memory | Languages |
+| --- | --- | --- | --- | --- |
+| `--asr-backend parakeet` (default) | `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
+| `--asr-backend qwen3-asr` | `Qwen/Qwen3-ASR-1.7B` in vLLM | `sparklingkit-qwen3-asr` | 16.5 GiB | 52 |
+
+```bash
+./scripts/start-dgx-spark.sh --asr-backend qwen3-asr --accept-model-licenses
+```
+
+Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
+source for the GB10. The adapter accepts WAV only, which is what SparklingKit sends, and serves one request
+at a time. Parakeet returns word timestamps, from which
+SparklingKit builds one transcript line per sentence and subtitle-sized cues; Qwen3-ASR gives one line per
+chunk.
+
+Saved SparklingKit settings are never rewritten. After switching the speech service on an existing install,
+choose `Parakeet-TDT-0.6B-v3` (or `Qwen3-ASR-1.7B`) under **Settings → Services → Speech to text**. Until then,
+transcription still works, with minute-long lines. The same holds in split mode, where
+`scripts/start-sparklingkit.sh` assumes the Parakeet id.
 
 ## Operations
 

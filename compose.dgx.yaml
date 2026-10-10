@@ -11,7 +11,7 @@ services:
       OCR_BASE_URL: http://host.docker.internal:8332/v1
       OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}
       STT_BASE_URL: http://host.docker.internal:8333/v1
-      STT_MODEL: Qwen3-ASR-1.7B
+      STT_MODEL: ${STT_MODEL:-Parakeet-TDT-0.6B-v3}
       TRANSLATION_BASE_URL: http://host.docker.internal:8334/v1
       TRANSLATION_MODEL: Hy-MT2-1.8B-FP8
       GROUNDING_BASE_URL: http://host.docker.internal:8335/v1
@@ -171,6 +171,38 @@ services:
       timeout: 10s
       retries: 120
       start_period: 2m
+
+  # Default ASR backend (SPARKLINGKIT_ASR_BACKEND=parakeet); replaces qwen3-asr on :8333.
+  # The adapter on :8333 starts parakeet.cpp's parakeet-server on 127.0.0.1:8343, which serves one request at a time.
+  parakeet:
+    build:
+      context: ./services/dgx-models/parakeet
+    image: sparklingkit/parakeet:parakeet.cpp-v0.5.0
+    container_name: sparklingkit-parakeet
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      MODEL_PATH: /models/mudler/parakeet-cpp-gguf/tdt-0.6b-v3-f16.gguf
+      MODEL_NAME: Parakeet-TDT-0.6B-v3
+      PORT: "8333"
+      ENGINE_PORT: "8343"
+    volumes:
+      - ./data/dgx-models:/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8333/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 80
+      start_period: 1m
 
   unlimited-ocr:
     image: vllm/vllm-openai:unlimited-ocr@sha256:542961a42d9183813819a23ef3a8b50bfb4f5ef7b0fb4f8e4f56edd8445efb18

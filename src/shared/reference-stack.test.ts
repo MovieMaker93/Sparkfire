@@ -23,4 +23,9 @@ describe("reference stack settings", () => {
     expect(settings.endpoints["image-generation"].baseUrl).toBe("http://192.0.2.10:8336/v1");
     expect(Object.values(settings.endpoints).every((endpoint) => endpoint.enabled)).toBe(true);
   });
+
+  it("points speech recognition at the Parakeet service", () => {
+    const settings = referenceSettingsForHost(structuredClone(defaultSettings), "192.0.2.10", "all-in-one");
+    expect(settings.endpoints.stt.model).toBe("Parakeet-TDT-0.6B-v3");
+  });
 });

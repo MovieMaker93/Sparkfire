@@ -1,9 +1,10 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { chatCompletion, ocrPage, transcribeAudio, type OcrBlock, type TranscriptSegment } from "./ai.js";
+import { asrProfile, chatCompletion, ocrPage, transcribeAudio, type OcrBlock, type TimedWord, type TranscriptSegment } from "./ai.js";
 import { jobEvents, publishJob } from "./events.js";
 import { extractAudio, normalizeAudio, rasterizePdf, splitAudio, srtTimestamp, vttTimestamp } from "./media.js";
 import { executeWorkflow } from "./modules/executors.js";
+import { joinChunkWords, toCues, toParagraphs, toSentences } from "./transcript-timing.js";
 import {
   jobDir,
   readJob,
@@ -16,8 +17,19 @@ import {
 } from "./store.js";
 import type { JobManifest, PromptPreset, Settings, WorkflowRun } from "./models.js";
 
+// parakeet.cpp skips whole ~7 s utterances inside some 60 s chunks, always the same ones (two in 8.7 minutes of
+// English, 5.6% word error rate against 4.1% for the same audio as one request). Windows of 30 to 40 s keep them.
+const PARAKEET_MAX_CHUNK_SEC = 30;
+
 interface AudioChunk { file: string; start: number; end: number }
-interface TranscriptResult { text: string; segments: TranscriptSegment[] }
+// `words` is set only by ASR models that report word times; checkpoints written before they did lack it.
+interface TranscriptResult { text: string; segments: TranscriptSegment[]; words?: TimedWord[] }
+
+// An endpoint that reports word times returns words wherever it heard speech. Text without any words means it
+// ignored the request for them, and the sentence output would drop that text, so such a result does not count.
+function hasWordTimes(result: TranscriptResult): result is TranscriptResult & { words: TimedWord[] } {
+  return Array.isArray(result.words) && (result.words.length > 0 || !result.text.trim());
+}
 
 async function progress(id: string, patch: Partial<JobManifest>) {
   const next = await updateJob(id, patch);
@@ -110,11 +122,17 @@ async function transcribeChunk(
       await extractAudio(chunk.file, leftFile, 0, leftLength, signal);
       await extractAudio(chunk.file, rightFile, rightOffset, duration - rightOffset, signal);
       const midpoint = chunk.start + half;
-      const left = await transcribeChunk(settings, { file: leftFile, start: chunk.start, end: chunk.start + leftLength }, adaptiveFolder, `${lineage}-left`, signal, onAdaptiveSplit);
-      const right = await transcribeChunk(settings, { file: rightFile, start: chunk.start + rightOffset, end: chunk.end }, adaptiveFolder, `${lineage}-right`, signal, onAdaptiveSplit);
+      const leftChunk = { file: leftFile, start: chunk.start, end: chunk.start + leftLength };
+      const rightChunk = { file: rightFile, start: chunk.start + rightOffset, end: chunk.end };
+      const left = await transcribeChunk(settings, leftChunk, adaptiveFolder, `${lineage}-left`, signal, onAdaptiveSplit);
+      const right = await transcribeChunk(settings, rightChunk, adaptiveFolder, `${lineage}-right`, signal, onAdaptiveSplit);
       return {
         text: mergeOverlappingText([left.text, right.text].filter(Boolean)),
         segments: [...left.segments, ...right.segments],
+        // The halves overlap like any two chunks, so their words are joined the same way.
+        words: hasWordTimes(left) && hasWordTimes(right)
+          ? joinChunkWords([{ ...leftChunk, words: left.words }, { ...rightChunk, words: right.words }])
+          : undefined,
       };
     }
     if (settings.audio.adaptiveSplit && settings.queue.maxRetriesPerChunk > 0) {
@@ -141,7 +159,9 @@ export async function processAudio(job: JobManifest, signal?: AbortSignal, run?:
   const planFile = path.join(runWork, "audio-plan.json");
   const configuredPlan = {
     version: 1,
-    chunkTargetSec: settings.audio.chunkTargetSec,
+    chunkTargetSec: asrProfile(settings.endpoints.stt.model) === "parakeet"
+      ? Math.min(settings.audio.chunkTargetSec, PARAKEET_MAX_CHUNK_SEC)
+      : settings.audio.chunkTargetSec,
     chunkOverlapSec: settings.audio.chunkOverlapSec,
     sampleRate: settings.audio.sampleRate,
   };
@@ -170,7 +190,8 @@ export async function processAudio(job: JobManifest, signal?: AbortSignal, run?:
     chunks.push(...fileChunks.map((chunk) => ({ ...chunk, start: chunk.start + timelineOffset, end: chunk.end + timelineOffset })));
     timelineOffset += (fileChunks.at(-1)?.end || 0) + 1;
   }
-  const transcripts: TranscriptResult[] = [];
+  // Each result keeps its chunk's time span, which joining word times across the overlaps needs.
+  const transcripts: Array<{ start: number; end: number; result: TranscriptResult }> = [];
   const warnings: string[] = [];
   const totalDuration = chunks.at(-1)?.end || 0;
   for (const [index, chunk] of chunks.entries()) {
@@ -199,7 +220,7 @@ export async function processAudio(job: JobManifest, signal?: AbortSignal, run?:
         await fs.writeFile(checkpoint, JSON.stringify(result, null, 2));
       }
       if (!result.segments.length && result.text) result.segments.push({ start: chunk.start, end: chunk.end, text: result.text });
-      transcripts.push(result);
+      transcripts.push({ start: chunk.start, end: chunk.end, result });
     } catch (error) {
       if (isAbort(error, signal)) throw new CancelledError();
       warnings.push(`Some audio could not be transcribed: ${error instanceof Error ? error.message : String(error)}`);
@@ -207,18 +228,35 @@ export async function processAudio(job: JobManifest, signal?: AbortSignal, run?:
   }
   await assertNotCancelled(job.id, signal);
   await progress(job.id, { status: "merging", progress: 92, stage: "Building transcript and subtitles", warnings });
-  const text = mergeOverlappingText(transcripts.map((item) => item.text.trim()).filter(Boolean));
-  const segments = transcripts.flatMap((item) => item.segments);
+  // Word times let the transcript follow the speech: sentences for the lines, short cues for the subtitles. One
+  // transcribed chunk without them (an older checkpoint, a model that does not report them, text that came back
+  // with no words) keeps the output of one segment per chunk, since mixing the two would put chunk-wide and
+  // word-level lines in one file.
+  const timedChunks = transcripts.flatMap(({ start, end, result }) => (hasWordTimes(result) ? [{ start, end, words: result.words }] : []));
+  let words: TimedWord[] | undefined;
+  let segments: TranscriptSegment[];
+  let cues: TranscriptSegment[];
+  let text: string;
+  if (transcripts.length > 0 && timedChunks.length === transcripts.length) {
+    words = joinChunkWords(timedChunks);
+    segments = toSentences(words);
+    cues = toCues(words);
+    text = toParagraphs(segments);
+  } else {
+    segments = transcripts.flatMap(({ result }) => result.segments);
+    cues = segments;
+    text = mergeOverlappingText(transcripts.map(({ result }) => result.text.trim()).filter(Boolean));
+  }
   if (!text && warnings.length) throw new Error(warnings.join("; "));
   const md = `# ${job.title}\n\n${text || "_No speech detected._"}\n`;
-  const srt = segments.map((segment, index) => `${index + 1}\n${srtTimestamp(segment.start)} --> ${srtTimestamp(segment.end)}\n${segment.text}\n`).join("\n");
-  const vtt = `WEBVTT\n\n${segments.map((segment) => `${vttTimestamp(segment.start)} --> ${vttTimestamp(segment.end)}\n${segment.text}\n`).join("\n")}`;
+  const srt = cues.map((segment, index) => `${index + 1}\n${srtTimestamp(segment.start)} --> ${srtTimestamp(segment.end)}\n${segment.text}\n`).join("\n");
+  const vtt = `WEBVTT\n\n${cues.map((segment) => `${vttTimestamp(segment.start)} --> ${vttTimestamp(segment.end)}\n${segment.text}\n`).join("\n")}`;
   const suffix = (run?.id || "derived").replace(/^run-/, "").slice(0, 8);
   const stem = job.outputFiles.includes("transcript.md") ? `transcript-${suffix}` : "transcript";
   const names = [`${stem}.md`, `${stem}.json`, `${stem}.srt`, `${stem}.vtt`];
   await Promise.all([
     fs.writeFile(safeOutputPath(job.id, names[0]), md),
-    fs.writeFile(safeOutputPath(job.id, names[1]), `${JSON.stringify({ text, segments }, null, 2)}\n`),
+    fs.writeFile(safeOutputPath(job.id, names[1]), `${JSON.stringify({ text, segments, words }, null, 2)}\n`),
     fs.writeFile(safeOutputPath(job.id, names[2]), srt),
     fs.writeFile(safeOutputPath(job.id, names[3]), vtt),
   ]);
