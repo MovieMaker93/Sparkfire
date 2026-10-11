@@ -14,7 +14,7 @@ cd Sparkfire
 ./scripts/start-dgx-spark.sh --accept-model-licenses
 ```
 
-Open `http://DGX-IP:54321`. Add `--video-backend fasth3` for video with sound where its license applies
+Open `http://DGX-IP:54321`. Add `--video-backend none` where FastH3's license does not apply
 (see [Video generation](#video-generation)).
 
 ### Split across two machines
@@ -108,9 +108,9 @@ and their shared text encoder and decoders download at pinned revisions, about 5
 
 The MiniMax H3 Community License covers use "worldwide, excluding" the European Union, the United Kingdom,
 South Korea and the United States, and asks that shared outputs be disclosed as machine-generated; every MP4
-carries that note in its metadata. Video is therefore opt-in: the stack builds, downloads and starts it only
-with `--video-backend fasth3`. Without the flag the app leaves its video endpoint off, and a restart without
-it stops a running video service.
+carries that note in its metadata. Where the license does not apply, start the stack with
+`--video-backend none`: the service is not built, downloaded or started, and the app leaves its video
+endpoint off.
 
 ## Operations
 
