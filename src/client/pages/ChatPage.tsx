@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, ArrowUp, Bot, Brain, Check, ChevronLeft, Copy, FileText, LoaderCircle, MessageCircle, Paperclip, Pencil, Plus, Search, Square, Trash2, UserRound, X } from "lucide-react";
-import { CHAT_EFFORTS, MAX_CHAT_ATTACHMENTS, type ChatEffort } from "../../shared/contracts";
+import { ArrowRight, ArrowUp, Bot, Brain, Check, ChevronLeft, CircleAlert, Copy, FileText, Globe, LoaderCircle, MessageCircle, Paperclip, Pencil, Plus, Search, Square, Trash2, UserRound, X } from "lucide-react";
+import { CHAT_EFFORTS, MAX_CHAT_ATTACHMENTS, type ChatEffort, type ChatSource, type ChatToolActivity, type Settings } from "../../shared/contracts";
 import { api, chatAttachmentUrl, resumeChatStream, streamChat, uploadChatAttachments, type ChatStreamHandlers } from "../api";
 import { EFFORT_LABELS, modelLabel, readChatEffort, saveChatEffort } from "../chat-effort";
 import { createClientId } from "../client-id";
@@ -23,6 +23,10 @@ export function ChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [draft, setDraft] = useState("");
   const [draftReasoning, setDraftReasoning] = useState("");
+  const [draftActivity, setDraftActivity] = useState<ChatToolActivity[]>([]);
+  // Web search shows only when a search service is set up and the model declares tool calling.
+  const [webSearchReady, setWebSearchReady] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
   const [effort, setEffort] = useState<ChatEffort>(readChatEffort);
   const [llmModel, setLlmModel] = useState("");
   // Files waiting to go out with the next message, tied to the chat they were uploaded to.
@@ -59,6 +63,7 @@ export function ChatPage() {
     api.settings().then((settings) => {
       setTimezone(settings.ui.timezone);
       setLlmModel(settings.endpoints.llm.model);
+      setWebSearchReady(webSearchUsable(settings));
     }).catch(() => undefined);
   }, []);
   useEffect(() => {
@@ -85,12 +90,14 @@ export function ChatPage() {
     if (!id) {
       setChat(undefined);
       setSettledChatId(undefined);
+      setWebSearch(false);
       return () => { active = false; };
     }
     api.chat(id)
       .then((value) => {
         if (!active) return;
         setChat(value);
+        setWebSearch(Boolean(value.webSearch));
         void follow(id, (handlers, signal) => resumeChatStream(id, handlers, signal));
       })
       .catch((value) => { if (active) { setChat(undefined); setError(value.message); } })
@@ -197,7 +204,7 @@ export function ChatPage() {
     setInput("");
     setError("");
     setStreaming(true);
-    await follow(current.id, (handlers, signal) => streamChat(current.id, content, handlers, signal, { effort, attachmentIds: files.map((file) => file.id) }).then(() => true));
+    await follow(current.id, (handlers, signal) => streamChat(current.id, content, handlers, signal, { effort, attachmentIds: files.map((file) => file.id), ...(webSearchReady ? { webSearch } : {}) }).then(() => true));
   }
 
   // Shows an answer the server is generating. Aborting `controller` only stops watching it: the server keeps
@@ -209,12 +216,19 @@ export function ChatPage() {
     following.current = chatId;
     let accumulated = "";
     let reasoning = "";
+    let activity: ChatToolActivity[] = [];
     setDraft("");
     setDraftReasoning("");
+    setDraftActivity([]);
     const owns = () => controller.current === local;
     try {
       const attached = await open({
-        onSnapshot: (answer) => { accumulated = answer.content; reasoning = answer.reasoning; setDraft(accumulated); setDraftReasoning(reasoning); setStreaming(true); },
+        onSnapshot: (answer) => { accumulated = answer.content; reasoning = answer.reasoning; activity = answer.activity || []; setDraft(accumulated); setDraftReasoning(reasoning); setDraftActivity(activity); setStreaming(true); },
+        onActivity: (update) => {
+          activity = activity.some((item) => item.id === update.id) ? activity.map((item) => item.id === update.id ? update : item) : [...activity, update];
+          setDraftActivity(activity);
+          setStreaming(true);
+        },
         onDelta: (delta) => { accumulated += delta; setDraft(accumulated); setStreaming(true); },
         onReasoning: (delta) => { reasoning += delta; setDraftReasoning(reasoning); setStreaming(true); },
         onDone: () => undefined,
@@ -227,6 +241,7 @@ export function ChatPage() {
       if (owns()) {
         setDraft("");
         setDraftReasoning("");
+        setDraftActivity([]);
       }
     } catch (streamError) {
       if (owns() && (streamError as Error).name !== "AbortError") setError(streamError instanceof Error ? streamError.message : String(streamError));
@@ -246,6 +261,7 @@ export function ChatPage() {
     setStreaming(false);
     setDraft("");
     setDraftReasoning("");
+    setDraftActivity([]);
   }
 
   async function stop() {
@@ -289,8 +305,8 @@ export function ChatPage() {
             {!visibleMessages.length && !draft && !error && <div className="chat-welcome"><span><Bot size={28} /></span><h2>What are you working on?</h2><p>Ask a question, develop an idea, or open a completed job in chat to explore its contents.</p><div className="mt-6 flex flex-wrap justify-center gap-2">{["Summarize a concept", "Draft a project outline", "Compare two approaches"].map((suggestion) => <button key={suggestion} onClick={() => setInput(suggestion)}>{suggestion}</button>)}</div></div>}
             <div className="chat-reading-column">
               {visibleMessages.map((message) => <Message key={message.id} message={message} timezone={timezone} chatId={chat?.id} />)}
-              {(draft || draftReasoning) && <Message message={{ id: "draft", role: "assistant", content: draft, reasoning: draftReasoning, createdAt: new Date().toISOString() }} timezone={timezone} streaming />}
-              {streaming && !draft && !draftReasoning && <div className="message-row"><span className="avatar avatar-ai"><Bot size={15} /></span><span className="thinking"><i /><i /><i /></span></div>}
+              {(draft || draftReasoning || draftActivity.length > 0) && <Message message={{ id: "draft", role: "assistant", content: draft, reasoning: draftReasoning, activity: draftActivity, createdAt: new Date().toISOString() }} timezone={timezone} streaming />}
+              {streaming && !draft && !draftReasoning && !draftActivity.length && <div className="message-row"><span className="avatar avatar-ai"><Bot size={15} /></span><span className="thinking"><i /><i /><i /></span></div>}
               {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             </div>
           </>}
@@ -312,9 +328,15 @@ export function ChatPage() {
             {streaming ? <button className="send-button" onClick={() => void stop()} aria-label="Stop"><Square size={14} fill="currentColor" /></button> : <button className="send-button" onClick={() => void send()} disabled={loadingChat || uploading > 0 || (!input.trim() && !attachments.length)} aria-label="Send"><ArrowUp size={18} /></button>}
           </div>
           <div className="chat-composer-footer">
-            <div className="theme-choice effort-choice" role="radiogroup" aria-label="Thinking effort">
-              <span><Brain size={14} />Thinking</span>
-              {CHAT_EFFORTS.map((value) => <button key={value} type="button" role="radio" aria-checked={effort === value} className={cn(effort === value && "active")} disabled={streaming} onClick={() => { setEffort(value); saveChatEffort(value); }}>{EFFORT_LABELS[value]}</button>)}
+            <div className="chat-composer-controls">
+              <div className="theme-choice effort-choice" role="radiogroup" aria-label="Thinking effort">
+                <span><Brain size={14} />Thinking</span>
+                {CHAT_EFFORTS.map((value) => <button key={value} type="button" role="radio" aria-checked={effort === value} className={cn(effort === value && "active")} disabled={streaming} onClick={() => { setEffort(value); saveChatEffort(value); }}>{EFFORT_LABELS[value]}</button>)}
+              </div>
+              {webSearchReady && <div className="theme-choice effort-choice" role="radiogroup" aria-label="Web search" title="Let the model search the web and read pages in this conversation">
+                <span><Globe size={14} />Web</span>
+                {([false, true] as const).map((value) => <button key={String(value)} type="button" role="radio" aria-checked={webSearch === value} className={cn(webSearch === value && "active")} disabled={streaming || loadingChat} onClick={() => setWebSearch(value)}>{value ? "On" : "Off"}</button>)}
+              </div>}
             </div>
             <p>Enter to send · Shift + Enter for a new line</p>
           </div>
@@ -388,9 +410,10 @@ function Message({ message, timezone, streaming, chatId }: { message: ChatMessag
   return <div className={cn("message-row", !assistant && "message-user")}>
     <span className={cn("avatar", assistant ? "avatar-ai" : "avatar-user")}>{assistant ? <Bot size={15} /> : <UserRound size={15} />}</span>
     <div className="message-body">
-      {assistant && message.reasoning && <Reasoning text={message.reasoning} live={Boolean(streaming && !message.content)} />}
+      {assistant && message.reasoning && <Reasoning text={message.reasoning} live={Boolean(streaming && !message.content && !message.activity?.length)} />}
+      {assistant && message.activity?.length ? <WebActivity items={message.activity} live={Boolean(streaming && !message.content)} /> : null}
       {chatId && message.attachments?.length ? <div className="message-attachments">{message.attachments.map((attachment) => <AttachmentChip key={attachment.id} chatId={chatId} attachment={attachment} preview />)}</div> : null}
-      {(message.content || (!message.reasoning && !message.attachments?.length)) && <div className={cn("message-content", !assistant && "message-bubble")}><ChatMarkdown>{message.content}</ChatMarkdown>{streaming && <span className="cursor" />}</div>}
+      {(message.content || (!message.reasoning && !message.attachments?.length && !message.activity?.length)) && <div className={cn("message-content", !assistant && "message-bubble")}><ChatMarkdown>{message.content}</ChatMarkdown>{streaming && <span className="cursor" />}</div>}
       {!streaming && message.content && <div className="message-actions"><time dateTime={message.createdAt} title={`${timestamp} (${timezone.replaceAll("_", " ")})`}>{compactTime}</time><button type="button" className={cn("message-copy-button", copyState)} onClick={copyMessage} aria-label={copyLabel} title={copyLabel}>{copyState === "copied" ? <Check size={15} /> : <Copy size={15} />}<span>{copyState === "failed" ? "Copy failed" : copyState === "copied" ? "Copied" : "Copy"}</span></button></div>}
     </div>
   </div>;
@@ -422,6 +445,47 @@ function Reasoning({ text, live }: { text: string; live: boolean }) {
   return <details className="message-reasoning" open={live}>
     <summary><Brain size={14} /><span>{live ? "Thinking…" : "Reasoning"}</span><small>{words} {words === 1 ? "word" : "words"}</small></summary>
     <p>{text}</p>
+  </details>;
+}
+
+export function webSearchUsable(settings: Pick<Settings, "webSearch" | "endpoints">) {
+  return Boolean(settings.webSearch?.enabled && settings.webSearch.baseUrl && settings.endpoints.llm.capabilities?.includes("tools"));
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+/** Every source the answer can cite, once each, in the order of its numbers; a page read wins over its search snippet. */
+export function answerSources(items: ChatToolActivity[]) {
+  const byNumber = new Map<number, ChatSource>();
+  for (const item of items) {
+    for (const source of item.sources || []) if (!byNumber.has(source.n) || item.tool === "fetch_page") byNumber.set(source.n, source);
+  }
+  return [...byNumber.values()].sort((left, right) => left.n - right.n);
+}
+
+// Open while the model is searching, then folded away once the answer starts, like the reasoning.
+function WebActivity({ items, live }: { items: ChatToolActivity[]; live: boolean }) {
+  const searches = items.filter((item) => item.tool === "web_search").length;
+  const pages = items.length - searches;
+  const sources = answerSources(items);
+  const counts = [searches && `${searches} ${searches === 1 ? "search" : "searches"}`, pages && `${pages} ${pages === 1 ? "page" : "pages"}`].filter(Boolean).join(" · ");
+  return <details className="message-activity" open={live}>
+    <summary><Globe size={14} /><span>{live ? "Searching the web…" : "Web search"}</span><small>{counts}</small></summary>
+    <ul className="message-activity-steps">
+      {items.map((item) => <li key={item.id} className={item.status}>
+        {item.status === "running" ? <LoaderCircle size={14} className="animate-spin" /> : item.status === "error" ? <CircleAlert size={14} /> : item.tool === "web_search" ? <Search size={14} /> : <FileText size={14} />}
+        <span>{item.tool === "web_search" ? <>Searched “{item.input}”</> : <>Read {/^https?:\/\//i.test(item.input) ? <a href={item.input} target="_blank" rel="noreferrer noopener">{hostOf(item.input)}</a> : item.input}</>}{item.error && <small>{item.error}</small>}</span>
+      </li>)}
+    </ul>
+    {sources.length > 0 && <ol className="message-sources" aria-label="Sources">
+      {sources.map((source) => <li key={source.n}><b>{source.n}</b><a href={source.url} target="_blank" rel="noreferrer noopener" title={source.url}>{source.title}</a><small>{hostOf(source.url)}</small></li>)}
+    </ol>}
   </details>;
 }
 

@@ -7,14 +7,14 @@
 [![Express](https://img.shields.io/badge/Express-5-444444?style=flat-square)](https://expressjs.com)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-**Sparkfire turns files into reusable AI work: it reads documents, transcribes recordings, translates, finds things in images, generates pictures, maps ideas and lets you chat about all of it, on models that run on your own DGX Spark.**
+**Sparkfire turns files into reusable AI work. It reads documents, transcribes recordings, translates, generates images and videos with sound, maps ideas, and lets you chat about all of it, with web search when you turn it on. The models run on your own DGX Spark.**
 
-Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a summary, a mind map or a conversation. Seven specialised models share one Spark behind one interface, and nothing leaves your network.
+Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a translation, a mind map or a conversation; a generated image becomes the first frame of a video. Five specialised models share one Spark behind one interface, next to the LLM of your choice, and your files stay on your network.
 
 > [!NOTE]
-> Based on [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei (Apache 2.0). Sparkfire is maintained by [MovieMaker93](https://github.com/MovieMaker93) and is not affiliated with or endorsed by the SparklingKit project. See [what Sparkfire adds](#what-sparkfire-adds).
+> Based on [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei (Apache 2.0). Sparkfire is maintained by [MovieMaker93](https://github.com/MovieMaker93) and is not affiliated with or endorsed by the SparklingKit project. See [what Sparkfire changes](#what-sparkfire-changes).
 
-[![A 40-second tour of Sparkfire running real models on a DGX Spark: the workbench, OCR, image generation, the gallery, chat, grounding and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
+[![A tour of Sparkfire running real models on a DGX Spark: the workbench, OCR, image and video generation, chat with web search, chat with a file, and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
 
 [Watch the tour as MP4](.github/media/tour.mp4) · recorded on one DGX Spark with the real models; only the waits are fast-forwarded.
 
@@ -22,80 +22,67 @@ Every source and every result stays an ordinary file with its history, so one re
 
 ## Contents
 
-- [What Sparkfire adds](#what-sparkfire-adds)
-- [Feature tour](#feature-tour)
-- [Quick start](#quick-start)
-- [Memory and containers](#memory-and-containers) · [Video: choices and trade-offs](#video-choices-and-trade-offs)
-- [Why Sparkfire?](#why-sparkfire) · [One DGX Spark, five bundled models](#one-dgx-spark-five-bundled-models) · [Choose your deployment](#choose-your-deployment)
-- [Modules](#modules) · [Workbench](#workbench) · [File-based workflows](#file-based-workflows)
-- [Architecture](#architecture) · [API overview](#api-overview) · [Security and privacy](#security-and-privacy)
-- [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
+- [Features](#features)
+- [Quick start](#quick-start) · [Connect an LLM](#connect-an-llm) · [Other ways to run it](#other-ways-to-run-it) · [Upgrading](#upgrading)
+- [Models and memory](#models-and-memory) · [Video: choices and trade-offs](#video-choices-and-trade-offs)
+- [Configuration](#configuration) · [How it works](#how-it-works) · [Security and privacy](#security-and-privacy)
+- [What Sparkfire changes](#what-sparkfire-changes) · [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
 
 * * *
 
-## What Sparkfire adds
-
-Sparkfire started as a fork of SparklingKit and has since become its own project. Compared with upstream:
-
-| Area | What you get |
-| --- | --- |
-| **Interface** | Light, dark and system themes; a mint accent; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench |
-| **Gallery** | Every image and generated video with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
-| **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
-| **Chat** | Attach images, PDFs and text files; a thinking control (Off, Low, Medium, High) with the reasoning shown live |
-| **Models** | Parakeet-TDT-0.6B-v3 for speech; PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; FastH3 for video with sound; seed and step controls |
-| **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
-| **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
-
-Details in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md](docs/validation.md), next steps in the [roadmap](docs/fork.md#roadmap), and instructions for coding agents in [AGENTS.md](AGENTS.md).
-
-* * *
-
-## Feature tour
+## Features
 
 Each clip is the real app on a DGX Spark with demo files. Only the time spent waiting for a model is fast-forwarded. Click a clip for the full-quality MP4.
 
 ### The Workbench
 
-Start anything from one page: drop files, translate text, describe an image or ask the model. Jobs that are running show live progress at the top, and recent work keeps readable names and thumbnails.
+Start anything from one page: drop a file to read or transcribe it, translate text as you type, create an image or a video, ask the model, or build a mind map. Jobs that are running show live progress at the top, recent work keeps readable names and thumbnails, and search finds work, conversations, tools and generated files.
 
-[![The Workbench with three jobs running and recent work below (click for the MP4)](.github/media/workbench.webp)](.github/media/workbench.mp4)
+[![The Workbench with two images generating and a video queued, then the tools and recent work below (click for the MP4)](.github/media/workbench.webp)](.github/media/workbench.mp4)
 
 ### Read documents (OCR)
 
-PaddleOCR-VL-1.6 turns PDFs and scans into Markdown, keeping headings, tables and reading order, and saves the page layout next to it. Long documents get an outline to jump through; the source view shows exactly what the model produced.
+Drop a PDF or a scan and get Markdown that keeps headings, tables and reading order, with the page layout saved next to it. The reference setup uses PaddleOCR-VL-1.6: on a 20-page test document it kept 99.9 % of the words in reading order and every numeric table cell, at about 6 seconds a page. Long documents get an outline to jump through; the source view shows exactly what the model produced.
 
 [![A three-page report recognised into Markdown: jumping through the outline, then the Markdown source (click for the MP4)](.github/media/ocr.webp)](.github/media/ocr.mp4)
 
 ### Transcribe recordings
 
-Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. On long files it runs 10 to 16 times faster than Qwen3-ASR did, and it needs 1.7 GiB instead of 16.5 GiB. It covers 25 European languages.
+Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. On long files it runs 10 to 16 times faster than Qwen3-ASR did, in 1.7 GiB instead of 16.5 GiB. It covers 25 European languages.
 
 [![A transcript with one timed line per sentence; clicking a line moves the audio player (click for the MP4)](.github/media/transcript.webp)](.github/media/transcript.mp4)
 
+### Translate
+
+Hy-MT2-1.8B-FP8 translates pasted text live as you type, and you save the result when you want to keep it. Documents and transcripts translate into a new document, linked to the original.
+
 ### Generate images
 
-Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024 × 1024, or a minute at 2K. Every image lands in the Gallery, where you can filter by model and compare two side by side.
+Describe a picture and get it back in seconds. With Qwen-Image-2.1-Turbo, which the clips use, an image takes about 18 seconds at 1024 × 1024 and about a minute at 2K, with legible lettering; Z-Image-Turbo is the default. Seed and step controls sit under Advanced. Every image lands in the Gallery, where you can filter by model and compare two side by side.
 
 [![Typing a prompt, the progress view, the finished image, then the Gallery and its compare picker (click for the MP4)](.github/media/image.webp)](.github/media/image.mp4)
 
 ### Make videos with sound
 
-Describe a scene, and optionally how it sounds, and FastH3 makes a 5, 8 or 10 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
+Describe a scene, and optionally how it sounds, and FastH3 makes a 5, 8 or 10 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Five seconds at 480p take about a minute. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
 
 FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) made by [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, and it runs in [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org. [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark; Sparkfire adopted FastH3 after studying the Studio's Spark setup and measurements. Why each video setting is what it is: [Video: choices and trade-offs](#video-choices-and-trade-offs).
 
-### Find things in images
-
-Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint: the tool stays hidden until you enable one in Settings → Services (Sparkfire was tested with LocateAnything-3B).
-
-[![Wind turbines and a lighthouse boxed in a photo, with the before/after slider moving across (click for the MP4)](.github/media/grounding.webp)](.github/media/grounding.mp4)
+[![Typing a scene and its sound, the progress view, then the finished clip playing on the job page (click for the MP4)](.github/media/video.webp)](.github/media/video.mp4)
 
 ### Chat with your files
 
-Attach images, PDFs or text files with the + button, choose how hard the model should think, and watch its reasoning before the answer. Any finished job can also be opened in a chat.
+Attach images, PDFs or text files with the + button, choose how hard the model should think (Off, Low, Medium, High), and watch its reasoning before the answer. Any finished job can also be opened in a chat. Answers run on the server, so leaving the page, switching chats or reloading does not stop them: come back and the answer is still being written, or already saved.
 
 [![Attaching the report, asking for its risks with Low thinking, the live reasoning and the answer (click for the MP4)](.github/media/chat.webp)](.github/media/chat.mp4)
+
+### Search the web from chat
+
+Turn on **Web** in a conversation and the model can search the web and read pages before it answers, through a local [SearXNG](https://github.com/searxng/searxng). It takes up to six rounds of searches and page reads, then answers with numbered sources; a foldable block lists what it searched and read. The switch is off in every conversation until you turn it on there.
+
+It needs `--search-backend searxng` at install (or your own SearXNG URL in Settings) and a model with **Tool calling** ticked in Settings (`llama-server` needs `--jinja`). Searches reach the engines behind SearXNG, so keep the switch off for conversations that must stay local. Page reads refuse local and private network addresses. Details in [docs/fork.md](docs/fork.md#chat).
+
+[![Turning Web on, asking a current question, the searches and pages as they run, then the answer with numbered sources (click for the MP4)](.github/media/websearch.webp)](.github/media/websearch.mp4)
 
 ### Mind maps
 
@@ -103,9 +90,17 @@ Turn a document, transcript or image into an interactive map, then fold and unfo
 
 [![A mind map of the report with branches being folded and unfolded (click for the MP4)](.github/media/mindmap.webp)](.github/media/mindmap.mp4)
 
+### Workflows
+
+Connect the same modules in a node editor and run the flow again on a new file: inputs typed by artifact kind, **If** and **Switch** branches, **Merge**, **Save to file**, and a node for every module, video and LLM prompts included. Definitions are JSON files, each run keeps a snapshot of the flow it ran, and the run view shows which nodes ran, were skipped or failed. See [Workflow design and JSON contracts](docs/workflows.md).
+
+### Find things in images (optional)
+
+Visual grounding boxes every match for anything you can name, with a slider between the original and the result. The stack does not ship a grounding model, so the tool stays hidden until you enable a grounding endpoint in **Settings → Services**; Sparkfire was tested with LocateAnything-3B.
+
 ### Dark, light or system
 
-Pick a theme in Settings; the whole interface follows, in both themes and on any screen width.
+Pick a theme in Settings; the whole interface follows, at any screen width.
 
 [![Switching the interface between dark and light in Settings (click for the MP4)](.github/media/theme.webp)](.github/media/theme.mp4)
 
@@ -128,6 +123,7 @@ cd Sparkfire
 - The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
 - `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). FastH3, the video model, is not licensed in the EU, the UK, South Korea or the US: add `--video-backend none` there.
 - Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only).
+- Add `--search-backend searxng` to let chat search the web through a local SearXNG (about 200 MB, no model).
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
@@ -136,17 +132,93 @@ cd Sparkfire
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
 | Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or `--video-backend none` to leave video out |
 | Use Unlimited-OCR instead of PaddleOCR-VL | leave out `--ocr-backend` |
-| Update | `git pull`, then run the start script again |
+| Update | `git pull`, then run the start script again with the same options |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparkfire` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
-| Run only the app against models you already host | `cp .env.example .env`, set the endpoint URLs, then `docker compose up -d --build` |
 
-**Updating an install that used Qwen3-ASR?** Run the start script again, then choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Saved settings are never rewritten. Until you change it, transcription still works, with minute-long lines instead of sentences.
+### Connect an LLM
 
-**Coming from SparklingKit or the MovieMaker93/SparklingKit fork?** Point your checkout at this repository and run the start script again; jobs, settings, models and containers are reused as they are. The old `SPARKLINGKIT_*` variables in `.env` still work.
+The stack ships no LLM, so chat, mind maps and LLM prompts in workflows wait until you point **Settings → Services → Language model** at an OpenAI-compatible endpoint, local or in the cloud. The reference is [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) in `llama-server` from a CUDA build of [llama.cpp](https://github.com/ggml-org/llama.cpp): 13 GiB of GPU memory, 22 tokens a second, and it reads images.
 
-## Memory and containers
+```bash
+llama-server -m Underdog-Saluki-27B-1.0-IQ2-mix.gguf --mmproj mmproj-Underdog-Saluki-27B-1.0-F16.gguf \
+  --jinja -ngl 99 -fa on -c 65536 --parallel 1 --host 0.0.0.0 --port 8331 --alias saluki-27b
+```
 
-The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **8 Docker containers**, or **9** with PaddleOCR-VL, whose vision model and layout stage run separately. A short-lived downloader container also runs during installation.
+In Settings, set the URL to `http://host.docker.internal:8331/v1` and the model to `saluki-27b`, and tick **Images** and **Tool calling**. With Saluki's thinking on, a mind map can come back empty ([known issue](docs/validation.md#llm-underdog-saluki-27b-evaluated-not-integrated)); chat lets you choose the thinking level per message.
+
+### Other ways to run it
+
+Sparkfire has two layers that can run apart: the **models** (the reference stack, your LLM, the optional system monitor) and the **workspace** (the web app, its API, the Redis queue and your files).
+
+| Setup | Models | Workspace | Start with |
+| --- | --- | --- | --- |
+| **All in one** | DGX Spark | the same Spark | the [quick start](#quick-start) |
+| **Split** | DGX Spark | another server | `./scripts/start-dgx-spark.sh --models-only --accept-model-licenses` on the Spark, then `./scripts/start-sparkfire.sh --model-host <spark-host>` on the server |
+| **Workspace only** | your own endpoints, local or cloud | any Docker host | `./scripts/start-sparkfire.sh --configure-later` |
+
+On the first visit, onboarding offers the same three choices: **Run models locally**, **Run models remotely** (it checks ports 8332–8337 on the Spark; video on 8337 is optional) and **Configure manually**. Reopen it from **Settings → General → Deployment**; changing endpoints keeps your jobs, chats, workflows and files. In split mode, keep the Spark's ports 8330–8337 behind a firewall, LAN or VPN.
+
+Each release also publishes a multi-platform image, `ghcr.io/moviemaker93/sparkfire`, for your own Compose file. To build from source instead:
+
+```bash
+cp .env.example .env    # leave the URLs empty for onboarding, or set your endpoints
+docker compose up -d --build
+# with web search: docker compose -f compose.yaml -f compose.search.yaml up -d --build
+```
+
+The image includes `ffmpeg`, `ffprobe`, `pdftotext` and `pdftoppm`, for `linux/amd64` and `linux/arm64`. Environment variables only seed a new `data/config/settings.json`; after that, saved settings win, so an upgrade never replaces your endpoints. See [Application deployment and upgrades](docs/deployment.md) for network binding, backups and releases, and the [DGX Spark deployment guide](docs/dgx-spark.md) for what the start script does.
+
+**Local development** needs Node.js 22 or newer, Redis, ffmpeg and Poppler:
+
+```bash
+npm install
+docker run -d --name sk-redis -p 6379:6379 redis:8-alpine   # once
+node scripts/seed-dev-data.mjs                              # optional sample data in ./data
+npm run dev                                                 # API on :54321, Vite on :5173 with hot reload
+```
+
+`npm run typecheck`, `npm test` and `npm run build` are the checks CI runs.
+
+### Upgrading
+
+```bash
+git pull
+./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --accept-model-licenses   # the options you installed with
+```
+
+The script rebuilds what changed and leaves `data/` alone. Saved settings are never rewritten, so a few upgrades need one change in **Settings → Services**:
+
+- **From Qwen3-ASR:** choose `Parakeet-TDT-0.6B-v3` under Speech to text. Until then transcription still works, with minute-long lines instead of sentences.
+- **From the six-model stack:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything containers. Repoint or turn off the LLM (port 8331) and grounding (port 8335) endpoints, which no longer answer; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
+- **From SparklingKit or the MovieMaker93/SparklingKit fork:** point your checkout at this repository and run the start script again. Jobs, settings, models and containers are reused as they are, and the old `SPARKLINGKIT_*` variables in `.env` still work.
+
+Set `HF_TOKEN` in the shell when a model download needs authentication or more download capacity: `HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses`.
+
+* * *
+
+## Models and memory
+
+### The reference stack
+
+Five models share the Spark, each in its own container behind an OpenAI-compatible API, so any of them can be replaced by an endpoint you configure.
+
+| Capability | Default | Alternatives | Port |
+| --- | --- | --- | --- |
+| OCR | [Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR) in vLLM | [PaddleOCR-VL-1.6](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6), with page layout: `--ocr-backend paddleocr-vl` | 8332 |
+| Speech recognition | [Parakeet-TDT-0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) in parakeet.cpp | | 8333 |
+| Translation | [Hy-MT2-1.8B-FP8](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | | 8334 |
+| Image generation | [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) in diffusers | [Qwen-Image-2.1-Turbo](https://huggingface.co/Qwen/Qwen-Image-2.1) or Qwen-Image 2.1, non-commercial: `--image-backend qwen-image-2.1-turbo` | 8336 |
+| Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy), Fast and Sharp, in ComfyUI | none: `--video-backend none` | 8337 |
+| Web search for chat | off | SearXNG: `--search-backend searxng` (bound to 127.0.0.1) | 8338 |
+| System monitor | memory, GPU and service health in the sidebar | | 8330 |
+| Language model | not shipped: any OpenAI-compatible endpoint ([Saluki 27B](#connect-an-llm) in the reference) | | yours |
+| Visual grounding | not shipped: any compatible endpoint | | yours |
+
+The clips and measurements use PaddleOCR-VL-1.6 and Qwen-Image-2.1-Turbo. Details of each backend are in [docs/fork.md](docs/fork.md#model-backends), and measured results in [docs/validation.md](docs/validation.md).
+
+### Memory and containers
+
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **8 Docker containers**, **9** with PaddleOCR-VL, whose vision model and layout stage run separately, and one more with SearXNG. A short-lived downloader container also runs during installation. The containers keep their `sparklingkit-` names, so existing installs carry over.
 
 Measured on one Spark with every service loaded and idle. GPU is what the container allocates through CUDA; RAM is the container's own process memory.
 
@@ -161,18 +233,14 @@ Measured on one Spark with every service loaded and idle. GPU is what the contai
 | 7 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
 | 8 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
 | 9 | `sparklingkit-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
+| — | `sparklingkit-searxng` | SearXNG, only with `--search-backend searxng` | — | capped at 0.5 GiB | not measured |
 
-The stack ships no LLM and no grounding service (chat, mind maps and summaries use any
-OpenAI-compatible endpoint, and visual grounding activates when a grounding endpoint is configured —
-both in **Settings → Services**; see `docs/fork.md` for the Saluki and LocateAnything reference setups).
-Every row is measured. Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes.
-
-The alternatives change single rows:
+Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes. The alternatives change single rows:
 
 | Instead of | You run | Memory |
 | --- | --- | --- |
-| Rows 6 and 8 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, upstream's default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
-| Row 4's model | Z-Image-Turbo (upstream's default) | Not measured; the container is capped at 26 GiB. |
+| Rows 6 and 8 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, the default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
+| Row 4's model | Z-Image-Turbo (the default) | Not measured; the container is capped at 26 GiB. |
 
 | State | Memory used |
 | --- | --- |
@@ -181,22 +249,15 @@ The alternatives change single rows:
 | Starting up | about 39 GiB at peak |
 | A video job (on top of the above) | +35–39 GiB for Fast at 480p, +41–48 GiB for Fast at 720p or longer, +44–57 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
 
-These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6
-LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack.
+These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack. The older 84–96 GiB figures in that file were measured with the Qwen3.6 LLM and Qwen3-ASR resident, before Sparkfire removed them.
 
-The historical 84–96 GiB figures in [docs/validation.md](docs/validation.md) were measured with the
-Qwen3.6 LLM and Qwen3-ASR resident, before Sparkfire removed them.
+That leaves about 90 GiB for an LLM of your choice (Saluki needs about 13 GiB), a grounding server if you run one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB.
 
-That leaves about 90 GiB for an LLM of your choice (Saluki needs ~13 GiB), a grounding server if you run
-one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp,
-1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB. Full measurements are in [docs/validation.md](docs/validation.md).
+**Keep the queue at two workers** (Settings → Advanced, the default) on a Spark. The queue sets how many jobs run at once, and the app reads it only at start. Two is the safer setting: a video and a large image can already run side by side, and those two set the memory peak. Jobs past the second wait their turn. Raising the number adds less memory than you might expect, because OCR and transcription use little beyond what their services already hold (vLLM reserves PaddleOCR-VL's memory at start, and Parakeet works through 30-second chunks). What it does add is GPU contention, which slows every running job. Chat answers do not go through the queue, so they run alongside whatever the queue holds with either setting.
 
 ## Video: choices and trade-offs
 
-FastH3 shares one Spark with four other models and your LLM, so each video setting trades quality or speed
-against memory. Every number here was measured on the Spark, with Saluki loaded; the details are in
-[docs/validation.md](docs/validation.md) and the runtime decision in
-[ADR 0002](docs/adr/0002-video-service-comfyui.md).
+FastH3 shares one Spark with four other models and your LLM, so each video setting trades quality or speed against memory. Every number here was measured on the Spark, with Saluki loaded; the details are in [docs/validation.md](docs/validation.md) and the runtime decision in [ADR 0002](docs/adr/0002-video-service-comfyui.md).
 
 | Choice | What Sparkfire uses | What it costs | Why |
 | --- | --- | --- | --- |
@@ -228,269 +289,41 @@ Per job, the form sets Fast or Sharp, the size, the length and the seed. For the
 
 * * *
 
-## Why Sparkfire?
+## Configuration
 
-AI work rarely ends after one operation. After recording a meeting, you may want to transcribe it, turn the transcript into a concise summary, and then chat with the result to revisit a decision or find an action item. When a large scanned PDF arrives, you may need to extract it into readable text before summarizing, translating, or asking questions about it. Sparkfire keeps these steps connected instead of treating each one as an isolated task.
+Everything is set in **Settings**, saved in `data/config/settings.json`, with API keys apart in `data/config/secrets.json`.
 
-The same applies to images: generate one from a prompt, pass it directly into visual grounding, and search for a person, object, text region, or other detail inside it. Every source and generated result remains a typed artifact with its files, lineage, and processing history, so you can always see where it came from and choose a compatible **Continue with** action.
+- **Services.** Each model provider (language model, OCR, speech, translation, grounding, image, video) has its own URL, model, API key, on/off switch and connection test; web search and the system monitor take a URL. Local services and cloud APIs can be mixed.
+- **Language model.** Its accepted inputs decide what Sparkfire sends it: **Images** lets chat and workflow LLM nodes pass pictures, **Tool calling** lets chat offer web search.
+- **Web search.** The base URL of a SearXNG instance with its JSON format on. `compose.search.yaml` runs one with the settings in `services/searxng/`, which the app reaches as `http://searxng:8080`.
+- **Advanced.** Transcription chunk size and overlap, adaptive splitting, request timeouts, PDF rasterisation, queue concurrency, retries and how long work folders are kept. The display time zone is under **General**.
+- **System monitor.** The DGX start script runs a small read-only service that shows unified memory, CUDA allocations, GPU use and temperature in the sidebar. To add it to another deployment: `docker compose -f compose.spark.yaml up -d --build dgx-status`, then set its URL in Settings. Leave the URL empty to hide the block.
 
-Sparkfire is built around small, atomic capabilities—OCR, transcription, translation, grounding, image generation, mind mapping, and language-model reasoning—that can be combined without coupling the underlying services. A document, set of notes, or image can become an interactive mind map with collapsible branches, while its portable JSON and Markdown outline remain available to other tools. For repeatable work, the node-based workflow editor lets you connect those same capabilities with typed inputs, conditions, branches, merges, and explicit file outputs. Design the flow once, then run it again with a new recording, document, image, or piece of text.
+## How it works
 
-For workloads involving recorded meetings, private documents, scanned PDFs, and personal images, we strongly recommend running models locally whenever suitable hardware is available. Local inference keeps sensitive material on infrastructure you control, avoids repeatedly uploading large files, and gives you direct ownership of model selection, capacity, availability, and data retention. Sparkfire is designed local-first: source files, generated artifacts, processing history, workflow definitions, and service endpoints remain under your control. It is not local-only, however. Compatible cloud APIs can also be configured as service endpoints, allowing Sparkfire to serve as one consistent interface for local models, cloud-hosted models, or a deliberate combination of both.
-
-## One DGX Spark, five bundled models
-
-The reference stack deliberately fits five complementary models onto one DGX Spark. The LLM and the grounding service are deliberately **not** bundled: point Sparkfire at any OpenAI-compatible endpoint (local or cloud) for chat, mind maps, summaries, and workflow prompts, and configure a grounding endpoint for visual grounding.
-
-| Capability | Model | Role in Sparkfire |
-| --- | --- | --- |
-| OCR | [`baidu/Unlimited-OCR`](https://huggingface.co/baidu/Unlimited-OCR) | Page and image text extraction |
-| Speech recognition | [`nvidia/parakeet-tdt-0.6b-v3`](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | Audio/video transcription and subtitles |
-| Translation | [`tencent/Hy-MT2-1.8B-FP8`](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | Dedicated multilingual translation |
-| Image generation | [`Tongyi-MAI/Z-Image-Turbo`](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Fast text-to-image generation |
-| Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) (MiniMax H3, through ComfyUI) | Short videos with sound, from text or an image |
-
-This gives a small team or individual a practical multimodal workspace without sending every file to a hosted provider. Sparkfire supplies the shared UI, file history, artifact routing, workflows, queueing, and progress monitoring; the five model servers stay independently replaceable.
-
-## Choose your deployment
-
-Sparkfire has two independently deployable layers:
-
-1. the **AI service layer**—the five reference models, your LLM endpoint, and the optional DGX system monitor; and
-2. the **workspace layer**—the Sparkfire web application, API, Redis queue, and file data.
-
-Keeping that boundary explicit supports three practical setups without maintaining three different products:
-
-| Setup | AI services | Sparkfire | Best for |
-| --- | --- | --- | --- |
-| **All in one** | DGX Spark | Same DGX Spark | The simplest out-of-the-box experience |
-| **Split** | DGX Spark | Another server | Keeping the DGX focused on inference or sharing it across a network |
-| **Sparkfire only** | Your endpoints | Any Docker host | Existing local services, cloud APIs, or a custom mix |
-
-## Install the workspace
-
-Sparkfire installs from a clone; there is no hosted installer. The [quick start](#quick-start) runs the whole stack on one DGX Spark. To run only the workspace on any Docker host:
-
-```bash
-git clone https://github.com/MovieMaker93/Sparkfire.git
-cd Sparkfire
-./scripts/start-sparkfire.sh --model-host dgx-spark.local   # or --configure-later
-```
-
-Open `http://localhost:54321`, or `http://SERVER-IP:54321` from another device on the trusted network. Each release also publishes a multi-platform image, `ghcr.io/moviemaker93/sparkfire`, for your own Compose file.
-
-On the first visit, choose one of three tabs:
-
-### Run models locally
-
-Choose this when Sparkfire and the five models run on the same DGX Spark. Onboarding shows the clone-and-start command, then verifies all five services through Docker's host gateway before applying anything. Configure the LLM endpoint afterwards in **Settings → Services**.
-
-### Run models remotely
-
-Choose this when the model stack runs on another DGX Spark. Run `./scripts/start-dgx-spark.sh --models-only --accept-model-licenses` on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8332–8337 (video on 8337 is optional). The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
-
-### Configure endpoints manually
-
-Configure only the services you need. Every provider has independent URL, model, API-key, enable, capability, and connection-test controls. Compatible local services and cloud APIs can be mixed.
-
-Reopen onboarding from **Settings → General → Deployment**. Existing configurations are clearly identified, and a reference preset remains staged until **Apply and continue** is pressed. Changing deployment endpoints does not remove jobs, chats, workflows, or files.
-
-## Upgrade and operate
-
-```bash
-git pull
-./scripts/start-dgx-spark.sh --accept-model-licenses   # or ./scripts/start-sparkfire.sh for the workspace only
-```
-
-Run the start script with the same options you installed with. It rebuilds what changed and leaves `data/` untouched. See [Application deployment and upgrades](docs/deployment.md) for network binding, backups and releases.
-
-Coming from the six-model DGX stack? Saved settings still point the LLM at port 8331 and grounding at port 8335, which no longer run: repoint or disable them in **Settings → Services** (see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack)).
-
-Set `HF_TOKEN` in the shell when the DGX model download requires authentication or additional download capacity:
-
-```bash
-HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
-```
-
-Model weights are downloaded from their publishers and are not part of Sparkfire's Apache 2.0 distribution. Review their terms before setup. The acceptance flag records that you completed this review; it does not alter or override upstream terms.
-
-The DGX starter enables the status reporter, which surfaces unified-memory use, CUDA allocations, GPU utilization and temperature, plus model-service health in the sidebar. See the [DGX Spark deployment guide](docs/dgx-spark.md) for installation, prerequisites, network layout, storage locations, operational commands, and model-license notes.
-
-## Modules
-
-| Module | Typical input | Output |
-| --- | --- | --- |
-| OCR | Images, scanned PDFs | Markdown documents and structured page data |
-| Transcription | Audio and video | Markdown transcripts, JSON segments (and word times with Parakeet), SRT, and VTT |
-| Translation | Pasted text, documents, transcripts | Translated text or document artifacts |
-| Grounding | Images and text queries | Framed image preview and normalized box annotations |
-| Text to image | Prompt or compatible text result | Generated image |
-| Text to video | Prompt or text result, optionally an image as the first frame | Generated video with sound |
-| Mind map | Topic, text result, structured data, or an image with a vision-capable LLM | Interactive JSON map and Markdown outline |
-| Chat | Text, documents, structured data, and optionally images | Referenced conversation |
-
-Each module has its own history rail, source preview, and detail view. Jobs, chats, source files, and generated files can be renamed or deleted. Compatible outputs expose actions such as translating a transcript, grounding a generated image, creating an image from text, or opening a result in chat.
-
-## Workbench
-
-The Workbench collects common actions into a lightweight grid:
-
-- format-aware file intake for OCR, transcription, and document translation;
-- debounced live text translation with an explicit **Save** action;
-- text-to-image generation with common canvas sizes;
-- a chat starter;
-- a shortcut to image grounding;
-- a shortcut to interactive mind-map generation;
-- enabled reusable workflows;
-- searchable recent work.
-
-Global search covers work, conversations, tools, and generated artifacts. Service health and the optional machine-status monitor remain visible from the collapsible sidebar.
-
-## File-based workflows
-
-The visual workflow editor composes the same modules used everywhere else in Sparkfire. Definitions are versioned JSON files stored under `data/config/workflows/`; each run stores an immutable definition snapshot with the job.
-
-Service nodes:
-
-- OCR
-- Transcription
-- Translation
-- Grounding
-- Text to image
-- Mind map
-- LLM prompt
-- Create chat
-
-Generic nodes:
-
-- **Input** declares accepted artifact types.
-- **Select** narrows results by artifact kind.
-- **If** and **Switch** route artifacts through declarative conditions.
-- **Merge** rejoins active branches.
-- **Save to file** stores incoming content or explicitly defined text.
-- **End** collects a successful result.
-- **Fail** ends a path with a readable error.
-
-Connections are allowed only when a producer and consumer share compatible artifact types. Workflow JSON cannot execute arbitrary JavaScript or shell commands.
-
-Service nodes store their output by default. Turn off **Store the result** for an intermediate value that should exist only during execution; downstream nodes can still consume it, and Sparkfire removes it when the run finishes. Use **Save to file** when a particular intermediate result should become a durable artifact.
-
-During execution the run view highlights the active node and records succeeded, skipped, failed, or cancelled paths. Historical workflow jobs retain this node diagram, selected branches, durations, child service runs, and artifact lineage.
-
-See [Workflow design and JSON contracts](docs/workflows.md) for details.
-
-## Manual source deployment
-
-### Requirements
-
-- Docker Engine with Docker Compose
-- One or more compatible local, remote, or cloud inference services
-
-For a source-built Compose deployment, clone and configure the project:
-
-```bash
-git clone https://github.com/MovieMaker93/Sparkfire.git
-cd Sparkfire
-cp .env.example .env
-```
-
-Either leave endpoint URLs empty to use browser onboarding or edit `.env` with services already available on your network, then start the application:
-
-```bash
-docker compose up -d --build
-```
-
-Open [http://localhost:54321](http://localhost:54321).
-
-Application state is written to `./data`; Redis keeps its state in a named volume. The application image includes `ffmpeg`, `ffprobe`, `pdftotext`, and `pdftoppm` and supports `linux/amd64` and `linux/arm64`.
-
-Environment variables bootstrap a new `settings.json`; saved settings take precedence on later starts so upgrades do not replace a user's endpoints. After first launch, manage providers from **Settings → Services** or reopen **Settings → General → Deployment**. If you are deploying the complete reference stack directly on a DGX Spark, use `scripts/start-dgx-spark.sh` instead.
-
-## Service configuration
-
-Every provider can be enabled, edited, and tested independently. The DGX Spark reference deployment exposes its bundled models on adjacent ports (8332–8337); the LLM endpoint is any service you configure:
-
-| Port | Capability | Reference model/backend |
-| ---: | --- | --- |
-| 8330 | Optional system status | Lightweight Python API |
-| 8332 | OCR | Unlimited-OCR |
-| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 / parakeet.cpp |
-| 8334 | Translation | Hy-MT2-1.8B-FP8 |
-| 8336 | Image generation | Z-Image-Turbo / Diffusers |
-| 8337 | Video generation | FastH3 / ComfyUI |
-
-The system-status service is optional. Leave its URL empty to hide the GPU/memory block without affecting service health indicators.
-
-LLM settings declare text and image input capabilities. Sparkfire uses those flags when deciding whether images can be attached to Chat or connected to LLM workflow nodes.
-
-Advanced settings expose machine-dependent processing controls, including transcription chunk size and overlap, adaptive splitting, request timeouts, PDF rasterization, queue concurrency, retries, and work-directory retention. Display timezone is selected separately under **Settings → General**.
-
-### Optional DGX Spark status reporter
-
-The repository includes a small read-only status service for NVIDIA DGX Spark deployments. The full DGX starter enables it automatically; to add it to an otherwise manual deployment, run:
-
-```bash
-docker compose -f compose.spark.yaml up -d --build dgx-status
-```
-
-Point **Settings → Services → System monitor** to its base URL. Sparkfire runs normally without it.
-
-## Local development
-
-### Requirements
-
-- Node.js 22 or newer
-- Redis
-- ffmpeg and ffprobe
-- Poppler (`pdftotext` and `pdftoppm`)
-
-```bash
-cp .env.example .env
-npm install
-npm run dev
-```
-
-The API runs at `http://localhost:54321`. Vite runs at `http://localhost:5173` and proxies `/api` to the API.
-
-Useful checks:
-
-```bash
-npm run typecheck
-npm test
-npm run build
-```
-
-## Architecture
-
-Sparkfire is a TypeScript modular monolith:
+Sparkfire is a TypeScript modular monolith: one Node.js process serves the React client, the Express API and the BullMQ worker.
 
 ```text
 React client
     │
     ▼
-Express API ───────────► configurable inference services
+Express API ───────────► configurable inference services (OpenAI-compatible HTTP)
     │
     ├── BullMQ / Redis       execution coordination
     │
     └── data/                durable source of truth
           ├── settings and workflow definitions
           ├── jobs, artifacts, and flow snapshots
-          └── chats and references
+          └── chats, their attachments and answers
 ```
 
-Core ideas:
+- A **module** is a capability you use: OCR, transcription, translation, grounding, text to image, text to video, mind map, chat.
+- A **provider** is the model endpoint behind it.
+- A **job** is a folder holding sources, artifacts and runs.
+- An **artifact** is a typed file with a stable identity and lineage, which is what lets one result feed the next (**Continue with**).
+- A **workflow run** is a durable invocation with its own progress, cancellation, outputs and errors.
 
-- A **module** is a user-facing capability.
-- A **provider** is the configured model endpoint behind that capability.
-- A **job** is a portable container for sources, artifacts, and runs.
-- An **artifact** is a typed file with stable identity and lineage.
-- A **workflow run** is a durable invocation with independent progress, cancellation, outputs, and errors.
-
-Redis may be restarted or rebuilt without replacing the file-based record. Job manifests use atomic write-and-rename updates, and API keys are stored separately in `data/config/secrets.json` with restrictive file permissions.
-
-Read [Architecture](docs/architecture.md) and the [modular-monolith ADR](docs/adr/0001-modular-monolith.md) before adding a module or changing storage contracts.
-
-## Data layout
+Redis can be restarted or rebuilt without touching the record on disk. Job manifests are written atomically (write, then rename). Read [Architecture](docs/architecture.md) and the [modular-monolith ADR](docs/adr/0001-modular-monolith.md) before adding a module or changing storage contracts.
 
 ```text
 data/
@@ -505,51 +338,69 @@ data/
 │   ├── input/
 │   ├── work/
 │   └── output/
-├── chats/<chat-id>/chat.json
+├── chats/<chat-id>/
+│   ├── chat.json
+│   └── attachments/
+├── dgx-models/          model weights, with the DGX stack
 └── logs/
 ```
 
-Back up the entire `data/` directory to preserve configuration, work history, source files, chats, and generated results. Redis is operational state, not the permanent record.
-
-## API overview
+Back up `data/` (the weights in `dgx-models/` can be downloaded again) to keep configuration, history, sources, chats and results. Redis is operational state, not the record.
 
 | Area | Endpoints |
 | --- | --- |
-| Health and configuration | `GET /api/health`, `GET/PUT /api/settings`, `GET /api/modules` |
+| Health and configuration | `GET /api/health`, `GET/PUT /api/settings`, `GET /api/modules`, `GET /api/system/status` |
 | Search | `GET /api/search` |
-| Jobs | `GET/POST /api/jobs`, job/file rename and delete routes, cancellation, SSE progress |
-| Artifacts and runs | `GET /api/jobs/:id/artifacts`, `GET/POST /api/jobs/:id/runs` |
-| Translation | preview, pasted-text, and uploaded-document routes under `/api/modules/translation` |
+| Jobs | `GET/POST /api/jobs`, rename and delete routes, cancellation, server-sent progress at `/api/jobs/:id/events` |
+| Artifacts and runs | `GET /api/jobs/:id/artifacts`, `GET/POST /api/jobs/:id/runs`, `GET /api/jobs/:id/thumbnails/:artifactId` |
+| Gallery | `GET /api/gallery` |
+| Translation | preview, pasted-text and uploaded-document routes under `/api/modules/translation` |
 | Grounding | `POST /api/modules/grounding/jobs` |
-| Image generation | `POST /api/modules/text-to-image/jobs` |
+| Image generation | `GET /api/modules/text-to-image/capabilities`, `POST /api/modules/text-to-image/jobs` |
+| Video generation | `GET /api/modules/text-to-video/capabilities`, `POST /api/modules/text-to-video/jobs` |
 | Mind map | `POST /api/modules/mindmap/jobs` |
-| Chat | chat CRUD and streaming messages under `/api/chats` |
-| Workflows | definition CRUD/validation and durable flow runs under `/api/workflows` |
+| Chat | chat CRUD, attachments, streaming messages, `GET /api/chats/:id/stream` to rejoin an answer, `POST /api/chats/:id/stop` |
+| Web search | `POST /api/web-search/test` |
+| Workflows | definition CRUD and validation, and durable flow runs, under `/api/workflows` |
 
-See the server routes and [architecture documentation](docs/architecture.md) for request contracts.
+Request contracts are in `src/server/index.ts` and [docs/fork.md](docs/fork.md).
 
 ## Security and privacy
 
-Sparkfire currently assumes a trusted user and trusted network. It does not provide built-in authentication or multi-tenant isolation. Do not expose it directly to the public internet; place it behind an authenticated reverse proxy, VPN, or equivalent access control.
+Sparkfire assumes a trusted user on a trusted network. It has no built-in authentication and no multi-tenant isolation. Do not expose it to the public internet; put it behind an authenticated reverse proxy, a VPN or equivalent access control.
 
-Uploaded content is sent to the inference endpoints you configure. A self-hosted Sparkfire deployment is only as private as those services and the surrounding network. Review endpoint ownership, logs, retention, and transport security before processing sensitive material.
+Uploaded content goes to the inference endpoints you configure, so a deployment is only as private as those services and the network around them. Review who runs each endpoint, what it logs and keeps, and how traffic reaches it before processing sensitive material. With web search on in a conversation, the model's search queries go to the engines behind SearXNG and the pages it reads are fetched from the server; page reads never reach private network addresses.
 
-Grounding overlays are previews, not secure redaction. A visible rectangle over an image or selectable PDF text does not remove the underlying information.
+Grounding overlays are previews, not redaction. A rectangle drawn over an image or over selectable PDF text does not remove what is underneath.
+
+## What Sparkfire changes
+
+Sparkfire started as a fork of SparklingKit 0.1.5 and is now its own project. Compared with upstream:
+
+| Area | What you get |
+| --- | --- |
+| **Interface** | Light, dark and system themes; a mint accent; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench; tools whose service is not configured stay out of the way |
+| **Gallery** | Every image and generated video with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
+| **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
+| **Chat** | Attach images, PDFs and text files; a thinking control with the reasoning shown live; answers that keep going when you leave the page; web search with cited sources |
+| **Models** | Parakeet-TDT-0.6B-v3 for speech; PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; FastH3 for video with sound; seed and step controls. No bundled LLM or grounding model, which frees about 42 GiB |
+| **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
+| **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
+
+Details in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md](docs/validation.md), next steps in the [roadmap](docs/fork.md#roadmap), and instructions for coding agents in [AGENTS.md](AGENTS.md).
 
 ## Contributing
 
 Issues and pull requests are welcome. Before opening a pull request:
 
-1. Keep module compatibility rules in the shared capability router rather than duplicating them in UI code.
-2. Preserve the file-based storage model and artifact lineage.
-3. Add or update tests for behavioral changes.
-4. Run `npm run typecheck`, `npm test`, and `npm run build`.
-5. Avoid committing `.env`, `data/`, model credentials, or user files.
+1. Keep module compatibility rules in the shared capability router (`src/shared/module-router.ts`) rather than duplicating them in UI code.
+2. Preserve the file-based storage model and artifact lineage; migrations stay additive and never silently rewrite a user's folders.
+3. Add or update tests for behaviour changes.
+4. Run `npm run typecheck`, `npm test` and `npm run build`.
+5. Do not commit `.env`, `data/`, model credentials or user files.
 6. Title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`); it becomes the squashed commit that release notes are built from.
 
-Coding agents, and humans who like a map, start from [AGENTS.md](AGENTS.md). The README clips are recorded by `scripts/media/`; see its README to refresh them after UI changes.
-
-The project is currently pre-1.0, so APIs and persisted schemas may still evolve. Migrations should remain additive and must not silently rewrite user folders.
+Coding agents, and humans who like a map, start from [AGENTS.md](AGENTS.md). The README clips are recorded by `scripts/media/`; its README explains how to refresh them after UI changes. The project is pre-1.0, so APIs and stored schemas may still change.
 
 ## License
 
@@ -561,16 +412,19 @@ Sparkfire changes copyright 2026 MovieMaker93.
 
 ### Model licenses
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms. OCR, speech, translation and Z-Image-Turbo can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
+Model weights are not part of this repository. The start script downloads them after you accept their terms; the acceptance flag records that you reviewed them and does not change them. OCR, speech, translation and Z-Image-Turbo can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
 Two models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo (opt-in) use the Qwen Research License (non-commercial). FastH3, the default video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository. Start the stack with `--video-backend none` where FastH3's license does not apply.
+
+[SearXNG](https://github.com/searxng/searxng), which runs web search, is AGPL-3.0. Like ComfyUI, it runs from its own pinned image as a separate service and is not part of this repository.
 
 ## Acknowledgements
 
 - [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project Sparkfire is built on.
 - The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)), MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3), whose text encoder uses Qwen's Qwen3-VL-32B weights), and [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, whose [FastH3 Trim](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) and [FastH3 V2](https://huggingface.co/FastVideo/FastVideo-FastH3-Comfy) distills and workflow templates make the videos.
-- A model evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0).
+- The reference LLM, run next to the stack: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) by ConwayResearch.
 - The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org (GPL-3.0), which runs FastH3 with Comfy-Org's [comfy-kitchen](https://pypi.org/project/comfy-kitchen/) kernels, [PyAV](https://github.com/PyAV-Org/PyAV), which writes the disclosure into each video, [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
+- Web search: [SearXNG](https://github.com/searxng/searxng) (AGPL-3.0), which queries the search engines, and Mozilla's [Readability](https://github.com/mozilla/readability) with [linkedom](https://github.com/WebReflection/linkedom) by Andrea Giammarchi (WebReflection), which pull the main text out of the pages chat reads.
 - The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.
-- The README layout takes its cue from [sparkDash](https://github.com/MiaAI-Lab/sparkDash).
+- The README layout follows the one [MiaAI-Lab](https://github.com/MiaAI-Lab) wrote for [sparkDash](https://github.com/MiaAI-Lab/sparkDash).
 - [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark. Sparkfire adopted FastH3 after studying the Studio's Spark setup, and measured its own service against the Studio's published Spark numbers; no code was copied from it.

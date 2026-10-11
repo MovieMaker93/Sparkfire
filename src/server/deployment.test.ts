@@ -25,3 +25,21 @@ describe("DGX Spark model images", () => {
     expect(compose.match(/image:\s+sparklingkit\/parakeet:parakeet\.cpp-(\S+)/)?.[1]).toBe("v0.5.0");
   });
 });
+
+describe("web search service", () => {
+  it("pins SearXNG by digest, keeps it local and serves the JSON results the app reads", async () => {
+    const [compose, settings, script] = await Promise.all([
+      fs.readFile(new URL("../../compose.search.yaml", import.meta.url), "utf8"),
+      fs.readFile(new URL("../../services/searxng/settings.yml", import.meta.url), "utf8"),
+      fs.readFile(new URL("../../scripts/start-dgx-spark.sh", import.meta.url), "utf8"),
+    ]);
+    expect(compose).toMatch(/image:\s+searxng\/searxng:[\w.-]+@sha256:[0-9a-f]{64}\n/);
+    expect(compose).toContain('"127.0.0.1:8338:8080"');
+    expect(compose).toContain("WEB_SEARCH_BASE_URL: ${SPARKFIRE_SEARCH_BASE_URL-http://searxng:8080}");
+    expect(settings).toMatch(/formats:\s*\n\s*- html\s*\n\s*- json/);
+    expect(settings).toContain("limiter: false");
+    // Off unless asked for, like video generation.
+    expect(script).toContain('SEARCH_BACKEND="${SPARKFIRE_SEARCH_BACKEND:-none}"');
+    expect(script).toContain("--file compose.search.yaml");
+  });
+});

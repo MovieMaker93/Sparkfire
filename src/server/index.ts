@@ -6,9 +6,9 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cors from "cors";
 import multer from "multer";
 import { z } from "zod";
-import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES } from "../shared/contracts.js";
+import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES, WEB_SEARCH_PROVIDERS } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
-import { checkEndpoint, imageCapabilities, openChatStream, thinkingOptions, videoCapabilities, type ImageCapabilities, type VideoCapabilities } from "./ai.js";
+import { checkEndpoint, imageCapabilities, openChatStream, type ChatCompletionMessage, thinkingOptions, videoCapabilities, type ImageCapabilities, type VideoCapabilities } from "./ai.js";
 import { chatAttachmentPath, MAX_ATTACHMENTS_PER_MESSAGE, readChatAttachment, saveChatAttachment } from "./chat-attachments.js";
 import { chatGeneration, chatStreamDeltas, claimChatGeneration, releaseChatGeneration, type ChatGeneration } from "./chat-generation.js";
 import { modelMessagesForChat } from "./chat-messages.js";
@@ -18,6 +18,7 @@ import type { ChatMessage, ChatRecord, EndpointKind, JobKind, PromptPreset, Sett
 import { listModules } from "./modules/registry.js";
 import { TRANSLATION_PREVIEW_CHARACTER_LIMIT, translateContent } from "./modules/translation/service.js";
 import { searchWorkspace } from "./search.js";
+import { checkWebSearch, searchProvider, webSearchAvailable, webSearchNote, WebToolSession, WEB_TOOL_DEFINITIONS } from "./web-search.js";
 import { ensureThumbnail, galleryItems, thumbnailWidth } from "./thumbnails.js";
 import { workflowRouter } from "./workflows/routes.js";
 import { closeQueue, enqueueJob, enqueuePreset, enqueueWorkflowRun, pingRedis, startWorker, stopJobWork, stopRunWork } from "./queue.js";
@@ -74,10 +75,16 @@ const endpointSchema = z.object({
   enabled: z.boolean(),
   capabilities: z.array(z.enum(MODEL_INPUT_CAPABILITIES)).optional(),
 }).refine((endpoint) => !endpoint.enabled || Boolean(endpoint.baseUrl && endpoint.model), "Enabled services require a base URL and model");
+const webSearchSchema = z.object({
+  enabled: z.boolean(),
+  provider: z.enum(WEB_SEARCH_PROVIDERS),
+  baseUrl: z.union([z.string().url(), z.literal("")]),
+}).refine((search) => !search.enabled || Boolean(search.baseUrl), "Web search needs a base URL");
 const settingsSchema = z.object({
   schemaVersion: z.literal(2),
   setup: z.object({ completed: z.boolean(), mode: z.enum(["all-in-one", "split", "custom"]), onboardingVersion: z.number().int().min(1), completedAt: z.string().datetime().optional() }),
   systemStatus: z.object({ baseUrl: z.union([z.string().url(), z.literal("")]) }),
+  webSearch: webSearchSchema,
   endpoints: z.object({ stt: endpointSchema, ocr: endpointSchema, llm: endpointSchema, translation: endpointSchema, grounding: endpointSchema, "image-generation": endpointSchema, "video-generation": endpointSchema }),
   audio: z.object({
     chunkTargetSec: z.number().int().min(15).max(3600),
@@ -219,6 +226,11 @@ app.post("/api/health/:kind", async (request, response) => {
   const current = await readSettings();
   const candidate = endpointSchema.parse(request.body?.endpoint || current.endpoints[kind]);
   response.json(await checkEndpoint(kind, candidate));
+});
+
+app.post("/api/web-search/test", async (request, response) => {
+  const candidate = request.body?.webSearch ? webSearchSchema.parse(request.body.webSearch) : (await readSettings()).webSearch;
+  response.json(await checkWebSearch(candidate));
 });
 
 app.get("/api/settings", async (_request, response) => response.json(await readSettings()));
@@ -636,6 +648,7 @@ app.post("/api/chats/:id/messages", async (request, response) => {
   const typed = z.string().max(500_000).default("").parse(request.body?.content).trim();
   const attachmentIds = z.array(z.string()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]).parse(request.body?.attachmentIds);
   const effort = z.enum(CHAT_EFFORTS).optional().parse(request.body?.effort);
+  const webSearch = z.boolean().optional().parse(request.body?.webSearch);
   if (!typed && !attachmentIds.length) return response.status(400).json({ error: "Write a message or attach a file" });
   // Claimed before any await, so two quick sends cannot both start an answer and overwrite each other's messages.
   const generation = claimChatGeneration(request.params.id);
@@ -651,6 +664,7 @@ app.post("/api/chats/:id/messages", async (request, response) => {
     const userMessage: ChatMessage = { id: randomUUID(), role: "user", content, createdAt: now, ...(attachments.length ? { attachments } : {}) };
     chat.messages.push(userMessage);
     if (chat.title === "New conversation") chat.title = (typed || attachments[0]?.name || content).replace(/\s+/g, " ").slice(0, 54);
+    if (webSearch !== undefined) chat.webSearch = webSearch;
     await writeChat(chat);
   } catch (error) {
     releaseChatGeneration(generation);
@@ -658,22 +672,30 @@ app.post("/api/chats/:id/messages", async (request, response) => {
   }
 
   followChatGeneration(generation, response);
+  const tools = chat.webSearch && webSearchAvailable(settings) ? new WebToolSession(searchProvider(settings.webSearch)) : undefined;
+  // Built once per answer; each round of tool calls resends it with that round's calls and results appended.
+  let history: Promise<ChatCompletionMessage[]> | undefined;
   void generation.run(
     // Always the configured model: a chat created before a model switch would otherwise ask for one the server no longer serves.
-    async (signal) => chatStreamDeltas(await openChatStream(
-      settings.endpoints.llm,
-      await modelMessagesForChat(chat, settings),
-      chat.temperature,
-      signal,
-      thinkingOptions(effort),
-    )),
-    async ({ content, reasoning }) => {
+    async (signal, { followUp, offerTools }) => {
+      history ??= modelMessagesForChat(chat, settings);
+      const note: ChatCompletionMessage[] = tools ? [{ role: "system", content: webSearchNote(new Date(), settings.ui.timezone) }] : [];
+      return chatStreamDeltas(await openChatStream(
+        settings.endpoints.llm,
+        [...note, ...await history, ...followUp],
+        chat.temperature,
+        signal,
+        { ...thinkingOptions(effort), ...(offerTools ? { tools: WEB_TOOL_DEFINITIONS } : {}) },
+      ));
+    },
+    async ({ content, reasoning, activity }) => {
       const assistantMessage: ChatMessage = {
         id: randomUUID(),
         role: "assistant",
         content,
         createdAt: new Date().toISOString(),
         ...(reasoning ? { reasoning } : {}),
+        ...(activity.length ? { activity } : {}),
       };
       // Read again rather than reuse `chat`: the conversation may have been renamed while the model was answering.
       const latest = await readChat(chat.id);
@@ -682,6 +704,7 @@ app.post("/api/chats/:id/messages", async (request, response) => {
       await writeChat(latest);
       return assistantMessage;
     },
+    tools,
   );
 });
 

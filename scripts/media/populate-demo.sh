@@ -14,19 +14,24 @@ image() {
     | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/text-to-image/jobs" | jq -r .id
 }
 
+# The LLM endpoint seeds as text only: declare Saluki's image input and tool calling, which chat attachments
+# and web search need.
+curl -s "$api/settings" | jq '.endpoints.llm.capabilities = ["text", "image", "tools"]' \
+  | curl -s -X PUT -H 'Content-Type: application/json' --data-binary @- "$api/settings" > /dev/null
+
 ocr=$(curl -s -F files=@harbor-point-feasibility.pdf -F moduleId=ocr "$api/jobs" | jq -r .id)
 asr=$(curl -s -F files=@reading.wav -F moduleId=transcription "$api/jobs" | jq -r .id)
 wind=$(image "Aerial photo of an offshore wind farm at golden hour, twelve white turbines in a calm sea, a small harbor town with a lighthouse in the distance")
-books=$(image "A cozy bookshop window at dusk with a hand-painted sign that reads SPARKLING BOOKS")
+books=$(image "A cozy bookshop window at dusk with a hand-painted sign that reads SPARKFIRE BOOKS")
 island=$(image "Isometric illustration of a tiny research station on a floating island, with a red lighthouse, three wind turbines and a wooden dock")
 cup=$(image "Studio photo of a ceramic coffee cup with latte art on a walnut table, soft window light, shallow depth of field")
+# A video with sound for the Gallery and Recent work: Fast at 480p, 5 s. Nature-documentary prompts can come
+# back with a made-up broadcaster logo in a corner, so the demo prompts stay away from that style.
+video=$(curl -s -F 'prompt=A steaming cup of coffee on a cafe table by a rainy window, slow push-in, warm evening light' \
+  -F 'sound=rain on the glass, quiet cafe chatter' -F size=864x480 -F duration=5 -F seed=7 \
+  "$api/modules/text-to-video/jobs" | jq -r .id)
 wait_for "$ocr" ocr; wait_for "$asr" transcription
 wait_for "$wind" image; wait_for "$books" image; wait_for "$island" image; wait_for "$cup" image
-
-# Grounding on the wind farm picture.
-artifact=$(curl -s "$api/jobs/$wind" | jq -r '[.artifacts[] | select(.kind == "generated-image")][0].path')
-curl -s "$api/jobs/$wind/files/${artifact#output/}" -o wind-farm.png
-grounding=$(curl -s -F files=@wind-farm.png -F 'queries=["wind turbine","lighthouse"]' "$api/modules/grounding/jobs" | jq -r .id)
 
 # Translation and a mind map from the OCR'd report.
 text=$(curl -s "$api/jobs/$ocr/files/document.md")
@@ -34,7 +39,7 @@ translation=$(jq -n --arg t "$(printf '%s' "$text" | head -c 1500)" '{text: $t, 
   | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/translation/text" | jq -r .id)
 mindmap=$(jq -n --arg t "$text" '{subject: $t, depth: 3, breadth: 5}' \
   | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/mindmap/jobs" | jq -r .id)
-wait_for "$grounding" grounding; wait_for "$translation" translation; wait_for "$mindmap" mindmap
+wait_for "$translation" translation; wait_for "$mindmap" mindmap; wait_for "$video" video
 jq -n --arg ocr "$ocr" --arg asr "$asr" --arg wind "$wind" --arg books "$books" --arg island "$island" --arg cup "$cup" \
-  --arg grounding "$grounding" --arg translation "$translation" --arg mindmap "$mindmap" '$ARGS.named' > jobs.json
+  --arg video "$video" --arg translation "$translation" --arg mindmap "$mindmap" '$ARGS.named' > jobs.json
 cat jobs.json

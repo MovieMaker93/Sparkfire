@@ -1,0 +1,22 @@
+# SearXNG for Sparkfire's chat web search. Only the app queries it, over the compose network, so the bot
+# limiter (which would need Valkey) and the image proxy are off. Everything else keeps SearXNG's defaults.
+use_default_settings: true
+
+general:
+  instance_name: "Sparkfire search"
+  enable_metrics: false
+
+server:
+  # Replaced by the SEARXNG_SECRET environment variable, which start-dgx-spark.sh generates.
+  secret_key: "replaced-by-SEARXNG_SECRET"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  # The app reads results as JSON.
+  formats:
+    - html
+    - json

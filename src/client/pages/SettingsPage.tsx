@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Film, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
+import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Film, Globe, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
 import { api } from "../api";
 import { cn } from "../components/ui";
 import { SearchSelect } from "../components/SearchSelect";
@@ -9,7 +9,7 @@ import { announceSettingsUpdated } from "../settings-events";
 import { applyTheme, type ThemePreference } from "../theme";
 import type { EndpointHealth, EndpointKind, ModelInputCapability, PromptPreset, Settings } from "../types";
 
-type SettingsServiceKind = EndpointKind | "system-status";
+type SettingsServiceKind = EndpointKind | "system-status" | "web-search";
 
 const endpointMeta: Record<EndpointKind, { title: string; caption: string; tint: string; icon: typeof AudioLines }> = {
   stt: { title: "Speech to text", caption: "Audio and video transcription", tint: "endpoint-icon endpoint-stt", icon: AudioLines },
@@ -26,6 +26,13 @@ const systemStatusMeta = {
   caption: "Host, GPU, memory, and model status",
   tint: "endpoint-icon endpoint-system-status",
   icon: Activity,
+};
+
+const webSearchMeta = {
+  title: "Web search",
+  caption: "Lets chat search the web and read pages",
+  tint: "endpoint-icon endpoint-web-search",
+  icon: Globe,
 };
 
 const settingsSections = [
@@ -85,6 +92,7 @@ export function SettingsPage() {
   const [prompts, setPrompts] = useState<PromptPreset[]>([]);
   const [tests, setTests] = useState<Partial<Record<EndpointKind, EndpointHealth | "testing">>>({});
   const [showKeys, setShowKeys] = useState<Partial<Record<EndpointKind, boolean>>>({});
+  const [webSearchTest, setWebSearchTest] = useState<Awaited<ReturnType<typeof api.testWebSearch>> | "testing">();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"general" | "services" | "processing" | "prompts">("general");
@@ -93,7 +101,7 @@ export function SettingsPage() {
   const toast = useToast();
   const savedTheme = useRef<ThemePreference | undefined>(undefined);
   const activeSection = settingsSections.find((section) => section.key === tab)!;
-  const selectedServiceMeta = selectedService === "system-status" ? systemStatusMeta : selectedService ? endpointMeta[selectedService] : undefined;
+  const selectedServiceMeta = selectedService === "system-status" ? systemStatusMeta : selectedService === "web-search" ? webSearchMeta : selectedService ? endpointMeta[selectedService] : undefined;
 
   function close() {
     const hasBackground = Boolean((location.state as { backgroundLocation?: unknown } | null)?.backgroundLocation);
@@ -151,6 +159,12 @@ export function SettingsPage() {
     setTests((value) => ({ ...value, [kind]: "testing" }));
     try { const result = await api.testEndpoint(kind, settings.endpoints[kind]); setTests((value) => ({ ...value, [kind]: result })); }
     catch (testError) { setTests((value) => ({ ...value, [kind]: { kind, ok: false, latencyMs: 0, model: settings.endpoints[kind].model, availableModels: [], error: testError instanceof Error ? testError.message : String(testError) } })); }
+  }
+  async function testWebSearch() {
+    if (!settings) return;
+    setWebSearchTest("testing");
+    try { setWebSearchTest(await api.testWebSearch(settings.webSearch)); }
+    catch (testError) { setWebSearchTest({ ok: false, latencyMs: 0, results: 0, error: testError instanceof Error ? testError.message : String(testError) }); }
   }
   function endpointChange(kind: EndpointKind, field: "baseUrl" | "model" | "apiKey", value: string) {
     setSettings((current) => current ? ({ ...current, endpoints: { ...current.endpoints, [kind]: { ...current.endpoints[kind], [field]: value } } }) : current);
@@ -219,6 +233,12 @@ export function SettingsPage() {
                 <span className="settings-service-summary"><strong>{settings.systemStatus.baseUrl || "No endpoint configured"}</strong><small className={settings.systemStatus.baseUrl ? "ready" : ""}>{settings.systemStatus.baseUrl ? "Visible" : "Hidden"}</small></span>
                 <ChevronRight size={18} />
               </button>
+              <button className="settings-service-row" onClick={() => setSelectedService("web-search")}>
+                <span className={webSearchMeta.tint}><Globe size={18} /></span>
+                <span className="settings-service-copy"><strong>{webSearchMeta.title}</strong><small>{webSearchMeta.caption}</small></span>
+                <span className="settings-service-summary"><strong>{settings.webSearch.baseUrl || "No endpoint configured"}</strong><small className={cn(settings.webSearch.enabled && settings.webSearch.baseUrl ? "ready" : "")}>{settings.webSearch.enabled && settings.webSearch.baseUrl ? "Enabled" : "Disabled"}</small></span>
+                <ChevronRight size={18} />
+              </button>
             </div>
             <h3 className="settings-service-section-title">AI services</h3>
             <div className="settings-group settings-service-list">{(["stt", "ocr", "llm", "translation", "grounding", "image-generation", "video-generation"] as EndpointKind[]).map((kind) => {
@@ -244,7 +264,19 @@ export function SettingsPage() {
             </div><p className="settings-footnote">Sparkfire reads <strong>/v1/status</strong> from this service. Clear the URL and save to hide the machine-status block from the sidebar.</p></div>
           </section>}
 
-          {tab === "services" && selectedService && selectedService !== "system-status" && (() => {
+          {tab === "services" && selectedService === "web-search" && <section className="settings-service-detail">
+            <div className="settings-section-block"><h3>Connection</h3><div className="settings-group">
+              <div className="settings-service-enable-row"><div className="settings-group-identity"><span className={webSearchMeta.tint}><Globe size={18} /></span><div><h3>Search service</h3><p>Offer a Web switch in chat. It stays off in each conversation until you turn it on.</p></div></div><div className="settings-group-actions">{webSearchTest && webSearchTest !== "testing" && <span className={cn("status-badge", webSearchTest.ok ? "status-done" : "status-failed")}>{webSearchTest.ok ? `${webSearchTest.latencyMs} ms` : "Offline"}</span>}<label className={cn("settings-toggle", settings.webSearch.enabled && "active")} title="Enable web search"><input type="checkbox" checked={settings.webSearch.enabled} onChange={(event) => setSettings({ ...settings, webSearch: { ...settings.webSearch, enabled: event.target.checked } })} /><i /></label><button className="button-secondary compact" onClick={() => void testWebSearch()} disabled={webSearchTest === "testing" || !settings.webSearch.baseUrl}>{webSearchTest === "testing" ? <><LoaderCircle size={15} className="animate-spin" /><span>Testing</span></> : <><span className="test-label-full">Test search</span><span className="test-label-short">Test</span></>}</button></div></div>
+              <div className="settings-control-grid">
+                <label className="field-label settings-control-full">SearXNG base URL<input className="input mt-2" value={settings.webSearch.baseUrl} placeholder="http://dgx-spark.local:8338" onChange={(event) => setSettings({ ...settings, webSearch: { ...settings.webSearch, baseUrl: event.target.value } })} /></label>
+              </div>
+              {webSearchTest && webSearchTest !== "testing" && !webSearchTest.ok && <p className="settings-inline-error">{webSearchTest.error}</p>}
+              {webSearchTest && webSearchTest !== "testing" && webSearchTest.ok && !webSearchTest.results && <p className="settings-inline-warning">Connected, but the test search returned no results. Check the engines enabled in SearXNG.</p>}
+              {!settings.endpoints.llm.capabilities?.includes("tools") && <p className="settings-inline-warning">The language model does not declare tool calling yet. Turn on <strong>Tool calling</strong> under Language model, or the Web switch stays hidden.</p>}
+            </div><p className="settings-footnote">Searches send what a conversation is about to the search engines behind this service; pages the model reads are fetched by this server, never from private network addresses.</p></div>
+          </section>}
+
+          {tab === "services" && selectedService && selectedService !== "system-status" && selectedService !== "web-search" && (() => {
             const kind = selectedService as EndpointKind; const meta = endpointMeta[kind]; const endpoint = settings.endpoints[kind]; const result = tests[kind]; const Icon = meta.icon;
             return <section className="settings-service-detail">
               <div className="settings-section-block"><h3>Connection</h3><div className="settings-group">
@@ -254,7 +286,7 @@ export function SettingsPage() {
                   <label className="field-label">Model<input className="input mt-2" value={endpoint.model} onChange={(event) => endpointChange(kind, "model", event.target.value)} /></label>
                   <label className="field-label settings-control-full">API key <span className="font-normal text-muted">(optional)</span><span className="relative mt-2 block"><input className="input pr-11" type={showKeys[kind] ? "text" : "password"} value={endpoint.apiKey} placeholder="Not required for local endpoints" onChange={(event) => endpointChange(kind, "apiKey", event.target.value)} /><button className="settings-secret-toggle" onClick={() => setShowKeys((value) => ({ ...value, [kind]: !value[kind] }))} type="button" aria-label={showKeys[kind] ? "Hide API key" : "Show API key"}>{showKeys[kind] ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label>
                 </div>
-                {kind === "llm" && <div className="settings-capabilities"><div><strong>Accepted inputs</strong><small>Controls which linked materials Sparkfire may send to this model.</small></div><div className="settings-capability-options"><label><input type="checkbox" checked disabled /><span><strong>Text</strong><small>Required for chat</small></span></label><label><input type="checkbox" checked={endpoint.capabilities?.includes("image") || false} onChange={(event) => endpointCapabilityChange(kind, "image", event.target.checked)} /><span><strong>Images</strong><small>OpenAI-compatible image input</small></span></label></div></div>}
+                {kind === "llm" && <div className="settings-capabilities"><div><strong>Accepted inputs</strong><small>Controls which linked materials Sparkfire may send to this model.</small></div><div className="settings-capability-options"><label><input type="checkbox" checked disabled /><span><strong>Text</strong><small>Required for chat</small></span></label><label><input type="checkbox" checked={endpoint.capabilities?.includes("image") || false} onChange={(event) => endpointCapabilityChange(kind, "image", event.target.checked)} /><span><strong>Images</strong><small>OpenAI-compatible image input</small></span></label><label><input type="checkbox" checked={endpoint.capabilities?.includes("tools") || false} onChange={(event) => endpointCapabilityChange(kind, "tools", event.target.checked)} /><span><strong>Tool calling</strong><small>Needed for web search; llama.cpp needs --jinja</small></span></label></div></div>}
                 {result && result !== "testing" && !result.ok && <p className="settings-inline-error">{result.error}</p>}
                 {result && result !== "testing" && result.ok && result.availableModels.length > 0 && !result.availableModels.includes(endpoint.model) && <p className="settings-inline-warning">Connected, but the configured model was not advertised. Available: {result.availableModels.join(", ")}</p>}
               </div><p className="settings-footnote">Changes take effect after you save. Connection tests use the values currently shown above.</p></div>

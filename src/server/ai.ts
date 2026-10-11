@@ -291,15 +291,28 @@ export function cleanAsrText(value: string) {
     .trim();
 }
 
-export async function openChatStream(
-  endpoint: EndpointConfig,
-  messages: Array<{
+/** A tool call as the model asked for it, its arguments still a JSON string. */
+export interface ModelToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+}
+
+/** A chat-completion message, including the assistant turns that call tools and the tool results sent back. */
+export type ChatCompletionMessage =
+  | {
     role: string;
     content: string | Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string } }
     >;
-  }>,
+  }
+  | { role: "assistant"; content: string; tool_calls: ModelToolCall[] }
+  | { role: "tool"; tool_call_id: string; content: string };
+
+export async function openChatStream(
+  endpoint: EndpointConfig,
+  messages: ChatCompletionMessage[],
   temperature: number,
   signal?: AbortSignal,
   extraBody: Record<string, unknown> = {},
@@ -326,11 +339,34 @@ export function thinkingOptions(effort?: ChatEffort): Record<string, unknown> {
   return { chat_template_kwargs: { enable_thinking: true, reasoning_effort: effort } };
 }
 
-/** Answer and reasoning text of one streamed chat-completion chunk; servers name the reasoning field differently. */
-export function streamDelta(chunk: unknown) {
-  const delta = (chunk as { choices?: Array<{ delta?: { content?: string | null; reasoning_content?: string | null; reasoning?: string | null } }> } | null)
-    ?.choices?.[0]?.delta;
-  return { content: delta?.content || "", reasoning: delta?.reasoning_content || delta?.reasoning || "" };
+/** A piece of one tool call in a stream; the fragments with the same index add up to the whole call. */
+export interface ToolCallFragment {
+  index: number;
+  id?: string;
+  name?: string;
+  arguments?: string;
+}
+
+/**
+ * Answer and reasoning text of one streamed chat-completion chunk, plus any tool-call fragments; servers name the
+ * reasoning field differently.
+ */
+export function streamDelta(chunk: unknown): { content: string; reasoning: string; toolCalls?: ToolCallFragment[] } {
+  const delta = (chunk as { choices?: Array<{ delta?: {
+    content?: string | null;
+    reasoning_content?: string | null;
+    reasoning?: string | null;
+    tool_calls?: Array<{ index?: number; id?: string | null; function?: { name?: string | null; arguments?: string | null } }> | null;
+  } }> } | null)?.choices?.[0]?.delta;
+  const part = { content: delta?.content || "", reasoning: delta?.reasoning_content || delta?.reasoning || "" };
+  if (!Array.isArray(delta?.tool_calls) || !delta.tool_calls.length) return part;
+  const toolCalls = delta.tool_calls.map((call, position) => ({
+    index: typeof call.index === "number" ? call.index : position,
+    ...(call.id ? { id: call.id } : {}),
+    ...(call.function?.name ? { name: call.function.name } : {}),
+    ...(call.function?.arguments ? { arguments: call.function.arguments } : {}),
+  }));
+  return { ...part, toolCalls };
 }
 
 export interface GeneratedImageResult {

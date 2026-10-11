@@ -46,6 +46,12 @@ export const defaultSettings: Settings = {
   systemStatus: {
     baseUrl: process.env.SYSTEM_STATUS_BASE_URL?.trim() || "",
   },
+  // Off until configured: searching sends what the conversation is about to the search engines behind the service.
+  webSearch: {
+    enabled: Boolean(process.env.WEB_SEARCH_BASE_URL?.trim()),
+    provider: "searxng",
+    baseUrl: process.env.WEB_SEARCH_BASE_URL?.trim() || "",
+  },
   endpoints: {
     // The reference stack ships no LLM; any OpenAI-compatible endpoint set here (env or Settings) is used as configured.
     llm: { ...environmentEndpoint(process.env.LLM_BASE_URL, process.env.LLM_MODEL, "", ["text"]), apiKey: process.env.LLM_API_KEY || "" },
