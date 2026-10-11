@@ -97,7 +97,8 @@ router.get("/workflow-nodes", async (_request, response) => {
   const services = workflowServiceContracts(settings.endpoints.llm.capabilities || ["text"]).map((contract) => {
     const providerKind = serviceProviderKind(contract.id);
     const endpoint = settings.endpoints[providerKind as keyof typeof settings.endpoints];
-    return { ...contract, configured: Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model) };
+    const configured = Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model);
+    return { ...contract, configured, hidden: Boolean(!configured && getModuleContract(contract.id as ModuleId)?.hiddenUntilConfigured) };
   });
   response.json({ services, artifactKinds: ARTIFACT_KINDS });
 });

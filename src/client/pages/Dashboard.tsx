@@ -27,6 +27,9 @@ const recentTabs: Array<{ key: JobFilter; label: string; shortLabel: string; ico
   { key: "workflow", label: "Workflow runs", shortLabel: "Flows", icon: <GitBranch size={16} /> },
 ];
 
+// The module behind each tab, so a tab for a hidden module is left out.
+const filterModules: Partial<Record<JobFilter, ModuleId>> = { audio: "transcription", ocr: "ocr", translation: "translation", grounding: "grounding", generated: "text-to-image", mindmap: "mindmap" };
+
 const fileActions: Array<{ id: FileAction; label: string; hint: string; icon: ReactNode }> = [
   { id: "ocr", label: "OCR", hint: "Images and PDFs", icon: <ScanText size={18} /> },
   { id: "transcription", label: "Transcribe", hint: "Audio and video", icon: <AudioLines size={18} /> },
@@ -351,7 +354,7 @@ export function Dashboard() {
     <section className="recent-section dashboard-recent">
       <header className="dashboard-column-heading"><h2>Recent</h2><button className="list-search-button" onClick={() => openSearch({ scope: "work", title: "Search work" })} aria-label="Search recent work" title="Search work"><Search size={18} /></button></header>
       <div className="work-tabs" role="tablist" aria-label="Filter recent work">
-        {recentTabs.map((tab) => <button key={tab.key} role="tab" aria-selected={filter === tab.key} className={filter === tab.key ? "active" : ""} onClick={() => setFilter(tab.key)} aria-label={tab.label}>{tab.icon}<span className="tab-label-desktop">{tab.label}</span><span className="tab-label-mobile">{tab.shortLabel}</span></button>)}
+        {recentTabs.filter((tab) => !modules.find((module) => module.id === filterModules[tab.key])?.hidden).map((tab) => <button key={tab.key} role="tab" aria-selected={filter === tab.key} className={filter === tab.key ? "active" : ""} onClick={() => setFilter(tab.key)} aria-label={tab.label}>{tab.icon}<span className="tab-label-desktop">{tab.label}</span><span className="tab-label-mobile">{tab.shortLabel}</span></button>)}
       </div>
       {visibleJobs.length ? <div className="jobs-list">{visibleJobs.slice(0, 10).map((job) => <JobRow compact key={job.id} job={job} onDelete={() => askToDelete(job)} />)}</div> : <div className="empty-card"><FileText size={28} /><strong>No matching jobs</strong><p>Files in this category will appear here.</p></div>}
     </section>

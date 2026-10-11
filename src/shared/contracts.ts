@@ -103,6 +103,8 @@ export interface ModuleDescriptor {
   actions: ModuleActionDescriptor[];
   implementation: "ready" | "planned";
   configured?: boolean;
+  /** Kept out of navigation, search and actions: an optional module whose service is not configured. */
+  hidden?: boolean;
 }
 
 export interface EndpointConfig {

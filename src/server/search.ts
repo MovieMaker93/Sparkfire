@@ -99,7 +99,7 @@ export async function searchWorkspace(
     }] : [];
   }) : [];
 
-  const tools: RankedResult[] = includeTools ? modules.flatMap((module) => {
+  const tools: RankedResult[] = includeTools ? modules.filter((module) => !module.hidden).flatMap((module) => {
     const score = matchScore(query, module.title, [module.shortTitle, module.description]);
     return score ? [{
       id: `module:${module.id}`,
