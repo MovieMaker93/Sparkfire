@@ -35,6 +35,8 @@ comes from.
 | `src/server/modules/` | Executors for translation, grounding, text-to-image, text-to-video, mind map and LLM prompts |
 | `src/server/workflows/` | The node-based workflow engine |
 | `src/server/chat-messages.ts`, `chat-attachments.ts` | Turning stored chats and attached files into model input |
+| `src/server/chat-generation.ts` | One answer per chat, run by the server, with its tool-call loop |
+| `src/server/web-search.ts`, `page-fetch.ts` | Chat web search: the SearXNG provider, the tools, and SSRF-safe page reading |
 | `src/server/thumbnails.ts` | Cached WebP previews and the gallery listing |
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
@@ -44,6 +46,7 @@ comes from.
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
 | `compose.dgx.yaml` | The model services of the reference stack |
+| `compose.search.yaml`, `services/searxng/` | Optional SearXNG for chat web search |
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
 | `scripts/spark-switch.sh` | Swaps the Spark between Sparkfire and another always-on LLM container |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
@@ -109,6 +112,11 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   request), and only if the LLM endpoint declares image input. An answer runs in the server
   (`src/server/chat-generation.ts`), not in the browser request: a page that leaves stops listening, not the
   model, and reattaches through `/api/chats/:id/stream`. One answer per chat at a time.
+- **Web search** in chat is a tool-call loop in `chat-generation.ts`: `web_search` (SearXNG) and
+  `fetch_page` (`page-fetch.ts`, which refuses private addresses on the connection itself), at most 6
+  rounds. It runs only when the chat turned it on, `settings.webSearch` is configured and the LLM declares
+  the `tools` capability. The searches and sources are saved as the answer's `activity` and never sent back
+  to the model.
 
 ## Model services (DGX Spark reference stack)
 
@@ -121,6 +129,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
 | 8337 | Video generation | FastH3 (Fast and Sharp variants, through ComfyUI) | none: `--video-backend none` |
+| 8338 | Web search (127.0.0.1 only) | none (off by default) | SearXNG: `--search-backend searxng` |
 
 Rules for this layer:
 
