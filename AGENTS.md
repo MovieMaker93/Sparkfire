@@ -30,14 +30,14 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `src/server/processor.ts` | OCR and transcription pipelines (chunking, checkpoints, outputs) |
 | `src/server/transcript-timing.ts` | Word timestamps to transcript lines (one per sentence) and subtitle cues |
 | `src/server/ai.ts` | Every call to a model service: OCR profiles, ASR, image, chat, health checks |
-| `src/server/modules/` | Executors for translation, grounding, text-to-image, mind map and LLM prompts |
+| `src/server/modules/` | Executors for translation, grounding, text-to-image, text-to-video, mind map and LLM prompts |
 | `src/server/workflows/` | The node-based workflow engine |
 | `src/server/chat-messages.ts`, `chat-attachments.ts` | Turning stored chats and attached files into model input |
 | `src/server/thumbnails.ts` | Cached WebP previews and the gallery listing |
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
-| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, PaddleOCR-VL, Parakeet ASR, translation, downloader |
+| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, video generation (ComfyUI), PaddleOCR-VL, Parakeet ASR, translation, downloader |
 | `services/dgx-status/` | The DGX system monitor service |
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
@@ -68,8 +68,8 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | Type check (client and server) | `npm run typecheck` |
 | Unit tests | `npm test` (or `npx vitest run path/to/file.test.ts`) |
 | Production build | `npm run build` |
-| Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `services/dgx-status`) |
-| Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--asr-backend …] [--image-backend …]` |
+| Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `video`, `services/dgx-status`) |
+| Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--image-backend …] [--video-backend fasth3\|none]` |
 | Stack status / stop | `./scripts/start-dgx-spark.sh status`, `./scripts/start-dgx-spark.sh stop` |
 
 On Windows, 8 tests in `src/server/dgx-update.test.ts` fail before any change because GNU tar reads `C:`
@@ -80,7 +80,8 @@ as a host name; they pass on Linux and in CI.
 - **Jobs.** An upload or request creates `data/jobs/<id>/` with `job.json` (the manifest), `input/`,
   `output/` and `work/` (checkpoints, caches). Outputs are typed **artifacts** with lineage, so a result can
   feed the next module ("Continue with"). Each processing pass is a **run** recorded in the manifest.
-- **Modules** are `ocr`, `transcription`, `translation`, `grounding`, `text-to-image`, `mindmap` and `chat`.
+- **Modules** are `ocr`, `transcription`, `translation`, `grounding`, `text-to-image`, `text-to-video`,
+  `mindmap` and `chat`.
   Which artifact kinds each accepts is decided in one place, `src/shared/module-router.ts`; do not
   duplicate those rules in UI code.
 - **Queue and progress.** Jobs run on a BullMQ worker inside the API process. Progress reaches the browser
@@ -98,6 +99,9 @@ as a host name; they pass on Linux and in CI.
   Qwen3-ASR's plain request and one line per chunk. The Parakeet adapter takes WAV only.
 - **Image generation** asks the service for `/v1/capabilities` (sizes, default and maximum steps) and
   validates requests against it.
+- **Video generation** also reads `/v1/capabilities` (sizes, lengths, variants, the license's disclosure
+  line) and gets the MP4 back as the response body, which the executor streams to disk. Text is the prompt
+  and an image the first frame; an image without a prompt reuses the prompt of the run that made it.
 - **Chat** is stored in `data/chats/<id>/chat.json`, with attached files in `attachments/`. The thinking
   effort (`off|low|medium|high`) becomes `chat_template_kwargs`; reasoning streams as separate events and
   is saved on the answer. Documents become text parts, images become `image_url` parts (newest four per
@@ -113,13 +117,15 @@ as a host name; they pass on Linux and in CI.
 | 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
+| 8337 | Video generation | FastH3 (Fast and Sharp variants, through ComfyUI) | none: `--video-backend none` |
 
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
   stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
   `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
-  Settings) and idles around 29 GiB. Do not start extra models, large builds or big downloads while
+  Settings) and idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
+  ten idle minutes; a job adds 35 to 45 GiB with Fast and up to 53 GiB with Sharp while it runs. Do not start extra models, large builds or big downloads while
   services are loading, and check free memory (`free -g`) before running an LLM next to the stack: one
   that needs most of the Spark does not fit beside it.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
@@ -129,7 +135,9 @@ Rules for this layer:
   `scripts/start-dgx-spark.sh`, note it in `compose.dgx.yaml`, write adapter unit tests, and document it in
   `docs/fork.md` and the README. The fork's defaults are the ones in the table above.
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
-  `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. Never commit
+  `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. FastH3 is under the
+  MiniMax H3 Community License, which excludes the EU, the UK, South Korea and the US and asks that shared
+  outputs say they are machine-generated: keep the disclosure tag and `--video-backend none`. Never commit
   weights.
 - Validation results and known issues are in `docs/validation.md`.
 

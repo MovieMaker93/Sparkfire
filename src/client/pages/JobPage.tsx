@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, type Edge, type Node, type NodeProps } from "@xyflow/react";
-import { ArrowLeft, ArrowRight, AudioLines, Bot, Braces, Check, ChevronDown, CircleStop, Code2, Combine, Copy, Download, ExternalLink, File, FileAudio, FileInput, FileJson, FileText, FileVideo, FolderOpen, GitBranch, Image as ImageIcon, Languages, LoaderCircle, MessageCircle, Network, PanelLeft, Pencil, Save, ScanSearch, ScanText, Split, Square, Subtitles, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ArrowRight, AudioLines, Bot, Braces, Check, ChevronDown, CircleStop, Code2, Combine, Copy, Download, ExternalLink, File, FileAudio, FileInput, FileJson, FileText, FileVideo, Film, FolderOpen, GitBranch, Image as ImageIcon, Languages, LoaderCircle, MessageCircle, Network, PanelLeft, Pencil, Save, ScanSearch, ScanText, Split, Square, Subtitles, Trash2, TriangleAlert } from "lucide-react";
 import { api, startWorkflow } from "../api";
 import { writeClipboardText } from "../clipboard";
 import { ConfirmDialog, JobIcon, Progress, RenameDialog, StatusBadge, cn, formatBytes, timeAgo } from "../components/ui";
@@ -159,7 +159,10 @@ export function JobPage() {
   const selectedArtifact = selectedScope === "output"
     ? job.artifacts.find((artifact) => artifact.path === `output/${selectedFile}`)
     : job.artifacts.find((artifact) => artifact.path === `input/${selectedFile}`);
-  const producingModule = selectedArtifact?.role === "source" ? job.moduleId : job.runs.find((run) => run.id === selectedArtifact?.createdByRunId)?.moduleId;
+  const producingRun = job.runs.find((run) => run.id === selectedArtifact?.createdByRunId);
+  const producingModule = selectedArtifact?.role === "source" ? job.moduleId : producingRun?.moduleId;
+  // The line the video model's license asks shared outputs to carry, as the service reported it.
+  const disclosure = selectedArtifact?.kind === "generated-video" && typeof producingRun?.params.disclosure === "string" ? producingRun.params.disclosure : "";
   const sourceModuleId = modules.some((module) => module.id === producingModule) ? producingModule as ModuleId : undefined;
   const nextActions = selectedArtifact
     ? compatibleModuleContracts(selectedArtifact.kind, sourceModuleId).filter((contract) => contract.id !== "chat")
@@ -346,6 +349,7 @@ export function JobPage() {
           </div>
           {selectedScope === "output" && job.type === "audio" && job.inputs[0] && selectedFile === outputFiles[0] && <div className="workspace-player">{job.inputs[0].mimeType.startsWith("video/") ? <video ref={(element) => { mediaRef.current = element; }} controls preload="metadata" src={`/api/jobs/${job.id}/input/${encodeURIComponent(job.inputs[0].storedName)}`} /> : <audio ref={(element) => { mediaRef.current = element; }} controls preload="metadata" src={`/api/jobs/${job.id}/input/${encodeURIComponent(job.inputs[0].storedName)}`} />}</div>}
           <div className={cn("preview-content", selectedMindMap && previewMode === "rendered" && "mindmap-preview-content")}>{loadingPreview ? <div className="preview-loading"><span className="spinner dark" />Loading preview…</div> : <OutputPreview content={preview} kind={selectedKind} html={html} mode={previewMode} title={selectedDisplayName} src={selectedUrl} transcript={transcriptSegments.length ? { segments: transcriptSegments, mediaRef } : undefined} compareSrc={compareSource} />}</div>
+          {disclosure && <p className="generated-disclosure">{disclosure}</p>}
         </> : <div className="workspace-empty"><FolderOpen size={36} /><h2>No output yet</h2><p>This job did not create any files.</p></div>}
       </div>
     </section>
@@ -368,7 +372,7 @@ export function preferredOutputFile(job: Pick<Job, "artifacts" | "outputFiles">,
 }
 
 function FlowActionIcon({ moduleId }: { moduleId: ModuleId }) {
-  const Icon = moduleId === "translation" ? Languages : moduleId === "grounding" ? ScanSearch : moduleId === "ocr" ? ScanText : moduleId === "text-to-image" ? ImageIcon : moduleId === "mindmap" ? Network : MessageCircle;
+  const Icon = moduleId === "translation" ? Languages : moduleId === "grounding" ? ScanSearch : moduleId === "ocr" ? ScanText : moduleId === "text-to-image" ? ImageIcon : moduleId === "text-to-video" ? Film : moduleId === "mindmap" ? Network : MessageCircle;
   return <Icon size={17} />;
 }
 
@@ -380,6 +384,7 @@ const workflowServiceIcons: Record<WorkflowServiceId, typeof ScanText> = {
   translation: Languages,
   grounding: ScanSearch,
   "text-to-image": ImageIcon,
+  "text-to-video": Film,
   mindmap: Network,
   "llm-prompt": Bot,
   chat: MessageCircle,
@@ -600,6 +605,7 @@ function describeOutput(file: string) {
   if (file === "transcript.md") return "Complete readable transcript";
   if (file === "transcript.json") return "Structured transcript data";
   if (file.startsWith("generated-image.")) return "Generated image";
+  if (file.startsWith("generated-video")) return "Generated video with sound";
   if (file === "grounding-preview.svg") return "Image with located regions";
   if (file === "grounding.annotations.json") return "Locations and query data";
   if (file === "mindmap.json" || file.endsWith(".mindmap.json")) return "Interactive mind map";
@@ -618,6 +624,7 @@ function displayOutputName(file: string) {
   if (file === "transcript.srt") return "SRT subtitles";
   if (file === "transcript.vtt") return "WebVTT subtitles";
   if (file.startsWith("generated-image.")) return "Generated image";
+  if (file.startsWith("generated-video")) return "Generated video";
   if (file === "grounding-preview.svg") return "Located regions";
   if (file === "grounding.annotations.json") return "Grounding data";
   if (file === "mindmap.json" || file.endsWith(".mindmap.json")) return "Mind map";

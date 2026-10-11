@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { AudioLines, BrainCircuit, ChevronUp, GitBranch, Images, Image as ImageIcon, LayoutGrid, Languages, MessageCircle, Network, PanelLeftClose, PanelLeftOpen, ScanSearch, ScanText, Search, Settings } from "lucide-react";
+import { AudioLines, BrainCircuit, ChevronUp, Film, GitBranch, Images, Image as ImageIcon, LayoutGrid, Languages, MessageCircle, Network, PanelLeftClose, PanelLeftOpen, ScanSearch, ScanText, Search, Settings } from "lucide-react";
 import { api } from "../api";
 import { settingsUpdatedEvent } from "../settings-events";
 import type { Health, ModuleDescriptor, Settings as AppSettings, SparkStatus } from "../types";
 import { displayVersion, isNewerVersion, latestRelease, type ReleaseManifest } from "../version";
 import { useGlobalSearch } from "./GlobalSearch";
 
-const moduleIcons = { "scan-text": ScanText, "audio-lines": AudioLines, languages: Languages, "scan-search": ScanSearch, image: ImageIcon, network: Network, "message-circle": MessageCircle };
+const moduleIcons = { "scan-text": ScanText, "audio-lines": AudioLines, languages: Languages, "scan-search": ScanSearch, image: ImageIcon, film: Film, network: Network, "message-circle": MessageCircle };
 const mobileNav = [
   { to: "/", label: "Home", icon: LayoutGrid, exact: true },
   { to: "/workflows", label: "Flows", icon: GitBranch, exact: false },
@@ -22,6 +22,7 @@ const services = [
   { kind: "translation" as const, label: "Translation", fallback: "Not configured", icon: Languages },
   { kind: "grounding" as const, label: "Grounding", fallback: "Not configured", icon: ScanSearch },
   { kind: "image-generation" as const, label: "Image", fallback: "Not configured", icon: ImageIcon },
+  { kind: "video-generation" as const, label: "Video", fallback: "Not configured", icon: Film },
 ];
 const sidebarPreferenceKey = "sparklingkit:sidebar-collapsed";
 const monitorPreferenceKey = "sparklingkit:monitor-expanded";

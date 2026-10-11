@@ -743,6 +743,7 @@ textarea.input { @apply text-[16px]; resize: vertical; }
 .onboarding-reference-checks > div.online > span { @apply bg-[var(--sk-green-1)] text-emerald-400; }
 .onboarding-reference-checks > div.offline > span { @apply bg-[var(--sk-red-1)]; }
 .onboarding-reference-checks > div.offline > span i { @apply h-2 w-2 rounded-full bg-red-400; }
+.onboarding-reference-checks > div.skipped > span i { @apply h-2 w-2 rounded-full bg-[var(--sk-n11)]; }
 .onboarding-review-note { @apply mt-6 flex flex-col gap-1 rounded-[12px] bg-[var(--sk-n4)] px-4 py-3 text-[13px] leading-5; }
 .onboarding-review-note strong { @apply text-[var(--sk-n15)]; }
 .onboarding-review-note span { @apply text-[var(--sk-n12)]; }
@@ -1466,6 +1467,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .module-card-icon-translation { background: var(--sk-purple-1); color: var(--sk-purple-6); }
 .module-card-icon-grounding { background: var(--sk-n7); color: var(--sk-teal-6); }
 .module-card-icon-text-to-image { background: var(--sk-purple-2); color: var(--sk-purple-6); }
+.module-card-icon-text-to-video { background: var(--sk-green-2); color: var(--sk-green-6); }
 .module-card-icon-mindmap { background: var(--sk-n6); color: var(--sk-teal-6); }
 .module-card-icon-chat { background: var(--sk-n7); color: var(--sk-n15); }
 .module-card-copy { @apply min-w-0 flex-1 text-[14px] leading-5 text-muted; }
@@ -1570,6 +1572,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .endpoint-translation { background: var(--sk-purple-1) !important; color: var(--sk-purple-6) !important; }
 .endpoint-grounding { background: var(--sk-n7) !important; color: var(--sk-teal-6) !important; }
 .endpoint-image-generation { background: var(--sk-purple-2) !important; color: var(--sk-purple-6) !important; }
+.endpoint-video-generation { background: var(--sk-green-2) !important; color: var(--sk-green-6) !important; }
 .endpoint-system-status { background: var(--sk-n6) !important; color: var(--sk-blue-6) !important; }
 
 @media (max-width: 1023px) {
@@ -1962,7 +1965,8 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .gallery-model-chip { @apply rounded-full border border-[var(--sk-n8)] px-2 py-px font-mono text-[11px] text-[var(--sk-n15)]; }
 .gallery-lightbox, .gallery-compare { @apply items-center p-4; }
 .gallery-lightbox-card { @apply grid max-h-[92vh] w-full max-w-6xl overflow-hidden rounded-[20px] border border-[var(--sk-n9)] bg-[var(--sk-n3)] md:grid-cols-[minmax(0,1fr)_300px]; box-shadow: 0 28px 90px rgb(0 0 0 / calc(.6 * var(--sk-shadow))); }
-.gallery-lightbox-card > img { @apply block max-h-[60vh] w-full bg-[var(--sk-n1)] object-contain md:max-h-[92vh]; }
+.gallery-lightbox-card > img, .gallery-lightbox-card > video { @apply block max-h-[60vh] w-full bg-[var(--sk-n1)] object-contain md:max-h-[92vh]; }
+.gallery-video-badge { @apply absolute bottom-2.5 left-2.5 flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-bold; background: color-mix(in srgb, var(--sk-n0) 65%, transparent); color: var(--sk-n17); }
 .gallery-lightbox-card > aside { @apply relative flex flex-col gap-5 border-t border-[var(--sk-n8)] p-5 md:border-t-0 md:border-l; }
 .gallery-close { @apply absolute top-3 right-3; }
 .gallery-lightbox-actions { @apply mt-auto flex flex-wrap gap-2; }
@@ -1976,7 +1980,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .gallery-compare-card > header strong { @apply font-display text-[16px] font-bold; }
 .gallery-compare-grid { @apply grid min-h-0 gap-px overflow-y-auto bg-[var(--sk-n8)] md:grid-cols-2; }
 .gallery-compare-grid section { @apply bg-[var(--sk-n3)] p-4; }
-.gallery-compare-grid img { @apply mb-4 block max-h-[58vh] w-full rounded-[12px] bg-[var(--sk-n1)] object-contain; }
+.gallery-compare-grid img, .gallery-compare-grid video { @apply mb-4 block max-h-[58vh] w-full rounded-[12px] bg-[var(--sk-n1)] object-contain; }
 .job-thumb { @apply flex h-11 w-11 shrink-0 overflow-hidden rounded-[14px] border border-[var(--sk-n8)] bg-[var(--sk-n5)]; }
 .job-thumb img { @apply block h-full w-full object-cover; }
 .dashboard-recent .job-row .job-thumb, .running-card .job-thumb { @apply h-10 w-10 rounded-[12px]; }
@@ -2047,6 +2051,13 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .image-advanced summary small { @apply rounded-full border border-[var(--sk-n8)] px-2 py-0.5 font-mono text-[11px] font-semibold text-muted; }
 .image-advanced-fields { @apply mt-3 grid gap-3 sm:grid-cols-2; }
 .image-advanced > p { @apply mt-2 text-[13px] leading-5 text-muted; }
+
+/* Video generation options */
+.video-sound-fields, .video-options { @apply mt-5 grid gap-4 sm:grid-cols-2; }
+.video-options { @apply lg:grid-cols-3; }
+.video-sound-fields .field-label, .video-options .field-label { @apply block min-w-0; }
+.video-generation-form .image-advanced { @apply mt-5; }
+.generated-disclosure { @apply mt-3 text-[13px] leading-5 text-muted; }
 
 /* Chat: thinking effort under the composer, and the model's reasoning above each answer */
 .chat-composer-footer { @apply mx-auto mt-2 flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2; }

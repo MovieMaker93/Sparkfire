@@ -1,7 +1,7 @@
-export const MODULE_IDS = ["ocr", "transcription", "translation", "grounding", "text-to-image", "mindmap", "chat"] as const;
+export const MODULE_IDS = ["ocr", "transcription", "translation", "grounding", "text-to-image", "text-to-video", "mindmap", "chat"] as const;
 export type ModuleId = (typeof MODULE_IDS)[number];
 
-export const ENDPOINT_KINDS = ["stt", "ocr", "llm", "translation", "grounding", "image-generation"] as const;
+export const ENDPOINT_KINDS = ["stt", "ocr", "llm", "translation", "grounding", "image-generation", "video-generation"] as const;
 export type EndpointKind = (typeof ENDPOINT_KINDS)[number];
 
 export const MODEL_INPUT_CAPABILITIES = ["text", "image"] as const;
@@ -31,6 +31,7 @@ export const ARTIFACT_KINDS = [
   "redacted-document",
   "grounded-image",
   "generated-image",
+  "generated-video",
   "structured-data",
   "mindmap",
   "text",
@@ -94,7 +95,7 @@ export interface ModuleDescriptor {
   title: string;
   shortTitle: string;
   description: string;
-  icon: "scan-text" | "audio-lines" | "languages" | "scan-search" | "image" | "network" | "message-circle";
+  icon: "scan-text" | "audio-lines" | "languages" | "scan-search" | "image" | "film" | "network" | "message-circle";
   route: string;
   providerKind: EndpointKind;
   accepts: ArtifactKind[];
@@ -262,7 +263,7 @@ export interface SearchResponse {
 
 export const WORKFLOW_NODE_TYPES = ["input", "module", "select", "if", "switch", "merge", "save", "end", "fail"] as const;
 export type WorkflowNodeType = (typeof WORKFLOW_NODE_TYPES)[number];
-export const WORKFLOW_SERVICE_IDS = ["ocr", "transcription", "translation", "grounding", "text-to-image", "mindmap", "llm-prompt", "chat"] as const;
+export const WORKFLOW_SERVICE_IDS = ["ocr", "transcription", "translation", "grounding", "text-to-image", "text-to-video", "mindmap", "llm-prompt", "chat"] as const;
 export type WorkflowServiceId = (typeof WORKFLOW_SERVICE_IDS)[number];
 
 export interface WorkflowNode {
