@@ -5,6 +5,7 @@ import { api } from "../api";
 import { settingsUpdatedEvent } from "../settings-events";
 import type { Health, ModuleDescriptor, Settings as AppSettings, SparkStatus } from "../types";
 import { displayVersion, isNewerVersion, latestRelease, type ReleaseManifest } from "../version";
+import { BrandWordmark } from "./BrandMark";
 import { useGlobalSearch } from "./GlobalSearch";
 
 const moduleIcons = { "scan-text": ScanText, "audio-lines": AudioLines, languages: Languages, "scan-search": ScanSearch, image: ImageIcon, film: Film, network: Network, "message-circle": MessageCircle };
@@ -170,12 +171,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={`app-shell min-h-screen bg-canvas text-ink ${activeChat ? "active-chat-shell" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <header className="mobile-header">
-        <Link to="/" className="brand-wordmark" aria-label="Sparkfire home">Sparkfire</Link>
+        <Link to="/" className="brand-wordmark" aria-label="Sparkfire home"><BrandWordmark /></Link>
         <Link to="/settings" state={{ backgroundLocation: location }} className="mobile-service-chip" aria-label={`Open settings, ${serviceSummary}`}><i className={enabled.length > 0 && healthy === enabled.length ? "online" : ""} />{serviceSummary}</Link>
       </header>
       <aside className="sidebar" id="app-sidebar">
         <div className="sidebar-brand-row">
-          <Link to="/" className="brand-wordmark" aria-label="Sparkfire home">Sparkfire</Link>
+          <Link to="/" className="brand-wordmark" aria-label="Sparkfire home"><BrandWordmark /></Link>
           <button type="button" className="sidebar-collapse-button" onClick={toggleSidebar} aria-controls="app-sidebar" aria-expanded={!sidebarCollapsed} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>{sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}</button>
         </div>
         <button type="button" className="sidebar-search-button" onClick={() => openSearch()} title="Search Sparkfire (⌘K)" aria-label="Search Sparkfire"><Search size={18} /><span>Search</span><kbd>⌘K</kbd></button>

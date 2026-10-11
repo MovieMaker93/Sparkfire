@@ -24,6 +24,9 @@ it. Measured results are in [`validation.md`](validation.md).
   Settings → General → Appearance switches between Dark, Light and System.
 - **Accent.** Primary actions, focus rings, the active navigation item and progress bars use one mint
   accent (`--sk-accent`).
+- **Mark.** A flame with a sparkle cut out of it, in the accent colour. It sits beside the wordmark in the
+  sidebar, the mobile header and onboarding, stays alone when the sidebar collapses, and is the favicon,
+  the home-screen icon and the GitHub social preview (`.github/media/social-preview.png`).
 - **Sidebar.** One "AI services" chip with a popover replaces the per-service status rows. The Spark monitor
   expands on click.
 - **Optional tools.** Grounding, whose service the stack does not ship, stays out of the sidebar, the Tools
