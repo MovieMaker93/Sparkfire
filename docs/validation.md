@@ -168,6 +168,20 @@ loads no weights until the first job (0.65 GiB of GPU memory for its CUDA contex
 | Sharp, 1344x768, 5 s | 272 s | 99.6 GiB | +50 GiB |
 | Sharp, 1280x736, 8 s | 392 s | 102.6 GiB | +53 GiB |
 
+**10-second clips**, added after these runs (243 frames; same stack and Saluki). This run started with
+ComfyUI's 5 GiB leftover from an earlier unload, so its peaks above the 50 GiB idle are slightly high:
+
+| Request (seed 42) | Time | Peak used | Above the 50 GiB idle |
+| --- | --- | --- | --- |
+| Fast, 864x480, 10 s, cold | 146 s | 88.6 GiB | +39 GiB |
+| Fast, 1280x736, 10 s | 350 s | 98.3 GiB | +48 GiB |
+| Sharp, 1280x736, 10 s (frees Fast, loads Sharp) | 539 s | 103.3 GiB | +53 GiB |
+| Sharp, 1344x768, 10 s | 578 s | 106.6 GiB | +57 GiB |
+
+Every 10 s video was 10.12 s, H.264 with AAC, with the disclosure comment; the Sharp 768p one kept the
+subject consistent across the shots the model cut to. The worst case stayed under the 108 GiB set as the
+limit for offering 10 s at every size, so the service offers 5, 8 and 10 s.
+
 - **Resident between jobs:** Fast holds about 34 GiB, Sharp about 44 GiB. ComfyUI's own process reached
   39.2 GiB of GPU memory during the Sharp 8 s job.
 - **Unload:** `POST /v1/unload` returned 40.5 GiB (95.8 to 55.3 GiB). About 5 GiB stays with ComfyUI after
@@ -176,7 +190,7 @@ loads no weights until the first job (0.65 GiB of GPU memory for its CUDA contex
 - **Through the app:** "Continue with → Create video" on a Qwen-Image result made a 5 s, 864x480 video in
   66 s, stored in the image's job and derived from it, with the image's prompt and the disclosure line on the
   run. The video opened on the image and kept its painted sign legible.
-- **Every video** was H.264 with AAC sound, 124 frames for 5 s and 192 for 8 s, and carried the
+- **Every video** was H.264 with AAC sound, 124 frames for 5 s, 192 for 8 s and 243 for 10 s, and carried the
   "AI-generated with MiniMax H3 (FastH3)" comment.
 - **Cache:** repeating a request with the same seed, prompt and settings returned in 2 s; ComfyUI reused the
   sampled result and only wrote the file again.
@@ -187,9 +201,9 @@ loads no weights until the first job (0.65 GiB of GPU memory for its CUDA contex
   because this run counts from an idle stack with no ComfyUI process at all.
 
 The decision gate of the plan was a peak of +40 GiB above idle. Fast stays under it at 480p and passes it
-by 1–5 GiB at 720p, 768p and 8 s; Sharp passes it by up to 13 GiB. With Saluki loaded the worst case,
-Sharp at 1280x736 for 8 s, used 102.6 of 121 GiB, so the stack still has about 18 GiB for a second job
-and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
+by 1–8 GiB at 720p, 768p and longer clips; Sharp passes it by up to 17 GiB. With Saluki loaded the worst
+case, Sharp at 1344x768 for 10 s, used 106.6 of 121 GiB, so the stack still has about 14 GiB for a second
+job and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
 
 ## Memory
 
@@ -223,7 +237,7 @@ measured with every service loaded and idle.
 | One job per module, with Saluki as the LLM and Parakeet as the ASR (2026-10-10) | 73.5 GiB peak; 92.4 GiB in a degenerate pass |
 | Four-service stack: LLM, Qwen3-ASR and grounding removed (2026-10-10) | ≈ 29 GiB idle, ≈ 38 GiB at the old busy peak — derived by subtracting their rows above |
 | Four-service stack, Saluki and other small containers, video service idle (2026-10-11) | about 50 GiB |
-| Same, during the largest video job (Sharp, 1280x736, 8 s) | 102.6 GiB peak |
+| Same, during the largest video job (Sharp, 1344x768, 10 s) | 106.6 GiB peak |
 
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
 transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
