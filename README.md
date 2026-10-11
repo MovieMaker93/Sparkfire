@@ -1,20 +1,20 @@
-# SparklingKit ⚡ — a local AI workspace for one DGX Spark
+# Sparkfire 🔥 — a local AI workspace for one DGX Spark
 
-[![CI](https://github.com/MovieMaker93/SparklingKit/actions/workflows/ci.yml/badge.svg)](https://github.com/MovieMaker93/SparklingKit/actions/workflows/ci.yml)
-[![Security](https://github.com/MovieMaker93/SparklingKit/actions/workflows/security.yml/badge.svg)](https://github.com/MovieMaker93/SparklingKit/actions/workflows/security.yml)
+[![CI](https://github.com/MovieMaker93/Sparkfire/actions/workflows/ci.yml/badge.svg)](https://github.com/MovieMaker93/Sparkfire/actions/workflows/ci.yml)
+[![Security](https://github.com/MovieMaker93/Sparkfire/actions/workflows/security.yml/badge.svg)](https://github.com/MovieMaker93/Sparkfire/actions/workflows/security.yml)
 [![Platform](https://img.shields.io/badge/platform-DGX%20Spark%20%C2%B7%20ARM64-76b900?style=flat-square)](#quick-start)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square)](https://react.dev)
 [![Express](https://img.shields.io/badge/Express-5-444444?style=flat-square)](https://expressjs.com)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-**SparklingKit turns files into reusable AI work: it reads documents, transcribes recordings, translates, finds things in images, generates pictures, maps ideas and lets you chat about all of it, on models that run on your own DGX Spark.**
+**Sparkfire turns files into reusable AI work: it reads documents, transcribes recordings, translates, finds things in images, generates pictures, maps ideas and lets you chat about all of it, on models that run on your own DGX Spark.**
 
 Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a summary, a mind map or a conversation. Seven specialised models share one Spark behind one interface, and nothing leaves your network.
 
 > [!NOTE]
-> **Unofficial fork** of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit), maintained by [MovieMaker93](https://github.com/MovieMaker93). It is not affiliated with or endorsed by the SparklingKit project. See [what's new in this fork](#whats-new-in-this-fork).
+> Based on [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei (Apache 2.0). Sparkfire is maintained by [MovieMaker93](https://github.com/MovieMaker93) and is not affiliated with or endorsed by the SparklingKit project. See [what Sparkfire adds](#what-sparkfire-adds).
 
-[![A 40-second tour of SparklingKit running real models on a DGX Spark: the workbench, OCR, image generation, the gallery, chat, grounding and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
+[![A 40-second tour of Sparkfire running real models on a DGX Spark: the workbench, OCR, image generation, the gallery, chat, grounding and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
 
 [Watch the tour as MP4](.github/media/tour.mp4) · recorded on one DGX Spark with the real models; only the waits are fast-forwarded.
 
@@ -22,18 +22,20 @@ Every source and every result stays an ordinary file with its history, so one re
 
 ## Contents
 
-- [What's new in this fork](#whats-new-in-this-fork)
+- [What Sparkfire adds](#what-sparkfire-adds)
 - [Feature tour](#feature-tour)
 - [Quick start](#quick-start)
 - [Memory and containers](#memory-and-containers) · [Video: choices and trade-offs](#video-choices-and-trade-offs)
-- [Why SparklingKit?](#why-sparklingkit) · [One DGX Spark, five bundled models](#one-dgx-spark-five-bundled-models) · [Choose your deployment](#choose-your-deployment)
+- [Why Sparkfire?](#why-sparkfire) · [One DGX Spark, five bundled models](#one-dgx-spark-five-bundled-models) · [Choose your deployment](#choose-your-deployment)
 - [Modules](#modules) · [Workbench](#workbench) · [File-based workflows](#file-based-workflows)
 - [Architecture](#architecture) · [API overview](#api-overview) · [Security and privacy](#security-and-privacy)
 - [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
 
 * * *
 
-## What's new in this fork
+## What Sparkfire adds
+
+Sparkfire started as a fork of SparklingKit and has since become its own project. Compared with upstream:
 
 | Area | What you get |
 | --- | --- |
@@ -81,11 +83,11 @@ Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024
 
 Describe a scene, and optionally how it sounds, and FastH3 makes a 5, 8 or 10 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
 
-FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) made by [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, and it runs in [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org. [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark; this fork adopted FastH3 after studying the Studio's Spark setup and measurements. Why each video setting is what it is: [Video: choices and trade-offs](#video-choices-and-trade-offs).
+FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) made by [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, and it runs in [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org. [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark; Sparkfire adopted FastH3 after studying the Studio's Spark setup and measurements. Why each video setting is what it is: [Video: choices and trade-offs](#video-choices-and-trade-offs).
 
 ### Find things in images
 
-Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint: the tool stays hidden until you enable one in Settings → Services (this fork used LocateAnything-3B).
+Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint: the tool stays hidden until you enable one in Settings → Services (Sparkfire was tested with LocateAnything-3B).
 
 [![Wind turbines and a lighthouse boxed in a photo, with the before/after slider moving across (click for the MP4)](.github/media/grounding.webp)](.github/media/grounding.mp4)
 
@@ -113,33 +115,34 @@ Pick a theme in Settings; the whole interface follows, in both themes and on any
 
 You need:
 - an NVIDIA DGX Spark (or another GB10 system) with its stock DGX OS, which includes Docker, the NVIDIA container runtime and CUDA 13;
-- about 190 GB of free disk for the model weights and service images (about 135 GB without video);
+- about 135 GB of free disk for the model weights and service images (about 190 GB with video);
 - internet access for the first run.
 
 ```bash
-git clone https://github.com/MovieMaker93/SparklingKit.git
-cd SparklingKit
+git clone https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
 # Builds the services, downloads the models at pinned revisions, starts everything in a memory-safe order
-./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
+./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --accept-model-licenses
 ```
 
 - The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
-- `--accept-model-licenses` confirms you have read the [model licenses](#this-fork); Qwen-Image is for non-commercial use only, and FastH3's license does not cover the EU, the UK, South Korea or the US: add `--video-backend none` there.
+- `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). The default models can be used anywhere.
+- Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only) and `--video-backend fasth3` for video with sound (its license does not cover the EU, the UK, South Korea or the US).
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
-| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or `--video-backend none` to leave video out |
-| Use upstream's models instead | leave out `--ocr-backend` and `--image-backend` |
+| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or with `--video-backend fasth3` to add video |
+| Use Unlimited-OCR instead of PaddleOCR-VL | leave out `--ocr-backend` |
 | Update | `git pull`, then run the start script again |
-| Share the Spark with another LLM | `./scripts/spark-switch.sh sparklingkit` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
+| Share the Spark with another LLM | `./scripts/spark-switch.sh sparkfire` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
 | Run only the app against models you already host | `cp .env.example .env`, set the endpoint URLs, then `docker compose up -d --build` |
 
 **Updating an install that used Qwen3-ASR?** Run the start script again, then choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Saved settings are never rewritten. Until you change it, transcription still works, with minute-long lines instead of sentences.
 
-The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described further down install **upstream** SparklingKit, not this fork.
+**Coming from SparklingKit or the MovieMaker93/SparklingKit fork?** Point your checkout at this repository and run the start script again; jobs, settings, models and containers are reused as they are. The old `SPARKLINGKIT_*` variables in `.env` still work. Video is now opt-in, so add `--video-backend fasth3` if you used it.
 
 ## Memory and containers
 
@@ -182,7 +185,7 @@ These are the measured figures from [docs/validation.md](docs/validation.md) min
 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack.
 
 The historical 84–96 GiB figures in [docs/validation.md](docs/validation.md) were measured with the
-Qwen3.6 LLM and Qwen3-ASR resident, before this fork removed them.
+Qwen3.6 LLM and Qwen3-ASR resident, before Sparkfire removed them.
 
 That leaves about 90 GiB for an LLM of your choice (Saluki needs ~13 GiB), a grounding server if you run
 one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp,
@@ -195,7 +198,7 @@ against memory. Every number here was measured on the Spark, with Saluki loaded;
 [docs/validation.md](docs/validation.md) and the runtime decision in
 [ADR 0002](docs/adr/0002-video-service-comfyui.md).
 
-| Choice | What this fork uses | What it costs | Why |
+| Choice | What Sparkfire uses | What it costs | Why |
 | --- | --- | --- | --- |
 | Model | FastH3, FastVideo's 8-step distill of MiniMax H3, video and sound from one model | Its license excludes the EU, the UK, South Korea and the US | Sound comes with the picture, in 8 steps, beside the rest of the stack. Wan 2.2 makes no sound; MOVA needs about 48 GB of GPU memory plus 67 GB of RAM and 9 s a step on an H100. LTX-2.5 (worldwide license, video with sound) is the candidate for a second backend |
 | Runtime | A pinned ComfyUI behind a small adapter | One service on a runtime the others do not use; moving the pin needs a new measurement | No diffusers or transformers release loads FastH3 yet. keys-TensorFold Studio's native engine is faster per step for the int8 V2 model, but it builds outside a container and its setup held about 70 GB |
@@ -211,7 +214,7 @@ against memory. Every number here was measured on the Spark, with Saluki loaded;
 | Concurrency | No extra queue rule; the service renders one video at a time | A second video waits for the first | The largest job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB with Saluki loaded, leaving about 14 GiB for other jobs |
 | Transfer | The MP4 streams to disk as the response body; a request may take up to an hour | A long render keeps one connection open | The video never sits in memory as base64 |
 | Repeats | ComfyUI caches identical requests | The same prompt, seed and settings give back the same video | It returns in about 2 s; change the seed under Advanced for a new take |
-| Default install | Video is built and downloaded unless you pass `--video-backend none` | About 53 GB more disk and a longer first install | Video is part of this fork's stack; the flag covers the excluded territories, and onboarding treats video as optional |
+| Default install | Video is left out unless you pass `--video-backend fasth3` | One flag to add it | Its license excludes the EU, the UK, South Korea and the US, so a default install stays usable everywhere; the flag adds about 53 GB of downloads, and onboarding treats video as optional |
 | Disclosure | Every MP4 carries "AI-generated with MiniMax H3 (FastH3)" in its metadata, and the app shows it | Re-encoding the file elsewhere can drop the tag | The license asks that shared outputs say they are machine-generated |
 | Container cap | 56 GiB | It bounds CPU-side memory only | GPU allocations are not charged to a container's limit on the Spark |
 
@@ -219,27 +222,27 @@ Per job, the form sets Fast or Sharp, the size, the length and the seed. For the
 
 | Setting | Default | Where |
 | --- | --- | --- |
-| `--video-backend` | `fasth3` | `scripts/start-dgx-spark.sh`; `none` leaves video out |
+| `--video-backend` | `none` | `scripts/start-dgx-spark.sh`; `fasth3` adds video |
 | `VIDEO_IDLE_UNLOAD_SECONDS` | `600` | Environment of `start-dgx-spark.sh` (compose) |
 | `VIDEO_MEM_LIMIT` | `56g` | Environment of `start-dgx-spark.sh` (compose) |
 
 * * *
 
-## Why SparklingKit?
+## Why Sparkfire?
 
-AI work rarely ends after one operation. After recording a meeting, you may want to transcribe it, turn the transcript into a concise summary, and then chat with the result to revisit a decision or find an action item. When a large scanned PDF arrives, you may need to extract it into readable text before summarizing, translating, or asking questions about it. SparklingKit keeps these steps connected instead of treating each one as an isolated task.
+AI work rarely ends after one operation. After recording a meeting, you may want to transcribe it, turn the transcript into a concise summary, and then chat with the result to revisit a decision or find an action item. When a large scanned PDF arrives, you may need to extract it into readable text before summarizing, translating, or asking questions about it. Sparkfire keeps these steps connected instead of treating each one as an isolated task.
 
 The same applies to images: generate one from a prompt, pass it directly into visual grounding, and search for a person, object, text region, or other detail inside it. Every source and generated result remains a typed artifact with its files, lineage, and processing history, so you can always see where it came from and choose a compatible **Continue with** action.
 
-SparklingKit is built around small, atomic capabilities—OCR, transcription, translation, grounding, image generation, mind mapping, and language-model reasoning—that can be combined without coupling the underlying services. A document, set of notes, or image can become an interactive mind map with collapsible branches, while its portable JSON and Markdown outline remain available to other tools. For repeatable work, the node-based workflow editor lets you connect those same capabilities with typed inputs, conditions, branches, merges, and explicit file outputs. Design the flow once, then run it again with a new recording, document, image, or piece of text.
+Sparkfire is built around small, atomic capabilities—OCR, transcription, translation, grounding, image generation, mind mapping, and language-model reasoning—that can be combined without coupling the underlying services. A document, set of notes, or image can become an interactive mind map with collapsible branches, while its portable JSON and Markdown outline remain available to other tools. For repeatable work, the node-based workflow editor lets you connect those same capabilities with typed inputs, conditions, branches, merges, and explicit file outputs. Design the flow once, then run it again with a new recording, document, image, or piece of text.
 
-For workloads involving recorded meetings, private documents, scanned PDFs, and personal images, we strongly recommend running models locally whenever suitable hardware is available. Local inference keeps sensitive material on infrastructure you control, avoids repeatedly uploading large files, and gives you direct ownership of model selection, capacity, availability, and data retention. SparklingKit is designed local-first: source files, generated artifacts, processing history, workflow definitions, and service endpoints remain under your control. It is not local-only, however. Compatible cloud APIs can also be configured as service endpoints, allowing SparklingKit to serve as one consistent interface for local models, cloud-hosted models, or a deliberate combination of both.
+For workloads involving recorded meetings, private documents, scanned PDFs, and personal images, we strongly recommend running models locally whenever suitable hardware is available. Local inference keeps sensitive material on infrastructure you control, avoids repeatedly uploading large files, and gives you direct ownership of model selection, capacity, availability, and data retention. Sparkfire is designed local-first: source files, generated artifacts, processing history, workflow definitions, and service endpoints remain under your control. It is not local-only, however. Compatible cloud APIs can also be configured as service endpoints, allowing Sparkfire to serve as one consistent interface for local models, cloud-hosted models, or a deliberate combination of both.
 
 ## One DGX Spark, five bundled models
 
-The reference stack deliberately fits five complementary models onto one DGX Spark. The LLM and the grounding service are deliberately **not** bundled: point SparklingKit at any OpenAI-compatible endpoint (local or cloud) for chat, mind maps, summaries, and workflow prompts, and configure a grounding endpoint for visual grounding.
+The reference stack deliberately fits five complementary models onto one DGX Spark. The LLM and the grounding service are deliberately **not** bundled: point Sparkfire at any OpenAI-compatible endpoint (local or cloud) for chat, mind maps, summaries, and workflow prompts, and configure a grounding endpoint for visual grounding.
 
-| Capability | Model | Role in SparklingKit |
+| Capability | Model | Role in Sparkfire |
 | --- | --- | --- |
 | OCR | [`baidu/Unlimited-OCR`](https://huggingface.co/baidu/Unlimited-OCR) | Page and image text extraction |
 | Speech recognition | [`nvidia/parakeet-tdt-0.6b-v3`](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | Audio/video transcription and subtitles |
@@ -247,56 +250,44 @@ The reference stack deliberately fits five complementary models onto one DGX Spa
 | Image generation | [`Tongyi-MAI/Z-Image-Turbo`](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Fast text-to-image generation |
 | Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) (MiniMax H3, through ComfyUI) | Short videos with sound, from text or an image |
 
-This gives a small team or individual a practical multimodal workspace without sending every file to a hosted provider. SparklingKit supplies the shared UI, file history, artifact routing, workflows, queueing, and progress monitoring; the five model servers stay independently replaceable.
+This gives a small team or individual a practical multimodal workspace without sending every file to a hosted provider. Sparkfire supplies the shared UI, file history, artifact routing, workflows, queueing, and progress monitoring; the five model servers stay independently replaceable.
 
 ## Choose your deployment
 
-SparklingKit has two independently deployable layers:
+Sparkfire has two independently deployable layers:
 
 1. the **AI service layer**—the five reference models, your LLM endpoint, and the optional DGX system monitor; and
-2. the **workspace layer**—the SparklingKit web application, API, Redis queue, and file data.
+2. the **workspace layer**—the Sparkfire web application, API, Redis queue, and file data.
 
 Keeping that boundary explicit supports three practical setups without maintaining three different products:
 
-| Setup | AI services | SparklingKit | Best for |
+| Setup | AI services | Sparkfire | Best for |
 | --- | --- | --- | --- |
 | **All in one** | DGX Spark | Same DGX Spark | The simplest out-of-the-box experience |
 | **Split** | DGX Spark | Another server | Keeping the DGX focused on inference or sharing it across a network |
-| **SparklingKit only** | Your endpoints | Any Docker host | Existing local services, cloud APIs, or a custom mix |
+| **Sparkfire only** | Your endpoints | Any Docker host | Existing local services, cloud APIs, or a custom mix |
 
 ## Install the workspace
 
-The recommended distribution is a prebuilt multi-platform container with a small Docker Compose bundle. It runs SparklingKit and Redis together; model weights are never included in the application image.
-
-> [!NOTE]
-> In this fork, the installer and images in this section install upstream SparklingKit. To run the fork, use the [quick start](#quick-start) or one of the source paths below.
+Sparkfire installs from a clone; there is no hosted installer. The [quick start](#quick-start) runs the whole stack on one DGX Spark. To run only the workspace on any Docker host:
 
 ```bash
-curl -fsSL https://run.sparklingkit.com/stable/install.sh -o install.sh && bash install.sh
+git clone https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
+./scripts/start-sparkfire.sh --model-host dgx-spark.local   # or --configure-later
 ```
 
-Open `http://localhost:54321`, or `http://SERVER-IP:54321` from another device on the trusted network. The installation directory is deliberately portable:
-
-```text
-sparklingkit/
-├── compose.yaml
-├── sparklingkit
-└── data/                 # settings, jobs, files, chats, workflows, and Redis state
-```
-
-The Compose file pulls `ghcr.io/stevibe/sparklingkit` for the host's architecture. It bind-mounts `./data` directly into the application so backing up or moving the workspace does not require extracting a Docker volume.
+Open `http://localhost:54321`, or `http://SERVER-IP:54321` from another device on the trusted network. Each release also publishes a multi-platform image, `ghcr.io/moviemaker93/sparkfire`, for your own Compose file.
 
 On the first visit, choose one of three tabs:
 
 ### Run models locally
 
-Choose this when SparklingKit and the five models run on the same DGX Spark. Onboarding provides both the hosted, checksum-verified installer and the GitHub-source command, then verifies all five services through Docker's host gateway before applying anything. Configure the LLM endpoint afterwards in **Settings → Services**.
-
-Hosted model-stack installations created with version 0.1.4 or later include `./sparklingkit-dgx update`. It verifies the latest bundle, backs up the installed stack, stops every model service, preserves model and runtime data under `data/`, rebuilds changed adapters, refreshes pulled images, and starts each endpoint sequentially. Failed or interrupted changes restore the previous stack before another update is attempted. Version 0.1.3 and earlier should bootstrap the current updater once by following the [DGX Spark operations guide](docs/dgx-spark.md#operations). Application updates remain independent through `./sparklingkit update` in the workspace installation directory.
+Choose this when Sparkfire and the five models run on the same DGX Spark. Onboarding shows the clone-and-start command, then verifies all five services through Docker's host gateway before applying anything. Configure the LLM endpoint afterwards in **Settings → Services**.
 
 ### Run models remotely
 
-Choose this when the model stack runs on another DGX Spark. Run the same model installer on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8332–8337 (video on 8337 is optional). The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
+Choose this when the model stack runs on another DGX Spark. Run `./scripts/start-dgx-spark.sh --models-only --accept-model-licenses` on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8332–8337 (video on 8337 is optional). The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
 
 ### Configure endpoints manually
 
@@ -304,33 +295,14 @@ Configure only the services you need. Every provider has independent URL, model,
 
 Reopen onboarding from **Settings → General → Deployment**. Existing configurations are clearly identified, and a reference preset remains staged until **Apply and continue** is pressed. Changing deployment endpoints does not remove jobs, chats, workflows, or files.
 
-### GitHub-source installation
-
-The hosted installer is only a convenience. The equivalent auditable source path is:
-
-```bash
-git clone https://github.com/MovieMaker93/SparklingKit.git
-cd SparklingKit
-./distribution/install.sh --from-source --dir ../sparklingkit-install
-```
-
-Developers can continue to use `docker compose up -d --build` from the repository root.
-
 ## Upgrade and operate
 
-Run these commands inside the installation directory:
-
 ```bash
-./sparklingkit update     # verify release assets, pull, recreate, and health-check
-./sparklingkit status
-./sparklingkit logs
-./sparklingkit stop       # never removes ./data
-./sparklingkit rollback   # restore the app image used before the last update
+git pull
+./scripts/start-dgx-spark.sh --accept-model-licenses   # or ./scripts/start-sparkfire.sh for the workspace only
 ```
 
-The default `latest` image follows stable releases. Set `SPARKLINGKIT_IMAGE=ghcr.io/stevibe/sparklingkit:0.2.0` in `.env` to pin an installation. The update command records the previous local image before recreating the application, while the bind-mounted data remains untouched.
-
-See [Application deployment and upgrades](docs/deployment.md) for network binding, pinned releases, rollback limits, backups, and release artifacts.
+Run the start script with the same options you installed with. It rebuilds what changed and leaves `data/` untouched. See [Application deployment and upgrades](docs/deployment.md) for network binding, backups and releases.
 
 Coming from the six-model DGX stack? Saved settings still point the LLM at port 8331 and grounding at port 8335, which no longer run: repoint or disable them in **Settings → Services** (see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack)).
 
@@ -340,9 +312,9 @@ Set `HF_TOKEN` in the shell when the DGX model download requires authentication 
 HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 ```
 
-Model weights are downloaded from their publishers and are not part of SparklingKit's Apache 2.0 distribution. Review their terms before setup. The acceptance flag records that you completed this review; it does not alter or override upstream terms.
+Model weights are downloaded from their publishers and are not part of Sparkfire's Apache 2.0 distribution. Review their terms before setup. The acceptance flag records that you completed this review; it does not alter or override upstream terms.
 
-The DGX starter enables the status reporter, which surfaces unified-memory use, CUDA allocations, GPU utilization and temperature, plus model-service health in the sidebar. See the [DGX Spark deployment guide](docs/dgx-spark.md) for hosted and source installation, prerequisites, network layout, storage locations, operational commands, and model-license notes.
+The DGX starter enables the status reporter, which surfaces unified-memory use, CUDA allocations, GPU utilization and temperature, plus model-service health in the sidebar. See the [DGX Spark deployment guide](docs/dgx-spark.md) for installation, prerequisites, network layout, storage locations, operational commands, and model-license notes.
 
 ## Modules
 
@@ -376,7 +348,7 @@ Global search covers work, conversations, tools, and generated artifacts. Servic
 
 ## File-based workflows
 
-The visual workflow editor composes the same modules used everywhere else in SparklingKit. Definitions are versioned JSON files stored under `data/config/workflows/`; each run stores an immutable definition snapshot with the job.
+The visual workflow editor composes the same modules used everywhere else in Sparkfire. Definitions are versioned JSON files stored under `data/config/workflows/`; each run stores an immutable definition snapshot with the job.
 
 Service nodes:
 
@@ -401,7 +373,7 @@ Generic nodes:
 
 Connections are allowed only when a producer and consumer share compatible artifact types. Workflow JSON cannot execute arbitrary JavaScript or shell commands.
 
-Service nodes store their output by default. Turn off **Store the result** for an intermediate value that should exist only during execution; downstream nodes can still consume it, and SparklingKit removes it when the run finishes. Use **Save to file** when a particular intermediate result should become a durable artifact.
+Service nodes store their output by default. Turn off **Store the result** for an intermediate value that should exist only during execution; downstream nodes can still consume it, and Sparkfire removes it when the run finishes. Use **Save to file** when a particular intermediate result should become a durable artifact.
 
 During execution the run view highlights the active node and records succeeded, skipped, failed, or cancelled paths. Historical workflow jobs retain this node diagram, selected branches, durations, child service runs, and artifact lineage.
 
@@ -417,8 +389,8 @@ See [Workflow design and JSON contracts](docs/workflows.md) for details.
 For a source-built Compose deployment, clone and configure the project:
 
 ```bash
-git clone https://github.com/MovieMaker93/SparklingKit.git
-cd SparklingKit
+git clone https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
 cp .env.example .env
 ```
 
@@ -430,7 +402,7 @@ docker compose up -d --build
 
 Open [http://localhost:54321](http://localhost:54321).
 
-Application state is written to `./data`. The release bundle also stores Redis state under `./data/.redis`; the development Compose file uses a named Redis volume. The application image includes `ffmpeg`, `ffprobe`, `pdftotext`, and `pdftoppm` and supports `linux/amd64` and `linux/arm64`.
+Application state is written to `./data`; Redis keeps its state in a named volume. The application image includes `ffmpeg`, `ffprobe`, `pdftotext`, and `pdftoppm` and supports `linux/amd64` and `linux/arm64`.
 
 Environment variables bootstrap a new `settings.json`; saved settings take precedence on later starts so upgrades do not replace a user's endpoints. After first launch, manage providers from **Settings → Services** or reopen **Settings → General → Deployment**. If you are deploying the complete reference stack directly on a DGX Spark, use `scripts/start-dgx-spark.sh` instead.
 
@@ -449,7 +421,7 @@ Every provider can be enabled, edited, and tested independently. The DGX Spark r
 
 The system-status service is optional. Leave its URL empty to hide the GPU/memory block without affecting service health indicators.
 
-LLM settings declare text and image input capabilities. SparklingKit uses those flags when deciding whether images can be attached to Chat or connected to LLM workflow nodes.
+LLM settings declare text and image input capabilities. Sparkfire uses those flags when deciding whether images can be attached to Chat or connected to LLM workflow nodes.
 
 Advanced settings expose machine-dependent processing controls, including transcription chunk size and overlap, adaptive splitting, request timeouts, PDF rasterization, queue concurrency, retries, and work-directory retention. Display timezone is selected separately under **Settings → General**.
 
@@ -461,7 +433,7 @@ The repository includes a small read-only status service for NVIDIA DGX Spark de
 docker compose -f compose.spark.yaml up -d --build dgx-status
 ```
 
-Point **Settings → Services → System monitor** to its base URL. SparklingKit runs normally without it.
+Point **Settings → Services → System monitor** to its base URL. Sparkfire runs normally without it.
 
 ## Local development
 
@@ -490,7 +462,7 @@ npm run build
 
 ## Architecture
 
-SparklingKit is a TypeScript modular monolith:
+Sparkfire is a TypeScript modular monolith:
 
 ```text
 React client
@@ -558,9 +530,9 @@ See the server routes and [architecture documentation](docs/architecture.md) for
 
 ## Security and privacy
 
-SparklingKit currently assumes a trusted user and trusted network. It does not provide built-in authentication or multi-tenant isolation. Do not expose it directly to the public internet; place it behind an authenticated reverse proxy, VPN, or equivalent access control.
+Sparkfire currently assumes a trusted user and trusted network. It does not provide built-in authentication or multi-tenant isolation. Do not expose it directly to the public internet; place it behind an authenticated reverse proxy, VPN, or equivalent access control.
 
-Uploaded content is sent to the inference endpoints you configure. A self-hosted SparklingKit deployment is only as private as those services and the surrounding network. Review endpoint ownership, logs, retention, and transport security before processing sensitive material.
+Uploaded content is sent to the inference endpoints you configure. A self-hosted Sparkfire deployment is only as private as those services and the surrounding network. Review endpoint ownership, logs, retention, and transport security before processing sensitive material.
 
 Grounding overlays are previews, not secure redaction. A visible rectangle over an image or selectable PDF text does not remove the underlying information.
 
@@ -581,26 +553,24 @@ The project is currently pre-1.0, so APIs and persisted schemas may still evolve
 
 ## License
 
-SparklingKit is licensed under the [Apache License 2.0](LICENSE).
+Sparkfire is licensed under the [Apache License 2.0](LICENSE). It is a derivative of [SparklingKit](https://github.com/stevibe/SparklingKit), copyright 2026 Steven Lei, also Apache 2.0; its [NOTICE](NOTICE) is kept. Changes since the fork are recorded in the commit history and summarised in [docs/fork.md](docs/fork.md). "SparklingKit" is the upstream project's name, used here only to say where the code comes from.
 
 Third-party packages and model services remain subject to their respective license terms.
 
-Copyright 2026 Steven Lei.
+Sparkfire changes copyright 2026 MovieMaker93.
 
-### This fork
+### Model licenses
 
-This fork is distributed under the same Apache License 2.0 and keeps upstream's [LICENSE](LICENSE) and [NOTICE](NOTICE). Its changes are recorded in the commit history and summarised in [docs/fork.md](docs/fork.md). "SparklingKit" is the upstream project's name; the fork uses it only to say where the code comes from.
+Model weights are not part of this repository. The start script downloads them after you accept their terms. The default models (Unlimited-OCR or PaddleOCR-VL, Parakeet, Hy-MT2 and Z-Image-Turbo) can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License. Parakeet-TDT-0.6B-v3, the default speech model, is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT. FastH3, the video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". Start the stack with `--video-backend none` where it does not apply. [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository.
-
-Fork changes copyright 2026 MovieMaker93.
+Two opt-in models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License (non-commercial). FastH3, the video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository.
 
 ## Acknowledgements
 
-- [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project this fork builds on.
+- [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project Sparkfire is built on.
 - The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)), MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3), whose text encoder uses Qwen's Qwen3-VL-32B weights), and [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, whose [FastH3 Trim](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) and [FastH3 V2](https://huggingface.co/FastVideo/FastVideo-FastH3-Comfy) distills and workflow templates make the videos.
 - A model evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0).
 - The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org (GPL-3.0), which runs FastH3 with Comfy-Org's [comfy-kitchen](https://pypi.org/project/comfy-kitchen/) kernels, [PyAV](https://github.com/PyAV-Org/PyAV), which writes the disclosure into each video, [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
 - The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.
 - The README layout takes its cue from [sparkDash](https://github.com/MiaAI-Lab/sparkDash).
-- [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark. This fork adopted FastH3 after studying the Studio's Spark setup, and measured its own service against the Studio's published Spark numbers; no code was copied from it.
+- [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark. Sparkfire adopted FastH3 after studying the Studio's Spark setup, and measured its own service against the Studio's published Spark numbers; no code was copied from it.

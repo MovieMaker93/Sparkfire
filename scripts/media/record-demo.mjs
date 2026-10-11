@@ -1,4 +1,4 @@
-// Records the README demo clips and screenshots against a running SparklingKit with real models.
+// Records the README demo clips and screenshots against a running Sparkfire with real models.
 //
 //   node record-demo.mjs [clip ...]      (BASE_URL, ASSETS, JOBS and OUT override the defaults below)
 //

@@ -1,56 +1,45 @@
 # DGX Spark reference deployment
 
-SparklingKit treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the five specialized models while SparklingKit runs on another host.
+Sparkfire treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the five specialized models while Sparkfire runs on another host.
 
 ## Deployment paths
 
 ### All in one
 
-Install the prebuilt workspace on the DGX Spark:
+Clone the repository on the DGX Spark and start everything:
 
 ```bash
-curl -fsSLO https://run.sparklingkit.com/stable/install.sh
-less install.sh
-bash install.sh
-```
-
-Open `http://DGX-IP:54321`, select **Run models locally**, and use the model command shown there. The hosted model path is:
-
-```bash
-curl -fsSL https://run.sparklingkit.com/dgx/stable/install.sh | bash -s -- --accept-model-licenses
-```
-
-The source-based combined starter remains available for developers and contributors:
-
-```bash
+git clone https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
 ./scripts/start-dgx-spark.sh --accept-model-licenses
 ```
 
-The release installation keeps the prebuilt workspace lifecycle independent from the models, making application upgrades much smaller and safer.
+Open `http://DGX-IP:54321`. Add `--video-backend fasth3` for video with sound where its license applies
+(see [Video generation](#video-generation)).
 
 ### Split across two machines
 
-On the DGX Spark, run the hosted model installer above, or use the inference layer from GitHub source:
+On the DGX Spark, run only the inference layer:
 
 ```bash
 ./scripts/start-dgx-models.sh --accept-model-licenses
 ```
 
-On the server that will own the workspace files, install the prebuilt application:
+On the server that will own the workspace files:
 
 ```bash
-curl -fsSLO https://run.sparklingkit.com/stable/install.sh
-less install.sh
-bash install.sh
+git clone https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
+./scripts/start-sparkfire.sh --model-host DGX-HOSTNAME
 ```
 
-Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started with `--video-backend none` still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
+Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
 
 Ports 8330–8337 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
-### SparklingKit with other providers
+### Sparkfire with other providers
 
-No DGX stack is required. Install the prebuilt workspace, then choose **Configure manually** during onboarding. Configure compatible local, remote, or cloud endpoints independently.
+No DGX stack is required. Start the workspace with `./scripts/start-sparkfire.sh --configure-later`, then choose **Configure manually** during onboarding. Configure compatible local, remote, or cloud endpoints independently.
 
 ## What the DGX starter does
 
@@ -63,11 +52,11 @@ Run from the repository root:
 The script:
 
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
-2. builds SparklingKit and the thin model API adapters;
+2. builds Sparkfire and the thin model API adapters;
 3. downloads five pinned model revisions from their publishers into `data/dgx-models/`;
 4. starts the model servers one at a time and waits for each health endpoint;
 5. starts the read-only system monitor; and
-6. for an all-in-one deployment, starts Redis and SparklingKit before reporting the workspace URL.
+6. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
 
 The first run downloads a substantial amount of model data and builds several ARM64 CUDA images. Later runs reuse both the model files and Docker cache. Set `HF_TOKEN` in the command environment if Hugging Face authentication is required:
 
@@ -85,13 +74,13 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
 | 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.41.0 |
 | 8337 | Video generation | FastH3 (`FastVideo/FastVideo-FastH3-Trim-Comfy`, `FastVideo/FastVideo-FastH3-Comfy`) / ComfyUI 0df64eb |
-| 54321 | SparklingKit | Web application and API |
+| 54321 | Sparkfire | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
 
 ### Speech recognition backend
 
-Port 8333 serves Parakeet; it replaced this fork's earlier Qwen3-ASR backend (16.5 GiB, 52 languages,
+Port 8333 serves Parakeet; it replaced the earlier Qwen3-ASR backend (16.5 GiB, 52 languages,
 kept only as a user-configurable endpoint the app can still talk to).
 
 | Model | Container | Memory | Languages |
@@ -99,15 +88,15 @@ kept only as a user-configurable endpoint the app can still talk to).
 | `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
 
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
-source for the GB10. The adapter accepts WAV only, which is what SparklingKit sends, and serves one request
+source for the GB10. The adapter accepts WAV only, which is what Sparkfire sends, and serves one request
 at a time. Parakeet returns word timestamps, from which
-SparklingKit builds one transcript line per sentence and subtitle-sized cues; Qwen3-ASR gives one line per
+Sparkfire builds one transcript line per sentence and subtitle-sized cues; Qwen3-ASR gives one line per
 chunk.
 
-Saved SparklingKit settings are never rewritten. After switching the speech service on an existing install,
+Saved Sparkfire settings are never rewritten. After switching the speech service on an existing install,
 choose `Parakeet-TDT-0.6B-v3` (or `Qwen3-ASR-1.7B`) under **Settings → Services → Speech to text**. Until then,
 transcription still works, with minute-long lines. The same holds in split mode, where
-`scripts/start-sparklingkit.sh` assumes the Parakeet id.
+`scripts/start-sparkfire.sh` assumes the Parakeet id.
 
 ### Video generation
 
@@ -119,44 +108,18 @@ and their shared text encoder and decoders download at pinned revisions, about 5
 
 The MiniMax H3 Community License covers use "worldwide, excluding" the European Union, the United Kingdom,
 South Korea and the United States, and asks that shared outputs be disclosed as machine-generated; every MP4
-carries that note in its metadata. Where the license does not apply, start the stack with
-`--video-backend none`: the service is not built, downloaded or started, and the app leaves its video
-endpoint off.
+carries that note in its metadata. Video is therefore opt-in: the stack builds, downloads and starts it only
+with `--video-backend fasth3`. Without the flag the app leaves its video endpoint off, and a restart without
+it stops a running video service.
 
 ## Operations
 
-Hosted installations include a lifecycle command in the `sparklingkit-dgx` directory:
+Update the checkout rather than replacing tracked files, then run the start script again with the options you
+installed with:
 
 ```bash
-./sparklingkit-dgx start
-./sparklingkit-dgx status
-./sparklingkit-dgx stop
-./sparklingkit-dgx version
-```
+git pull
 
-For installations created with version 0.1.4 or later, install a newer reference stack safely with:
-
-```bash
-./sparklingkit-dgx update
-```
-
-The updater downloads and verifies the current release bundle before changing local files. It backs up the previous Compose files, service adapters, and lifecycle scripts; leaves `data/` and local `.env` settings untouched; stops every model service to release unified memory; rebuilds changed adapters with refreshed base layers; pulls the pinned upstream service images; and then starts services one at a time while waiting for every health endpoint. If the refreshed services fail, the updater stops the partial stack before restoring and restarting the previous version. A durable transaction marker also lets the next `update` or `rollback` command recover the prior healthy stack after an interrupted shell, SSH disconnect, or host restart. The recovery command exits after restoring the stack so you can inspect it before running the requested change again. The manual fallback follows the same stop-first sequence:
-
-```bash
-./sparklingkit-dgx rollback
-```
-
-For version 0.1.3 and earlier, bootstrap the latest verified lifecycle manager before the first stop-first update. Run this from the existing `sparklingkit-dgx` installation directory:
-
-```bash
-curl -fsSL https://run.sparklingkit.com/dgx/stable/install.sh | bash -s -- --update --dir "$PWD"
-```
-
-Model snapshots with unchanged pinned revisions are reused. If a later stack pins a new revision, the updater downloads it without deleting the previous snapshot. Use `./sparklingkit-dgx update --skip-download` only when you intentionally want to retain the already-installed weights.
-
-For Git source checkouts, update the repository rather than replacing tracked files:
-
-```bash
 # Start and reuse existing models and image layers
 ./scripts/start-dgx-spark.sh
 
@@ -171,6 +134,9 @@ For Git source checkouts, update the repository rather than replacing tracked fi
 ./scripts/start-dgx-models.sh stop
 ```
 
+Model snapshots with unchanged pinned revisions are reused. If a later version pins a new revision, the
+script downloads it without deleting the previous snapshot.
+
 Advanced options:
 
 ```bash
@@ -184,27 +150,22 @@ Persistent files stay beneath `data/`:
 - `data/dgx-models/` — pinned publisher model snapshots;
 - `data/dgx-runtime/` — model runtime caches;
 - `data/dgx-outputs/` — native service outputs; and
-- the existing SparklingKit data directories — jobs, chats, workflows, uploads, settings, and generated artifacts.
+- the existing Sparkfire data directories — jobs, chats, workflows, uploads, settings, and generated artifacts.
 
 Docker volumes retain Redis queue state. The stop command does not remove any persistent data.
 
-Application upgrades are managed separately from model-stack upgrades. In the workspace installation directory, run:
-
-```bash
-./sparklingkit update
-```
-
-The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the model weights again.
+In a split deployment, upgrade the workspace on its own server with `git pull` and
+`./scripts/start-sparkfire.sh`. Neither script downloads the model weights again.
 
 ## Model terms
 
-SparklingKit and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
+Sparkfire and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
 
 The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app, hidden from menus and actions until a grounding endpoint is enabled in Settings, and works once it is; recheck any such model's terms when deploying, because model publishers may update them independently.
 
 ## Using different services
 
-The DGX stack is a recommended reference configuration, not a requirement. SparklingKit can connect to other local endpoints, services hosted elsewhere on a trusted network, compatible cloud APIs, or a mixture of these. For those deployments, use `scripts/start-sparklingkit.sh --configure-later` or use `compose.yaml`, copy `.env.example` to `.env`, and configure providers in onboarding or under **Settings → Services**.
+The DGX stack is a recommended reference configuration, not a requirement. Sparkfire can connect to other local endpoints, services hosted elsewhere on a trusted network, compatible cloud APIs, or a mixture of these. For those deployments, use `scripts/start-sparkfire.sh --configure-later` or use `compose.yaml`, copy `.env.example` to `.env`, and configure providers in onboarding or under **Settings → Services**.
 
 Saved settings are intentionally retained across restarts and upgrades. To move an existing installation between all-in-one, split, and custom layouts, open **Settings → General → Deployment**. The guided setup updates endpoints without deleting jobs, chats, workflows, or files.
 

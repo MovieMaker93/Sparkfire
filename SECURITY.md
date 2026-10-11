@@ -6,12 +6,12 @@ Please report security problems privately, not in public issues: use **Security 
 vulnerability** on this repository (GitHub private vulnerability reporting). Include what you found, how to
 reproduce it, and what an attacker could do with it. You should get a first reply within a week.
 
-Problems that also affect upstream SparklingKit belong with
+Sparkfire is based on SparklingKit. Problems that also affect it belong with
 [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) as well.
 
 ## Scope and assumptions
 
-SparklingKit assumes a trusted user on a trusted network: it has no built-in authentication and must not
+Sparkfire assumes a trusted user on a trusted network: it has no built-in authentication and must not
 be exposed to the internet without an authenticated proxy or VPN in front of it (see the README). Reports
 are most useful for:
 

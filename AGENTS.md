@@ -8,10 +8,12 @@ them too: they hold one person's machine-specific setup. Never copy their conten
 
 ## What this project is
 
-SparklingKit is a local-first, file-oriented AI workspace: OCR, transcription, translation, visual
-grounding, image generation, mind maps, chat and node-based workflows, behind one web UI. This repository is
-an unofficial fork of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) that adds switchable
-model backends, interface work and chat features; see `docs/fork.md`.
+Sparkfire is a local-first, file-oriented AI workspace: OCR, transcription, translation, visual
+grounding, image generation, video generation, mind maps, chat and node-based workflows, behind one web UI.
+It began as a fork of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) (Apache 2.0) and is now
+its own project; `docs/fork.md` lists what it changes and what keeps the old `sparklingkit` names on purpose.
+Keep upstream's `NOTICE` and the README credit line, and use the SparklingKit name only to say where the code
+comes from.
 
 - **The app** is one Node.js process: an Express 5 API, a React 19 single-page client, and a BullMQ worker
   backed by Redis.
@@ -43,9 +45,9 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
 | `compose.dgx.yaml` | The model services of the reference stack |
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
-| `scripts/spark-switch.sh` | Swaps the Spark between SparklingKit and another always-on LLM container |
+| `scripts/spark-switch.sh` | Swaps the Spark between Sparkfire and another always-on LLM container |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
-| `docs/` | Architecture, deployment, DGX operations, workflows, fork notes, validation results |
+| `docs/` | Architecture, deployment, DGX operations, workflows, changes from SparklingKit, validation results |
 
 ## Setup and commands
 
@@ -110,9 +112,9 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 
 ## Model services (DGX Spark reference stack)
 
-| Port | Service | Default model | Alternatives in this fork |
+| Port | Service | Default model | Alternatives |
 | --- | --- | --- | --- |
-| 54321 | SparklingKit app | | |
+| 54321 | Sparkfire app | | |
 | 8330 | System monitor | | |
 | 8332 | OCR | Unlimited-OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342): `--ocr-backend paddleocr-vl` |
 | 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
@@ -123,7 +125,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
-  stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
+  stack ships no LLM (chat and mind maps use a user-configured endpoint; the reference is Saluki in
   `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
   Settings) and idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
   ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Do not start extra models, large builds or big downloads while
@@ -134,7 +136,7 @@ Rules for this layer:
 - **Adding a model backend:** add it to the adapter's registry (for images, the `BACKENDS` dict in
   `services/dgx-models/image-generation/server.py`), add the option and its pinned download to
   `scripts/start-dgx-spark.sh`, note it in `compose.dgx.yaml`, write adapter unit tests, and document it in
-  `docs/fork.md` and the README. The fork's defaults are the ones in the table above.
+  `docs/fork.md` and the README. Sparkfire's defaults are the ones in the table above.
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
   `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. FastH3 is under the
   MiniMax H3 Community License, which excludes the EU, the UK, South Korea and the US and asks that shared
@@ -210,7 +212,7 @@ The DGX Spark is often shared with other workloads. Before starting or stopping 
 1. `npm run typecheck` and `npm test` pass, adapter
    tests pass if you touched `services/`, and the CI and Security workflows are green.
 2. New behaviour has tests; UI changes were checked in both themes at both widths.
-3. Docs are updated: `docs/fork.md` for fork features, the README for anything a user installs or sees,
+3. Docs are updated: `docs/fork.md` for what Sparkfire changes, the README for anything a user installs or sees,
    `docs/validation.md` for measured results.
 4. No personal or machine-specific details in tracked files.
 5. Commits and the PR title follow Conventional Commits and explain why.
