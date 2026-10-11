@@ -15,9 +15,7 @@ FORCE_RECREATE=false
 OCR_BACKEND="${SPARKFIRE_OCR_BACKEND:-${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}}"
 ASR_BACKEND="${SPARKFIRE_ASR_BACKEND:-${SPARKLINGKIT_ASR_BACKEND:-parakeet}}"
 IMAGE_BACKEND="${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}"
-# Video is opt-in: FastH3's license excludes the EU, the UK, South Korea and the US, so a default install
-# stays usable everywhere.
-VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-none}}"
+VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}}"
 
 usage() {
   cat <<'EOF'
@@ -37,13 +35,12 @@ Options:
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
   --asr-backend NAME       kept for compatibility: parakeet (the only ASR backend)
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
-  --video-backend NAME     none (default) or fasth3; FastH3's license does not cover the EU, the UK,
+  --video-backend NAME     fasth3 (default) or none; FastH3's license does not cover the EU, the UK,
                            South Korea or the US
   -h, --help               Show this help
 
 Examples:
   ./scripts/start-dgx-spark.sh --accept-model-licenses
-  ./scripts/start-dgx-spark.sh --accept-model-licenses --video-backend fasth3
   ./scripts/start-dgx-spark.sh --models-only --accept-model-licenses
   ./scripts/start-dgx-spark.sh status
   ./scripts/start-dgx-spark.sh stop
@@ -245,9 +242,9 @@ elif [[ ! -f "$license_marker" ]]; then
 The model weights are not covered by Sparkfire's Apache 2.0 license.
 Review the publishers' model cards before downloading. In particular,
 Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License,
-and FastH3 (video generation, only with --video-backend fasth3) uses the MiniMax H3 Community License,
-which grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the
-United States, and asks that shared videos be disclosed as machine-generated.
+and FastH3 (video generation) uses the MiniMax H3 Community License, which grants use only "worldwide,
+excluding" the European Union, the United Kingdom, South Korea and the United States, and asks that shared
+videos be disclosed as machine-generated. Use --video-backend none where it does not apply.
 EOF
   if [[ -t 0 ]]; then
     printf 'Have you reviewed and accepted the model terms? [y/N] ' >&2
