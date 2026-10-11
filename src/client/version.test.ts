@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayVersion, isNewerVersion } from "./version";
+import { displayVersion, isNewerVersion, releaseFromGitHub } from "./version";
 
 describe("application versions", () => {
   it("formats release versions consistently", () => {
@@ -18,5 +18,11 @@ describe("application versions", () => {
   it("does not suggest releases for development builds", () => {
     expect(isNewerVersion("development", "0.2.0")).toBe(false);
     expect(isNewerVersion(undefined, "0.2.0")).toBe(false);
+  });
+
+  it("reads the version from a GitHub release", () => {
+    expect(releaseFromGitHub({ tag_name: "v0.3.0", name: "v0.3.0" })).toEqual({ version: "v0.3.0" });
+    expect(() => releaseFromGitHub({ tag_name: "nightly" })).toThrow();
+    expect(() => releaseFromGitHub(null)).toThrow();
   });
 });

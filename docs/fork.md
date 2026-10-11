@@ -17,6 +17,9 @@ details. Measured results are in [`validation.md`](validation.md).
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
   thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image" (which
   returns once grounding is configured).
+- **Links to the fork.** The footer, the "Update available" check (this repository's GitHub releases, not
+  upstream's manifest) and the onboarding install command point at this fork; upstream's hosted
+  installer is no longer offered there because it installs upstream.
 - **Gallery** (`/gallery`). Every image and generated video across jobs, with source and model filters, a
   lightbox that plays videos, and a pick-two side-by-side compare.
 - **Job viewers.**

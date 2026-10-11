@@ -729,9 +729,6 @@ textarea.input { @apply text-[16px]; resize: vertical; }
 .onboarding-step h3 { @apply text-[16px] font-bold; }
 .onboarding-step p { @apply mt-1 text-[14px] leading-5 text-[var(--sk-n13)]; }
 .onboarding-connect-step { @apply mt-7; }
-.onboarding-source-tabs { @apply mt-5 inline-flex rounded-[11px] bg-[var(--sk-n4)] p-1; }
-.onboarding-source-tabs button { @apply cursor-pointer rounded-[8px] px-3.5 py-2 text-[13px] font-bold text-[var(--sk-n12)] transition hover:text-[var(--sk-n17)]; }
-.onboarding-source-tabs button.active { @apply bg-[var(--sk-n8)] text-[var(--sk-n17)]; box-shadow: 0 1px 4px rgb(0 0 0 / calc(.35 * var(--sk-shadow))); }
 .onboarding-script-note { @apply mt-3 text-[13px] leading-5 text-[var(--sk-n12)]; }
 .onboarding-host-field { @apply mt-5 block max-w-2xl text-[14px] font-bold; }
 .onboarding-host-field .input { @apply mt-2 text-[16px]; }
@@ -1615,8 +1612,6 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
   .onboarding-panel-heading { @apply gap-3; }
   .onboarding-panel-heading h2 { @apply text-[19px]; }
   .onboarding-step { @apply mt-6 pt-5; }
-  .onboarding-source-tabs { @apply flex; }
-  .onboarding-source-tabs button { @apply flex-1; }
   .onboarding-reference-checks { @apply grid-cols-1; }
   .onboarding-actions { @apply flex-wrap; }
   .onboarding-actions > span { @apply w-full flex-none; }
