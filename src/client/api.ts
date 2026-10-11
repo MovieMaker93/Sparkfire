@@ -89,6 +89,7 @@ export const api = {
   chat: (id: string) => request<Chat>(`/api/chats/${id}`),
   renameChat: (id: string, title: string) => request<Chat>(`/api/chats/${id}`, { method: "PATCH", body: JSON.stringify({ title }) }),
   deleteChat: (id: string) => request<void>(`/api/chats/${id}`, { method: "DELETE" }),
+  stopChat: (id: string) => request<void>(`/api/chats/${id}/stop`, { method: "POST" }),
   createChat: (linkedJobId?: string) => request<Chat>("/api/chats", { method: "POST", body: JSON.stringify({ linkedJobId }) }),
 };
 
@@ -191,10 +192,19 @@ export function uploadGroundingJob(file: File, queries: string[], onProgress: (v
   });
 }
 
+export interface ChatStreamHandlers {
+  /** The answer so far, sent first when the page reattaches to an answer already under way. */
+  onSnapshot?: (answer: { content: string; reasoning: string }) => void;
+  onDelta: (delta: string) => void;
+  onReasoning?: (delta: string) => void;
+  onDone: () => void;
+  onError: (message: string) => void;
+}
+
 export async function streamChat(
   chatId: string,
   content: string,
-  handlers: { onDelta: (delta: string) => void; onReasoning?: (delta: string) => void; onDone: () => void; onError: (message: string) => void },
+  handlers: ChatStreamHandlers,
   signal?: AbortSignal,
   options: { effort?: ChatEffort; attachmentIds?: string[] } = {},
 ) {
@@ -204,8 +214,24 @@ export async function streamChat(
     body: JSON.stringify({ content, ...options }),
     signal,
   });
+  if (!response.ok || !response.body) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error || `Chat request failed (${response.status})`);
+  }
+  await readChatEvents(response.body, handlers);
+}
+
+/** Follows the answer the server is still generating for a chat; false when there is none. */
+export async function resumeChatStream(chatId: string, handlers: ChatStreamHandlers, signal?: AbortSignal) {
+  const response = await fetch(`/api/chats/${chatId}/stream`, { signal });
+  if (response.status === 204) return false;
   if (!response.ok || !response.body) throw new Error(`Chat request failed (${response.status})`);
-  const reader = response.body.getReader();
+  await readChatEvents(response.body, handlers);
+  return true;
+}
+
+async function readChatEvents(body: ReadableStream<Uint8Array>, handlers: ChatStreamHandlers) {
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   while (true) {
@@ -216,7 +242,8 @@ export async function streamChat(
     for (const event of events) {
       const line = event.split("\n").find((entry) => entry.startsWith("data:"));
       if (!line) continue;
-      const payload = JSON.parse(line.slice(5).trim()) as { delta?: string; reasoning?: string; done?: boolean; error?: string };
+      const payload = JSON.parse(line.slice(5).trim()) as { snapshot?: { content: string; reasoning: string }; delta?: string; reasoning?: string; done?: boolean; error?: string };
+      if (payload.snapshot) handlers.onSnapshot?.(payload.snapshot);
       if (payload.reasoning) handlers.onReasoning?.(payload.reasoning);
       if (payload.delta) handlers.onDelta(payload.delta);
       if (payload.error) handlers.onError(payload.error);
