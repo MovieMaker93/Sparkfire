@@ -11,8 +11,7 @@ import { readFlowRun, updateFlowRun } from "./store.js";
 const terminalNodeStates = new Set(["succeeded", "failed", "skipped", "cancelled"]);
 
 async function updateFlowJob(jobId: string, patch: Omit<Partial<JobManifest>, "runs">) {
-  const current = await readJob(jobId);
-  return updateJob(jobId, { ...patch, runs: current.runs });
+  return updateJob(jobId, (current) => ({ ...patch, runs: current.runs }));
 }
 
 function unique(values: string[]) {
@@ -174,7 +173,7 @@ async function executeSave(flow: FlowRun, node: WorkflowNode, inputIds: string[]
   if (mode === "text") await fs.writeFile(destination, String(node.config.text || ""), "utf8");
   else await fs.copyFile(safeArtifactPath(flow.jobId, incoming!.path), destination);
 
-  let updated = await updateJob(flow.jobId, { outputFiles: unique([...job.outputFiles, fileName]) });
+  const updated = await updateJob(flow.jobId, (current) => ({ outputFiles: unique([...current.outputFiles, fileName]) }));
   const artifactPath = `output/${fileName}`;
   const created = updated.artifacts.find((artifact) => artifact.path === artifactPath);
   if (!created) throw new Error("The saved file could not be registered");
@@ -187,7 +186,7 @@ async function executeSave(flow: FlowRun, node: WorkflowNode, inputIds: string[]
     derivedFrom: inputIds,
     metadata: { ...created.metadata, savedByWorkflowNode: node.id, saveMode: mode },
   };
-  updated = await updateJob(flow.jobId, { artifacts: updated.artifacts.map((artifact) => artifact.id === saved.id ? saved : artifact) });
+  await updateJob(flow.jobId, (current) => ({ artifacts: current.artifacts.map((artifact) => artifact.id === saved.id ? saved : artifact) }));
   return { outputArtifactIds: [saved.id], childRunIds: [], selectedPortIds: ["output"], detail: `Saved ${fileName}` };
 }
 
@@ -236,33 +235,34 @@ async function removeTemporaryResults(flow: FlowRun) {
   for (const id of persistentIds) temporaryIds.delete(id);
   if (!temporaryIds.size) return temporaryIds;
 
-  const job = await readJob(flow.jobId);
-  const removed = new Map(job.artifacts.filter((artifact) => temporaryIds.has(artifact.id)).map((artifact) => [artifact.id, artifact]));
-  const lineage = (id: string, seen = new Set<string>()): string[] => {
-    if (seen.has(id)) return [];
-    const artifact = removed.get(id);
-    if (!artifact) return [id];
-    seen.add(id);
-    return artifact.derivedFrom.flatMap((parent) => lineage(parent, seen));
-  };
-  const remainingArtifacts = job.artifacts
-    .filter((artifact) => !temporaryIds.has(artifact.id))
-    .map((artifact) => ({ ...artifact, derivedFrom: unique(artifact.derivedFrom.flatMap((id) => lineage(id))) }));
-  const removedPaths = new Set([...removed.values()].map((artifact) => artifact.path));
-  for (const artifact of removed.values()) {
-    if (!artifact.path.startsWith("output/")) continue;
-    try { await fs.unlink(safeArtifactPath(flow.jobId, artifact.path)); } catch (error) {
-      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+  await updateJob(flow.jobId, async (job) => {
+    const removed = new Map(job.artifacts.filter((artifact) => temporaryIds.has(artifact.id)).map((artifact) => [artifact.id, artifact]));
+    const lineage = (id: string, seen = new Set<string>()): string[] => {
+      if (seen.has(id)) return [];
+      const artifact = removed.get(id);
+      if (!artifact) return [id];
+      seen.add(id);
+      return artifact.derivedFrom.flatMap((parent) => lineage(parent, seen));
+    };
+    const remainingArtifacts = job.artifacts
+      .filter((artifact) => !temporaryIds.has(artifact.id))
+      .map((artifact) => ({ ...artifact, derivedFrom: unique(artifact.derivedFrom.flatMap((id) => lineage(id))) }));
+    const removedPaths = new Set([...removed.values()].map((artifact) => artifact.path));
+    for (const artifact of removed.values()) {
+      if (!artifact.path.startsWith("output/")) continue;
+      try { await fs.unlink(safeArtifactPath(flow.jobId, artifact.path)); } catch (error) {
+        if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error;
+      }
     }
-  }
-  await updateJob(flow.jobId, {
-    artifacts: remainingArtifacts,
-    outputFiles: job.outputFiles.filter((file) => !removedPaths.has(`output/${file}`)),
-    runs: job.runs.map((run) => ({
-      ...run,
-      inputArtifactIds: unique(run.inputArtifactIds.flatMap((id) => lineage(id))),
-      outputArtifactIds: run.outputArtifactIds.filter((id) => !temporaryIds.has(id)),
-    })),
+    return {
+      artifacts: remainingArtifacts,
+      outputFiles: job.outputFiles.filter((file) => !removedPaths.has(`output/${file}`)),
+      runs: job.runs.map((run) => ({
+        ...run,
+        inputArtifactIds: unique(run.inputArtifactIds.flatMap((id) => lineage(id))),
+        outputArtifactIds: run.outputArtifactIds.filter((id) => !temporaryIds.has(id)),
+      })),
+    };
   });
   return temporaryIds;
 }
