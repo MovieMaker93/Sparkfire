@@ -1,4 +1,4 @@
-import type { ChatEffort } from "../shared/contracts";
+import type { ChatEffort, ChatToolActivity } from "../shared/contracts";
 import type { ImageCapabilities } from "./image-capabilities";
 import type { VideoCapabilities } from "./video-capabilities";
 import type { Chat, ChatAttachment, EndpointConfig, GalleryItem, EndpointHealth, EndpointKind, FlowRun, Health, Job, ModuleDescriptor, ModuleId, PromptPreset, SearchResponse, SearchScope, Settings, SparkStatus, WorkflowDefinition, WorkflowRun, WorkflowValidationResult } from "./types";
@@ -43,6 +43,8 @@ export const api = {
   testEndpoint: (kind: EndpointKind, endpoint: EndpointConfig) =>
     request<EndpointHealth>(`/api/health/${kind}`, { method: "POST", body: JSON.stringify({ endpoint }) }),
   settings: () => request<Settings>("/api/settings"),
+  testWebSearch: (webSearch: Settings["webSearch"]) =>
+    request<{ ok: boolean; latencyMs: number; results: number; error?: string }>("/api/web-search/test", { method: "POST", body: JSON.stringify({ webSearch }) }),
   saveSettings: (settings: Settings) => request<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(settings) }),
   modules: () => request<ModuleDescriptor[]>("/api/modules"),
   workflowNodes: () => request<{ services: Array<{ id: string; title: string; accepts: string[]; produces: string[]; terminal?: boolean; configured: boolean; hidden?: boolean }>; artifactKinds: string[] }>("/api/workflow-nodes"),
@@ -194,7 +196,9 @@ export function uploadGroundingJob(file: File, queries: string[], onProgress: (v
 
 export interface ChatStreamHandlers {
   /** The answer so far, sent first when the page reattaches to an answer already under way. */
-  onSnapshot?: (answer: { content: string; reasoning: string }) => void;
+  onSnapshot?: (answer: { content: string; reasoning: string; activity?: ChatToolActivity[] }) => void;
+  /** A search or page read starting or finishing; the same id arrives again with its result. */
+  onActivity?: (activity: ChatToolActivity) => void;
   onDelta: (delta: string) => void;
   onReasoning?: (delta: string) => void;
   onDone: () => void;
@@ -206,7 +210,7 @@ export async function streamChat(
   content: string,
   handlers: ChatStreamHandlers,
   signal?: AbortSignal,
-  options: { effort?: ChatEffort; attachmentIds?: string[] } = {},
+  options: { effort?: ChatEffort; attachmentIds?: string[]; webSearch?: boolean } = {},
 ) {
   const response = await fetch(`/api/chats/${chatId}/messages`, {
     method: "POST",
@@ -242,8 +246,9 @@ async function readChatEvents(body: ReadableStream<Uint8Array>, handlers: ChatSt
     for (const event of events) {
       const line = event.split("\n").find((entry) => entry.startsWith("data:"));
       if (!line) continue;
-      const payload = JSON.parse(line.slice(5).trim()) as { snapshot?: { content: string; reasoning: string }; delta?: string; reasoning?: string; done?: boolean; error?: string };
+      const payload = JSON.parse(line.slice(5).trim()) as { snapshot?: { content: string; reasoning: string; activity?: ChatToolActivity[] }; delta?: string; reasoning?: string; activity?: ChatToolActivity; done?: boolean; error?: string };
       if (payload.snapshot) handlers.onSnapshot?.(payload.snapshot);
+      if (payload.activity) handlers.onActivity?.(payload.activity);
       if (payload.reasoning) handlers.onReasoning?.(payload.reasoning);
       if (payload.delta) handlers.onDelta(payload.delta);
       if (payload.error) handlers.onError(payload.error);

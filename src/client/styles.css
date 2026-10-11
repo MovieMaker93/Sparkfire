@@ -1574,6 +1574,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .endpoint-image-generation { background: var(--sk-purple-2) !important; color: var(--sk-purple-6) !important; }
 .endpoint-video-generation { background: var(--sk-green-2) !important; color: var(--sk-green-6) !important; }
 .endpoint-system-status { background: var(--sk-n6) !important; color: var(--sk-blue-6) !important; }
+.endpoint-web-search { background: var(--sk-n6) !important; color: var(--sk-teal-6) !important; }
 
 @media (max-width: 1023px) {
   .preview-pane { min-height: 580px; }
@@ -2060,6 +2061,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 /* Chat: thinking effort under the composer, and the model's reasoning above each answer */
 .chat-composer-footer { @apply mx-auto mt-2 flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2; }
 .chat-composer-footer > p { @apply hidden text-[14px] text-muted sm:block; }
+.chat-composer-controls { @apply flex flex-wrap items-center gap-2; }
 .effort-choice { @apply items-center; }
 .effort-choice > span { @apply inline-flex items-center gap-1.5 pr-1 pl-2 text-[12px] font-bold tracking-[.04em] text-muted uppercase; }
 .effort-choice button { @apply h-7 px-2.5 text-[12px]; }
@@ -2069,6 +2071,22 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .message-reasoning summary::-webkit-details-marker { display: none; }
 .message-reasoning summary small { @apply ml-auto font-mono text-[11px] font-medium text-muted; }
 .message-reasoning > p { @apply mt-2 max-h-72 overflow-y-auto text-[14px] leading-6 whitespace-pre-wrap text-[var(--sk-n12)]; }
+
+/* Web search: what the model searched and read for an answer, and the sources it can cite */
+.message-activity { @apply mb-3 max-w-full min-w-0 rounded-[14px] border border-[var(--sk-n8)] bg-[var(--sk-n2)] px-4 py-2.5; }
+.message-activity summary { @apply flex cursor-pointer list-none items-center gap-2 text-[14px] font-semibold text-[var(--sk-n13)] select-none; }
+.message-activity summary::-webkit-details-marker { display: none; }
+.message-activity summary small { @apply ml-auto font-mono text-[11px] font-medium whitespace-nowrap text-muted; }
+.message-activity-steps { @apply mt-2 space-y-1.5; }
+.message-activity-steps li { @apply flex min-w-0 items-start gap-2 text-[14px] leading-5 text-[var(--sk-n12)]; }
+.message-activity-steps li > svg { @apply mt-0.5 shrink-0 text-muted; }
+.message-activity-steps li > span { @apply min-w-0 break-words; }
+.message-activity-steps li.error > span small { @apply block text-[12px] text-[var(--sk-red-6)]; }
+.message-sources { @apply mt-3 space-y-1.5 border-t border-[var(--sk-n7)] pt-2.5; }
+.message-sources li { @apply flex min-w-0 items-baseline gap-2 text-[14px] leading-5; }
+.message-sources li > b { @apply inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-[var(--sk-n4)] px-1 font-mono text-[11px] text-[var(--sk-n13)]; }
+.message-sources a { @apply min-w-0 truncate text-[var(--sk-n15)] underline decoration-[var(--sk-n8)] underline-offset-2 hover:decoration-[var(--sk-accent)]; }
+.message-sources small { @apply shrink-0 text-[12px] text-muted; }
 
 /* Chat attachments: the + button, chips in the composer, and files on sent messages */
 .chat-composer { flex-wrap: wrap; }

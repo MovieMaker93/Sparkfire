@@ -16,6 +16,7 @@ describe("bundled service catalog", () => {
   it("leaves a fresh installation unconfigured for first-run onboarding", () => {
     expect(defaultSettings.setup).toEqual({ completed: false, mode: "custom", onboardingVersion: 1 });
     expect(defaultSettings.systemStatus).toEqual({ baseUrl: "" });
+    expect(defaultSettings.webSearch).toEqual({ enabled: false, provider: "searxng", baseUrl: "" });
     expect(Object.values(defaultSettings.endpoints).every((endpoint) => !endpoint.baseUrl && !endpoint.enabled)).toBe(true);
   });
 });
