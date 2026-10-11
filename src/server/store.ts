@@ -103,6 +103,7 @@ export async function readSettings(): Promise<Settings> {
     schemaVersion: 2,
     setup: { ...defaultSettings.setup, ...saved.setup },
     systemStatus: { ...defaultSettings.systemStatus, ...saved.systemStatus },
+    webSearch: { ...defaultSettings.webSearch, ...saved.webSearch },
     endpoints,
     audio: { ...defaultSettings.audio, ...saved.audio },
     pdf: { ...defaultSettings.pdf, ...saved.pdf },

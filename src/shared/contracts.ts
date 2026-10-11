@@ -4,7 +4,8 @@ export type ModuleId = (typeof MODULE_IDS)[number];
 export const ENDPOINT_KINDS = ["stt", "ocr", "llm", "translation", "grounding", "image-generation", "video-generation"] as const;
 export type EndpointKind = (typeof ENDPOINT_KINDS)[number];
 
-export const MODEL_INPUT_CAPABILITIES = ["text", "image"] as const;
+/** What the configured model accepts; "tools" means it answers OpenAI-style tool calls reliably. */
+export const MODEL_INPUT_CAPABILITIES = ["text", "image", "tools"] as const;
 export type ModelInputCapability = (typeof MODEL_INPUT_CAPABILITIES)[number];
 
 export type JobKind = "audio" | "image" | "pdf" | "text";
@@ -116,6 +117,9 @@ export interface EndpointConfig {
   capabilities?: ModelInputCapability[];
 }
 
+export const WEB_SEARCH_PROVIDERS = ["searxng"] as const;
+export type WebSearchProvider = (typeof WEB_SEARCH_PROVIDERS)[number];
+
 export const DEPLOYMENT_MODES = ["all-in-one", "split", "custom"] as const;
 export type DeploymentMode = (typeof DEPLOYMENT_MODES)[number];
 
@@ -123,6 +127,8 @@ export interface Settings {
   schemaVersion: 2;
   setup: { completed: boolean; mode: DeploymentMode; onboardingVersion: number; completedAt?: string };
   systemStatus: { baseUrl: string };
+  /** A search service the chat model may query when the user turns web search on for a conversation. */
+  webSearch: { enabled: boolean; provider: WebSearchProvider; baseUrl: string };
   endpoints: Record<EndpointKind, EndpointConfig>;
   audio: {
     chunkTargetSec: number;
@@ -208,6 +214,27 @@ export interface ChatAttachment {
   pageImages?: number;
 }
 
+/** A web page the model read or found while answering, numbered as the answer cites it: [n](url). */
+export interface ChatSource {
+  n: number;
+  title: string;
+  url: string;
+}
+
+export const CHAT_TOOLS = ["web_search", "fetch_page"] as const;
+export type ChatTool = (typeof CHAT_TOOLS)[number];
+
+/** One tool call the model made while answering: a search query or a page it read. */
+export interface ChatToolActivity {
+  id: string;
+  tool: ChatTool;
+  /** The query or URL. */
+  input: string;
+  status: "running" | "done" | "error";
+  error?: string;
+  sources?: ChatSource[];
+}
+
 export interface ChatMessage {
   id: string;
   role: "system" | "user" | "assistant";
@@ -216,6 +243,8 @@ export interface ChatMessage {
   /** The model's reasoning before an assistant answer, when the server streamed it. */
   reasoning?: string;
   attachments?: ChatAttachment[];
+  /** Searches and pages behind an assistant answer. Shown with the answer, never sent back to the model. */
+  activity?: ChatToolActivity[];
 }
 
 export interface ChatRecord {
@@ -227,6 +256,8 @@ export interface ChatRecord {
   temperature: number;
   linkedJobId?: string;
   linkedArtifactIds?: string[];
+  /** The user let the model search the web in this conversation. */
+  webSearch?: boolean;
   messages: ChatMessage[];
 }
 
