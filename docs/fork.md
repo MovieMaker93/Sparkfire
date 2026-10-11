@@ -70,6 +70,29 @@ API additions:
   when it finishes, and opening the chat again picks the stream back up where it is. Stop asks the server to
   end the answer and keeps what was written so far. A chat takes one answer at a time; a second message
   while one is running is refused.
+- **Web search.** A **Web** switch under the composer lets the model search the web and read pages while it
+  answers. It is off in every conversation until turned on there, and the choice is saved with the chat.
+  - **What it needs.** A SearXNG instance (Settings → Services → Web search; `--search-backend searxng` runs
+    one on the Spark) and a model that declares **Tool calling** under Language model. `llama-server` must
+    run with `--jinja` for tool calls. Without both, the switch stays hidden.
+  - **How it works.** The model gets two tools, `web_search` (five results: title, URL, snippet) and
+    `fetch_page` (the page's main text through Readability, at most 24,000 characters). The server runs the
+    calls and sends the results back, for at most 6 rounds per answer; then the model is asked once more
+    without tools, so it answers from what it found. While web search is on, each request also carries a
+    short system note with today's date (in the configured time zone) and the citation rule; it is never
+    saved.
+  - **Sources.** They are numbered across the whole answer, and the model cites them as `[n](url)`. A
+    foldable block above the answer lists each search and page, then the numbered sources. It is saved on
+    the answer as `activity`, shows again after a reload, and is never sent back to the model: a later
+    question that needs fresh facts searches again.
+  - **Safety.** `fetch_page` reads only http and https pages of text or HTML, up to 2 MB, in 15 seconds,
+    through at most 3 redirects. It refuses any name or redirect that resolves to a loopback, private,
+    link-local or other reserved address, checked on the address it connects to, so a page cannot steer
+    the model into the local network. A failed search or page goes back to the model as an error it can
+    work around.
+  - **Privacy.** Searching sends what the conversation is about to the engines behind SearXNG (Google,
+    Bing and others), without the user's identity, and pages are fetched from the Spark. Keep the switch
+    off for conversations that must stay local.
 
 API additions:
 
@@ -81,6 +104,11 @@ API additions:
 - `GET /api/chats/:id/stream` follows the answer being generated: a `snapshot` of the text so far, then the
   same events as the message stream. It answers 204 when nothing is running.
 - `POST /api/chats/:id/stop` stops the answer being generated; the partial answer is saved.
+- `POST /api/chats/:id/messages` also accepts `webSearch` (saved on the chat) and streams `activity` events:
+  each search or page read once when it starts and again with its result or error.
+- `POST /api/web-search/test` runs a test query against the configured (or a given) SearXNG.
+- Settings gain `webSearch: { enabled, provider, baseUrl }`, seeded from `WEB_SEARCH_BASE_URL`, and the LLM
+  endpoint's capabilities may include `tools`.
 
 ## Model backends
 

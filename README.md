@@ -95,6 +95,8 @@ Visual grounding boxes every match for anything you can name, with a slider betw
 
 Attach images, PDFs or text files with the + button, choose how hard the model should think, and watch its reasoning before the answer. Any finished job can also be opened in a chat.
 
+Turn on **Web** to let the model search the web and read pages through a local SearXNG; the answer cites numbered sources and lists what it searched. It is off in each conversation until you turn it on, needs `--search-backend searxng` (or your own SearXNG URL in Settings), and a model with **Tool calling** checked in Settings (for `llama-server`, start it with `--jinja`). Searches reach the engines behind SearXNG, so keep it off for conversations that must stay local. Details in [docs/fork.md](docs/fork.md#chat).
+
 [![Attaching the report, asking for its risks with Low thinking, the live reasoning and the answer (click for the MP4)](.github/media/chat.webp)](.github/media/chat.mp4)
 
 ### Mind maps
@@ -128,6 +130,7 @@ cd Sparkfire
 - The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
 - `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). FastH3, the video model, is not licensed in the EU, the UK, South Korea or the US: add `--video-backend none` there.
 - Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only).
+- Add `--search-backend searxng` to let chat search the web through a local SearXNG (about 200 MB, no model).
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
@@ -418,10 +421,13 @@ Every provider can be enabled, edited, and tested independently. The DGX Spark r
 | 8334 | Translation | Hy-MT2-1.8B-FP8 |
 | 8336 | Image generation | Z-Image-Turbo / Diffusers |
 | 8337 | Video generation | FastH3 / ComfyUI |
+| 8338 | Web search for chat (optional, bound to 127.0.0.1) | SearXNG |
 
 The system-status service is optional. Leave its URL empty to hide the GPU/memory block without affecting service health indicators.
 
-LLM settings declare text and image input capabilities. Sparkfire uses those flags when deciding whether images can be attached to Chat or connected to LLM workflow nodes.
+LLM settings declare text and image input capabilities, and tool calling. Sparkfire uses those flags when deciding whether images can be attached to Chat or connected to LLM workflow nodes, and whether chat can offer web search.
+
+Web search (**Settings → Services → Web search**) takes the base URL of a SearXNG instance with its JSON format enabled. `compose.search.yaml` runs one with the settings in `services/searxng/`; the app reaches it as `http://searxng:8080`.
 
 Advanced settings expose machine-dependent processing controls, including transcription chunk size and overlap, adaptive splitting, request timeouts, PDF rasterization, queue concurrency, retries, and work-directory retention. Display timezone is selected separately under **Settings → General**.
 
@@ -532,7 +538,7 @@ See the server routes and [architecture documentation](docs/architecture.md) for
 
 Sparkfire currently assumes a trusted user and trusted network. It does not provide built-in authentication or multi-tenant isolation. Do not expose it directly to the public internet; place it behind an authenticated reverse proxy, VPN, or equivalent access control.
 
-Uploaded content is sent to the inference endpoints you configure. A self-hosted Sparkfire deployment is only as private as those services and the surrounding network. Review endpoint ownership, logs, retention, and transport security before processing sensitive material.
+Uploaded content is sent to the inference endpoints you configure. With web search on in a conversation, the model's search queries go to the engines behind SearXNG and the pages it reads are fetched from the server; page fetches never reach private network addresses. A self-hosted Sparkfire deployment is only as private as those services and the surrounding network. Review endpoint ownership, logs, retention, and transport security before processing sensitive material.
 
 Grounding overlays are previews, not secure redaction. A visible rectangle over an image or selectable PDF text does not remove the underlying information.
 
