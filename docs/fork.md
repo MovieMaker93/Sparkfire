@@ -42,6 +42,11 @@ API additions:
   - **Text and code files** send their text, trimmed to 60,000 characters each.
 - **Model name.** The header shows the configured LLM with a friendly name. Requests always use the
   configured model, so chats created before a model switch keep working.
+- **Answers outlive the page.** The server generates each answer on its own, not inside the browser's
+  request. Leaving the chat, switching pages or reloading no longer cuts the model off: the answer is saved
+  when it finishes, and opening the chat again picks the stream back up where it is. Stop asks the server to
+  end the answer and keeps what was written so far. A chat takes one answer at a time; a second message
+  while one is running is refused.
 
 API additions:
 
@@ -49,7 +54,10 @@ API additions:
 - `GET /api/chats/:id/attachments/:attachmentId` serves one back. Anything but images and PDFs is served as
   plain text.
 - `POST /api/chats/:id/messages` also accepts `effort` and `attachmentIds`, and streams `reasoning` events
-  next to `delta`.
+  next to `delta`. It answers 409 while the chat is still generating an answer.
+- `GET /api/chats/:id/stream` follows the answer being generated: a `snapshot` of the text so far, then the
+  same events as the message stream. It answers 204 when nothing is running.
+- `POST /api/chats/:id/stop` stops the answer being generated; the partial answer is saved.
 
 ## Model backends
 
@@ -142,7 +150,7 @@ npm run dev
 - **Unit tests** cover:
   - the image, PaddleOCR and Parakeet adapters, without a GPU
   - OCR and speech profiles, sentence and cue building, thumbnails, the gallery and the viewer helpers
-  - chat thinking options, stream parsing, and attachments
+  - chat thinking options, stream parsing, attachments, and answers that continue without the page
 - **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Parakeet TDT 0.6B v3, Qwen-Image 2.1 and its Turbo
   version, and the memory of the full stack. Results and known issues are in [`validation.md`](validation.md).
 
