@@ -9,9 +9,9 @@
   --color-sage: var(--sk-n15);
   --color-sage-dark: var(--sk-n17);
   --color-sage-pale: var(--sk-n6);
-  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Manrope Variable", "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 /* Theme tokens: an 18-step neutral ramp (n0 = canvas, n16 = ink, n17 = emphasis) plus
    tinted families for status and module colours. The light theme mirrors each step. */
