@@ -15,12 +15,14 @@ FORCE_RECREATE=false
 OCR_BACKEND="${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}"
 ASR_BACKEND="${SPARKLINGKIT_ASR_BACKEND:-parakeet}"
 IMAGE_BACKEND="${SPARKLINGKIT_IMAGE_BACKEND:-z-image}"
+VIDEO_BACKEND="${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}"
 
 usage() {
   cat <<'EOF'
 Usage: ./scripts/start-dgx-spark.sh [start|status|stop] [options]
 
-Set up and run SparklingKit's reference four-model stack on a 128 GB DGX Spark.
+Set up and run SparklingKit's reference model stack on a 128 GB DGX Spark: OCR, transcription,
+translation, image generation and video generation.
 
 Options:
   --accept-model-licenses  Confirm that you reviewed and accept each model's terms
@@ -29,10 +31,12 @@ Options:
   --skip-pull              Reuse existing pulled service images
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
-  --models-only            Run the four models and monitor without SparklingKit
+  --models-only            Run the model services and monitor without SparklingKit
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
   --asr-backend NAME       kept for compatibility: parakeet (the only ASR backend)
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
+  --video-backend NAME     fasth3 (default) or none; FastH3's license does not cover the EU, the UK,
+                           South Korea or the US
   -h, --help               Show this help
 
 Examples:
@@ -70,11 +74,12 @@ while (($#)); do
     --models-only)
       DEPLOY_APP=false
       ;;
-    --ocr-backend|--asr-backend|--image-backend)
+    --ocr-backend|--asr-backend|--image-backend|--video-backend)
       if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
       case "$1" in
         --ocr-backend) OCR_BACKEND="$2" ;;
         --asr-backend) ASR_BACKEND="$2" ;;
+        --video-backend) VIDEO_BACKEND="$2" ;;
         *) IMAGE_BACKEND="$2" ;;
       esac
       shift
@@ -112,7 +117,14 @@ case "$IMAGE_BACKEND" in
   qwen-image-2.1-turbo) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
   *) printf 'Unknown image backend: %s (use z-image, qwen-image-2.1 or qwen-image-2.1-turbo)\n' "$IMAGE_BACKEND" >&2; exit 2 ;;
 esac
-export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_ASR_BACKEND="$ASR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND"
+# Without a video service, the app's video endpoint and the monitor's video port stay empty, so neither
+# reports the service as missing.
+case "$VIDEO_BACKEND" in
+  fasth3) export SPARKLINGKIT_VIDEO_BASE_URL="http://host.docker.internal:8337/v1" SPARKLINGKIT_VIDEO_PORT="8337" ;;
+  none) export SPARKLINGKIT_VIDEO_BASE_URL="" SPARKLINGKIT_VIDEO_PORT="" ;;
+  *) printf 'Unknown video backend: %s (use fasth3 or none)\n' "$VIDEO_BACKEND" >&2; exit 2 ;;
+esac
+export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_ASR_BACKEND="$ASR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKLINGKIT_VIDEO_BACKEND="$VIDEO_BACKEND"
 
 COMPOSE=(
   docker compose
@@ -167,7 +179,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image dgx-status
+    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -191,6 +203,9 @@ show_status() {
   endpoint_status "Transcription" "http://127.0.0.1:8333/health"
   endpoint_status "Translation" "http://127.0.0.1:8334/health"
   endpoint_status "Image generation" "http://127.0.0.1:8336/health"
+  if [[ "$VIDEO_BACKEND" != "none" ]]; then
+    endpoint_status "Video generation" "http://127.0.0.1:8337/health"
+  fi
   if [[ "$DEPLOY_APP" == "true" ]]; then
     endpoint_status "SparklingKit" "http://127.0.0.1:54321/api/health"
   fi
@@ -223,8 +238,11 @@ if [[ "$ACCEPT_MODEL_LICENSES" == "true" ]]; then
 elif [[ ! -f "$license_marker" ]]; then
   cat >&2 <<'EOF'
 The model weights are not covered by SparklingKit's Apache 2.0 license.
-Review the four publishers' model cards before downloading. In particular,
-Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License.
+Review the publishers' model cards before downloading. In particular,
+Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License,
+and FastH3 (video generation) uses the MiniMax H3 Community License, which grants use only "worldwide,
+excluding" the European Union, the United Kingdom, South Korea and the United States, and asks that shared
+videos be disclosed as machine-generated. Use --video-backend none where it does not apply.
 EOF
   if [[ -t 0 ]]; then
     printf 'Have you reviewed and accepted the model terms? [y/N] ' >&2
@@ -244,6 +262,7 @@ fi
 if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding SparklingKit and DGX service images...\n'
   build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 z-image dgx-status)
+  if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then build_targets+=(video-generation); fi
   if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
@@ -261,17 +280,18 @@ download_model() {
   local repository="$1"
   local revision="$2"
   local destination="$3"
-  local include="${4:-}"
+  local includes=("${@:4}")
   local completion_marker="$model_root/$destination/.sparklingkit-$revision.complete"
   local include_args=()
+  local file
 
   if [[ -f "$completion_marker" ]]; then
     printf 'Using existing %-34s %s\n' "$repository" "$revision"
     return
   fi
 
-  # A repository that ships several variants (GGUF files) is fetched for one file only.
-  if [[ -n "$include" ]]; then include_args=(--include "$include"); fi
+  # A repository that ships several variants (GGUF files, precisions) is fetched for the listed files only.
+  if ((${#includes[@]})); then include_args=(--include "${includes[@]}"); fi
 
   printf 'Downloading %-34s %s\n' "$repository" "$revision"
   mkdir -p "$model_root/$destination"
@@ -284,8 +304,14 @@ download_model() {
     "${include_args[@]}" \
     --max-workers 8
 
-  if [[ ! -s "$model_root/$destination/config.json" && ! -s "$model_root/$destination/model_index.json" ]] \
-    && ! compgen -G "$model_root/$destination/*.gguf" >/dev/null; then
+  if ((${#includes[@]})); then
+    for file in "${includes[@]}"; do
+      if [[ ! -s "$model_root/$destination/$file" ]]; then
+        printf 'Download validation failed for %s: %s is missing\n' "$repository" "$file" >&2
+        exit 1
+      fi
+    done
+  elif [[ ! -s "$model_root/$destination/config.json" && ! -s "$model_root/$destination/model_index.json" ]]; then
     printf 'Download validation failed for %s: no model configuration found\n' "$repository" >&2
     exit 1
   fi
@@ -330,6 +356,22 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
       "f332072aa78be7aecdf3ee76d5c247082da564a6" \
       "Tongyi-MAI/Z-Image-Turbo"
   fi
+  if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
+    # FastH3 Trim (Fast) with the text encoder and decoders both variants share, then the V2 model (Sharp).
+    download_model \
+      "FastVideo/FastVideo-FastH3-Trim-Comfy" \
+      "f66c13dc17391dd4da99242a407918b92bf7d5fc" \
+      "FastVideo/FastVideo-FastH3-Trim-Comfy" \
+      "diffusion_models/fastvideo_fasth3_trim_8step_nvfp4.safetensors" \
+      "text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors" \
+      "vae/minimax_h3_video_vae_int8_convrot.safetensors" \
+      "vae/minimax_h3_audio_vae_fp32.safetensors"
+    download_model \
+      "FastVideo/FastVideo-FastH3-Comfy" \
+      "ec1e3aa374a91c57b0b94a1623b7e657c0498cf2" \
+      "FastVideo/FastVideo-FastH3-Comfy" \
+      "diffusion_models/fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"
+  fi
 fi
 
 wait_for_endpoint() {
@@ -369,7 +411,7 @@ start_service() {
 }
 
 retire_old_containers remove
-printf '\nStarting the four models sequentially...\n'
+printf '\nStarting the models sequentially...\n'
 start_service "$ASR_SERVICE" "Transcription" "$ASR_READY_URL" 600
 if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
   "${COMPOSE[@]}" stop unlimited-ocr
@@ -381,6 +423,12 @@ else
 fi
 start_service hy-mt2 "Translation" "http://127.0.0.1:8334/health" 600
 start_service z-image "Image generation ($IMAGE_BACKEND)" "http://127.0.0.1:8336/health" 1800
+# Video loads nothing until its first job, so it adds no loading peak here.
+if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
+  start_service video-generation "Video generation (FastH3)" "http://127.0.0.1:8337/health" 600
+else
+  "${COMPOSE[@]}" stop video-generation
+fi
 start_service dgx-status "System status" "http://127.0.0.1:8330/health" 120
 
 if [[ "$DEPLOY_APP" == "true" ]]; then

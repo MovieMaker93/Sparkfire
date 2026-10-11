@@ -11,10 +11,13 @@ details. Measured results are in [`validation.md`](validation.md).
   accent (`--sk-accent`).
 - **Sidebar.** One "AI services" chip with a popover replaces the per-service status rows. The Spark monitor
   expands on click.
+- **Optional tools.** Grounding, whose service the stack does not ship, stays out of the sidebar, the Tools
+  page, search, Continue with actions, the Workbench filters, the workflow palette and the services chip
+  until a grounding endpoint is enabled. Settings → Services always lists it.
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
   and thumbnails in Recent.
-- **Gallery** (`/gallery`). Every image across jobs, with source and model filters, a lightbox, and a
-  pick-two side-by-side compare.
+- **Gallery** (`/gallery`). Every image and generated video across jobs, with source and model filters, a
+  lightbox that plays videos, and a pick-two side-by-side compare.
 - **Job viewers.**
   - Transcripts as timed lines, one per sentence with Parakeet, that seek the player.
   - Images with zoom, pan and a before/after slider for grounding results.
@@ -25,8 +28,10 @@ API additions:
 
 - `GET /api/jobs/:id/thumbnails/:artifactId?w=160|320|640` returns cached WebP previews of images, video
   frames and PDF first pages.
-- `GET /api/gallery?source=&model=&offset=&limit=` lists images across jobs.
+- `GET /api/gallery?source=&model=&offset=&limit=` lists images and generated videos across jobs.
 - `GET /api/modules/text-to-image/capabilities` returns the sizes and step limits of the active image model.
+- `GET /api/modules/text-to-video/capabilities` and `POST /api/modules/text-to-video/jobs` (multipart, with an
+  optional `firstFrame` image): see [Video generation](#video-generation-fasth3).
 
 ## Chat
 
@@ -65,8 +70,9 @@ The DGX stack drops upstream's bundled Qwen3.6 LLM: chat, mind maps and summarie
 OpenAI-compatible endpoint configured in Settings (this fork runs Saluki 27B in `llama-server`; an
 `--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
 from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
-grounding endpoint is configured in Settings). Of the four bundled services, OCR and images keep
-upstream's defaults and speech is Parakeet only; two can be switched at deploy time:
+grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
+defaults, speech is Parakeet only, and video generation is this fork's own; three can be switched at deploy
+time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
@@ -74,6 +80,7 @@ upstream's defaults and speech is Parakeet only; two can be switched at deploy t
 | Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) | | |
 | Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
+| Video (:8337) | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US) | none | `--video-backend none` |
 
 ```bash
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
@@ -124,6 +131,38 @@ speaks its API for a user-configured endpoint.
 - **System monitor.** `services/dgx-status` reads `ASR_MODEL_NAME` (default `Parakeet-TDT-0.6B-v3`) to
   label the engine's GPU process.
 
+## Video generation: FastH3
+
+The Text to video module makes a short video with its own sound track from a prompt, and can start from an
+image: upload one in the form, or hand over an image result with **Continue with → Create video**, which also
+prefills the prompt that made the image. Videos are `generated-video` artifacts with lineage, play on the job
+page and in the Gallery, and can be a workflow node.
+
+- **Model.** FastH3, FastVideo's 8-step distill of MiniMax H3, in two variants that share the Qwen3-VL-32B
+  NVFP4 text encoder and the video and audio decoders (about 53 GB in all):
+  - **Fast:** FastH3 Trim, NVFP4 (`FastVideo/FastVideo-FastH3-Trim-Comfy`).
+  - **Sharp:** FastH3 V2 pruned, int8 (`FastVideo/FastVideo-FastH3-Comfy`): about twice as slow, sharper.
+  - Sizes 864 × 480, 1280 × 736 and 1344 × 768; 5 or 8 seconds at 24 fps; H.264 video with AAC sound.
+  - Optional sound and music fields go into the model's own prompt sections (`overall_soundscape`,
+    `non_diegetic_music`).
+- **Service.** `sparklingkit-video-generation` on :8337 runs ComfyUI at a pinned commit on 127.0.0.1:8347,
+  behind a FastAPI adapter, because no diffusers release loads FastH3 yet ([ADR 0002](adr/0002-video-service-comfyui.md)).
+  - The adapter writes FastVideo's official FastH3 graphs with the requested values and returns the MP4 as
+    the response body; the app streams it to disk.
+  - Nothing loads until the first job. The weights are freed after `VIDEO_IDLE_UNLOAD_SECONDS` (default
+    600) without a job, and before a job that needs the other variant, so only one diffusion model is ever
+    resident. `POST /v1/unload` frees them at once.
+  - Identical requests (prompt, seed and settings) return ComfyUI's cached result at once.
+- **Disclosure.** The MiniMax H3 license asks that shared outputs be disclosed as machine-generated. Every
+  MP4 carries the comment "AI-generated with MiniMax H3 (FastH3)", and the job page and the form show it.
+  Commercial products built on it must also display "MiniMax H3".
+- **Territory.** The license grants use only "worldwide, excluding" the European Union, the United Kingdom,
+  South Korea and the United States. Deploy with `--video-backend none` there; onboarding then verifies the
+  stack without video. LTX-2.5 (Lightricks, LTX-2.x Community License, worldwide) also makes video with sound
+  and has official ComfyUI support, so it is the candidate for a second backend in the adapter's registry.
+- **Updating an existing install.** The start script builds the service and downloads both checkpoint sets
+  at pinned revisions. Saved settings gain the video endpoint automatically when it was empty.
+
 ## Sharing the Spark with another LLM
 
 `scripts/spark-switch.sh` swaps between an always-on LLM container and SparklingKit's stack. It checks
@@ -148,11 +187,11 @@ npm run dev
 ## Status
 
 - **Unit tests** cover:
-  - the image, PaddleOCR and Parakeet adapters, without a GPU
+  - the image, PaddleOCR, Parakeet and video adapters, without a GPU
   - OCR and speech profiles, sentence and cue building, thumbnails, the gallery and the viewer helpers
   - chat thinking options, stream parsing, attachments, and answers that continue without the page
 - **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Parakeet TDT 0.6B v3, Qwen-Image 2.1 and its Turbo
-  version, and the memory of the full stack. Results and known issues are in [`validation.md`](validation.md).
+  version, FastH3 video through the service, and the memory of the full stack. Results and known issues are in [`validation.md`](validation.md).
 
 ## Roadmap
 

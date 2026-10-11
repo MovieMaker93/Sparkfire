@@ -10,6 +10,8 @@ export interface ModuleContract extends Omit<ModuleDescriptor, "actions" | "conf
   actionLabel: string;
   actionDescription: string;
   allowSelfHandoff?: boolean;
+  /** For modules whose service the reference stack does not ship: shown only once an endpoint is configured. */
+  hiddenUntilConfigured?: boolean;
 }
 
 const textResults: ArtifactKind[] = ["document", "transcript", "translation", "redacted-document", "text"];
@@ -87,6 +89,7 @@ export const MODULE_CONTRACTS: readonly ModuleContract[] = [
     actionLabel: "Find in image",
     actionDescription: "Locate and frame something in this image",
     implementation: "ready",
+    hiddenUntilConfigured: true,
   },
   {
     id: "text-to-image",
@@ -101,6 +104,22 @@ export const MODULE_CONTRACTS: readonly ModuleContract[] = [
     handoff: { mode: "workflow", workflows: [{ workflowId: "text-to-image.default", accepts: textResults }], maxInputs: 1 },
     actionLabel: "Create image",
     actionDescription: "Use this text as an editable image prompt",
+    implementation: "ready",
+  },
+  {
+    id: "text-to-video",
+    title: "Text to video",
+    shortTitle: "Video",
+    description: "Create a short video with sound from a description, optionally starting from an image.",
+    icon: "film",
+    route: "/tools/text-to-video",
+    providerKind: "video-generation",
+    // Text becomes the prompt; an image becomes the first frame.
+    accepts: [...textResults, ...imageResults],
+    produces: ["generated-video"],
+    handoff: { mode: "workflow", workflows: [{ workflowId: "text-to-video.default", accepts: [...textResults, ...imageResults] }], maxInputs: 1 },
+    actionLabel: "Create video",
+    actionDescription: "Use this as the prompt or the first frame of a video",
     implementation: "ready",
   },
   {

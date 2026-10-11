@@ -3,7 +3,8 @@ import path from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { ARTIFACT_KINDS, WORKFLOW_NODE_TYPES, type JobKind, type JobManifest, type WorkflowDefinition } from "../../shared/contracts.js";
+import { ARTIFACT_KINDS, WORKFLOW_NODE_TYPES, type JobKind, type JobManifest, type ModuleId, type WorkflowDefinition } from "../../shared/contracts.js";
+import { getModuleContract } from "../../shared/module-router.js";
 import { createStarterWorkflow, validateWorkflowDefinition, workflowServiceContracts } from "../../shared/workflows.js";
 import { DATA_DIR } from "../config.js";
 import { enqueueFlowRun, stopFlowWork } from "../queue.js";
@@ -72,13 +73,19 @@ async function updateFlowJob(jobId: string, patch: Omit<Partial<JobManifest>, "r
   return updateJob(jobId, { ...patch, runs: current.runs });
 }
 
+// The endpoint a workflow service runs on: the LLM for prompts and chats, else its module's provider.
+function serviceProviderKind(serviceId: string) {
+  if (serviceId === "llm-prompt" || serviceId === "chat") return "llm";
+  return getModuleContract(serviceId as ModuleId)?.providerKind || serviceId;
+}
+
 async function validation(definition: WorkflowDefinition) {
   const settings = await readSettings();
   const result = validateWorkflowDefinition(definition, settings.endpoints.llm.capabilities || ["text"]);
   const serviceWarnings = definition.nodes.flatMap((node) => {
     if (node.type !== "module") return [];
     const serviceId = String(node.config.moduleId || "");
-    const providerKind = serviceId === "llm-prompt" || serviceId === "chat" ? "llm" : serviceId === "text-to-image" ? "image-generation" : serviceId === "transcription" ? "stt" : serviceId;
+    const providerKind = serviceProviderKind(serviceId);
     const endpoint = settings.endpoints[providerKind as keyof typeof settings.endpoints];
     return endpoint?.enabled && endpoint.baseUrl && endpoint.model ? [] : [{ level: "warning" as const, code: "service-unavailable", message: `${serviceId} is not configured on this machine`, nodeId: node.id }];
   });
@@ -88,9 +95,10 @@ async function validation(definition: WorkflowDefinition) {
 router.get("/workflow-nodes", async (_request, response) => {
   const settings = await readSettings();
   const services = workflowServiceContracts(settings.endpoints.llm.capabilities || ["text"]).map((contract) => {
-    const providerKind = contract.id === "llm-prompt" || contract.id === "chat" ? "llm" : contract.id === "text-to-image" ? "image-generation" : contract.id === "transcription" ? "stt" : contract.id;
+    const providerKind = serviceProviderKind(contract.id);
     const endpoint = settings.endpoints[providerKind as keyof typeof settings.endpoints];
-    return { ...contract, configured: Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model) };
+    const configured = Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model);
+    return { ...contract, configured, hidden: Boolean(!configured && getModuleContract(contract.id as ModuleId)?.hiddenUntilConfigured) };
   });
   response.json({ services, artifactKinds: ARTIFACT_KINDS });
 });

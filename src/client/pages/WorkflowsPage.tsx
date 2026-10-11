@@ -25,6 +25,7 @@ import {
   Combine,
   FileInput,
   FileText,
+  Film,
   GitBranch,
   Image as ImageIcon,
   Languages,
@@ -44,6 +45,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { cn, timeAgo } from "../components/ui";
 import { SearchSelect } from "../components/SearchSelect";
+import { useVideoCapabilities } from "../video-capabilities";
 import { useToast } from "../components/ToastProvider";
 import { RunWorkflowDialog } from "../components/RunWorkflowDialog";
 import {
@@ -63,7 +65,7 @@ import {
   nodeTitle,
 } from "../../shared/workflows";
 
-type ServiceCatalogItem = { id: WorkflowServiceId; title: string; accepts: ArtifactKind[]; produces: ArtifactKind[]; terminal?: boolean; configured: boolean };
+type ServiceCatalogItem = { id: WorkflowServiceId; title: string; accepts: ArtifactKind[]; produces: ArtifactKind[]; terminal?: boolean; configured: boolean; hidden?: boolean };
 type CanvasNode = Node<{ workflowNode: WorkflowNode }, "workflow">;
 
 const serviceIcons: Record<WorkflowServiceId, typeof ScanText> = {
@@ -72,6 +74,7 @@ const serviceIcons: Record<WorkflowServiceId, typeof ScanText> = {
   translation: Languages,
   grounding: ScanSearch,
   "text-to-image": ImageIcon,
+  "text-to-video": Film,
   mindmap: Network,
   "llm-prompt": Bot,
   chat: MessageCircle,
@@ -255,6 +258,7 @@ export function WorkflowEditorPage() {
       const params = serviceId === "translation" ? { sourceLanguage: "auto-detect", targetLanguage: "Traditional Chinese" }
         : serviceId === "grounding" ? { queries: ["object to find"] }
           : serviceId === "text-to-image" ? { prompt: "", size: "1024x1024" }
+          : serviceId === "text-to-video" ? { prompt: "", size: "864x480", duration: 5 }
             : serviceId === "mindmap" ? { instructions: "", depth: 4, breadth: 5 }
               : serviceId === "llm-prompt" ? { prompt: "Summarize the supplied material into clear Markdown.", temperature: 0.2, maxTokens: 8192 }
               : {};
@@ -367,7 +371,7 @@ function MultiNodeInspector({ count, onArrange, onDelete }: { count: number; onA
 }
 
 function NodePalette({ definition, services, open, onClose, onAdd, onDrag }: { definition: WorkflowDefinition; services: ServiceCatalogItem[]; open: boolean; onClose: () => void; onAdd: (type: WorkflowNodeType, serviceId?: WorkflowServiceId) => void; onDrag: (event: DragEvent, type: WorkflowNodeType, serviceId?: WorkflowServiceId) => void }) {
-  return <aside className={cn("workflow-palette", open && "open")}><header><strong>Nodes</strong><button onClick={onClose} aria-label="Close node palette"><X size={18} /></button></header><section><h2>Services</h2>{services.map((service) => { const Icon = serviceIcons[service.id]; return <button draggable onDragStart={(event) => onDrag(event, "module", service.id)} onClick={() => onAdd("module", service.id)} key={service.id}><Icon size={18} /><span><strong>{service.title}</strong><small>{service.configured ? "Ready" : "Not configured"}</small></span><i className={service.configured ? "online" : ""} /></button>; })}</section><section><h2>Logic</h2>{genericNodes.map((item) => <button draggable={item.type !== "input" || !definition.nodes.some((node) => node.type === "input")} disabled={item.type === "input" && definition.nodes.some((node) => node.type === "input")} onDragStart={(event) => onDrag(event, item.type)} onClick={() => onAdd(item.type)} key={item.type}><item.icon size={18} /><span><strong>{item.title}</strong><small>{item.type === "input" ? "One per workflow" : item.type === "save" ? "Storage" : item.type === "end" || item.type === "fail" ? "Terminal" : "Routing"}</small></span></button>)}</section></aside>;
+  return <aside className={cn("workflow-palette", open && "open")}><header><strong>Nodes</strong><button onClick={onClose} aria-label="Close node palette"><X size={18} /></button></header><section><h2>Services</h2>{services.filter((service) => !service.hidden).map((service) => { const Icon = serviceIcons[service.id]; return <button draggable onDragStart={(event) => onDrag(event, "module", service.id)} onClick={() => onAdd("module", service.id)} key={service.id}><Icon size={18} /><span><strong>{service.title}</strong><small>{service.configured ? "Ready" : "Not configured"}</small></span><i className={service.configured ? "online" : ""} /></button>; })}</section><section><h2>Logic</h2>{genericNodes.map((item) => <button draggable={item.type !== "input" || !definition.nodes.some((node) => node.type === "input")} disabled={item.type === "input" && definition.nodes.some((node) => node.type === "input")} onDragStart={(event) => onDrag(event, item.type)} onClick={() => onAdd(item.type)} key={item.type}><item.icon size={18} /><span><strong>{item.title}</strong><small>{item.type === "input" ? "One per workflow" : item.type === "save" ? "Storage" : item.type === "end" || item.type === "fail" ? "Terminal" : "Routing"}</small></span></button>)}</section></aside>;
 }
 
 function NodeInspector({ node, definition, onChange, onDelete, onDeleteWorkflow }: { node?: WorkflowNode; definition: WorkflowDefinition; onChange: (node: WorkflowNode) => void; onDelete: (node: WorkflowNode) => void; onDeleteWorkflow: () => void }) {
@@ -385,9 +389,10 @@ function NodeInspector({ node, definition, onChange, onDelete, onDeleteWorkflow 
       {serviceId === "translation" && <><label>Source language<input className="input" value={String(params.sourceLanguage || "auto-detect")} onChange={(event) => updateParams({ sourceLanguage: event.target.value })} /></label><label>Target language<input className="input" value={String(params.targetLanguage || "")} onChange={(event) => updateParams({ targetLanguage: event.target.value })} /></label></>}
       {serviceId === "grounding" && <label>Queries<textarea className="input" rows={6} value={Array.isArray(params.queries) ? params.queries.join("\n") : ""} onChange={(event) => updateParams({ queries: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0, 12) })} placeholder="One thing per line" /></label>}
       {serviceId === "text-to-image" && <><label>Prompt<textarea className="input" rows={5} value={String(params.prompt || "")} onChange={(event) => updateParams({ prompt: event.target.value })} placeholder="Leave blank to use incoming text" /></label><label>Canvas<SearchSelect className="workflow-inspector-select" value={String(params.size || "1024x1024")} onChange={(size) => updateParams({ size })} options={[{ value: "1024x1024", label: "Square" }, { value: "1536x1024", label: "Landscape" }, { value: "1024x1536", label: "Portrait" }]} searchPlaceholder="Search canvas sizes" ariaLabel="Canvas size" /></label></>}
+      {serviceId === "text-to-video" && <VideoNodeFields params={params} updateParams={updateParams} />}
       {serviceId === "mindmap" && <><label>Focus<textarea className="input" rows={5} value={String(params.instructions || "")} onChange={(event) => updateParams({ instructions: event.target.value })} placeholder="Optional guidance for organizing the map" /></label><label>Levels<SearchSelect className="workflow-inspector-select" value={String(params.depth || 4)} onChange={(depth) => updateParams({ depth: Number(depth) })} options={[3, 4, 5, 6].map((value) => ({ value: String(value), label: `${value} levels` }))} searchPlaceholder="Search depth" ariaLabel="Mind map levels" /></label><label>Branches<SearchSelect className="workflow-inspector-select" value={String(params.breadth || 5)} onChange={(breadth) => updateParams({ breadth: Number(breadth) })} options={[3, 5, 7].map((value) => ({ value: String(value), label: `Up to ${value} per node` }))} searchPlaceholder="Search breadth" ariaLabel="Mind map branches" /></label></>}
       {serviceId === "llm-prompt" && <><label>Instruction<textarea className="input" rows={6} value={String(params.prompt || "")} onChange={(event) => updateParams({ prompt: event.target.value })} /></label><label>System instruction<textarea className="input" rows={4} value={String(params.systemPrompt || "")} onChange={(event) => updateParams({ systemPrompt: event.target.value })} placeholder="Optional" /></label><label>Temperature<input className="input" type="number" min={0} max={2} step={0.1} value={Number(params.temperature ?? 0.2)} onChange={(event) => updateParams({ temperature: Number(event.target.value) })} /></label></>}
-      {!["translation", "grounding", "text-to-image", "mindmap", "llm-prompt"].includes(serviceId || "") && <p className="workflow-inspector-note">This node uses the service defaults from Settings.</p>}
+      {!["translation", "grounding", "text-to-image", "text-to-video", "mindmap", "llm-prompt"].includes(serviceId || "") && <p className="workflow-inspector-note">This node uses the service defaults from Settings.</p>}
     </InspectorSection>}
     {node.type === "module" && serviceId !== "chat" && <InspectorSection title="Result">
       <label className="workflow-check-row"><input type="checkbox" checked={config.storeResult !== false} onChange={(event) => updateConfig({ storeResult: event.target.checked })} />Store the result</label>
@@ -438,4 +443,15 @@ function PredicateEditor({ value, onChange }: { value: Record<string, unknown>; 
 
 function SwitchEditor({ cases, onChange }: { cases: Array<Record<string, unknown>>; onChange: (cases: Array<Record<string, unknown>>) => void }) {
   return <div className="switch-editor">{cases.map((item, index) => { const predicate = item.predicate as Record<string, unknown> | undefined; return <div key={String(item.id)}><SearchSelect className="workflow-inspector-select" value={String(predicate?.value || "document")} onChange={(kind) => onChange(cases.map((candidate, candidateIndex) => candidateIndex === index ? { ...candidate, id: kind, label: kind, predicate: { fact: "artifact.kind", operator: "equal", value: kind } } : candidate))} options={ARTIFACT_KINDS.map((kind) => ({ value: kind, label: kind.replaceAll("-", " ") }))} searchPlaceholder="Search artifact types" ariaLabel="Switch artifact type" /><button onClick={() => onChange(cases.filter((_, candidateIndex) => candidateIndex !== index))} aria-label="Remove case"><X size={15} /></button></div>; })}<button className="button-secondary" onClick={() => { const kind = ARTIFACT_KINDS.find((candidate) => !cases.some((item) => (item.predicate as Record<string, unknown>)?.value === candidate)) || "text"; onChange([...cases, { id: kind, label: kind, predicate: { fact: "artifact.kind", operator: "equal", value: kind } }]); }}><Plus size={15} />Add case</button><small>An unmatched artifact follows the default port.</small></div>;
+}
+
+/** A video node's settings, offered from what the configured video service reports. */
+function VideoNodeFields({ params, updateParams }: { params: Record<string, unknown>; updateParams: (patch: Record<string, unknown>) => void }) {
+  const capabilities = useVideoCapabilities();
+  return <>
+    <label>Prompt<textarea className="input" rows={5} value={String(params.prompt || "")} onChange={(event) => updateParams({ prompt: event.target.value })} placeholder="Leave blank to use incoming text, or the prompt behind an incoming image" /></label>
+    <label>Size<SearchSelect className="workflow-inspector-select" value={String(params.size || capabilities.sizes[0].value)} onChange={(size) => updateParams({ size })} options={capabilities.sizes.map((size) => ({ value: size.value, label: `${size.label} · ${size.value.replace("x", " × ")}` }))} searchPlaceholder="Search sizes" ariaLabel="Video size" /></label>
+    <label>Length<SearchSelect className="workflow-inspector-select" value={String(params.duration || capabilities.durations[0])} onChange={(duration) => updateParams({ duration: Number(duration) })} options={capabilities.durations.map((seconds) => ({ value: String(seconds), label: `${seconds} seconds` }))} searchPlaceholder="Search lengths" ariaLabel="Video length" /></label>
+    {capabilities.variants.length > 0 && <label>Quality<SearchSelect className="workflow-inspector-select" value={String(params.variant || capabilities.defaultVariant || capabilities.variants[0].id)} onChange={(variant) => updateParams({ variant })} options={capabilities.variants.map((variant) => ({ value: variant.id, label: variant.label }))} searchPlaceholder="Search quality" ariaLabel="Video quality" /></label>}
+  </>;
 }
