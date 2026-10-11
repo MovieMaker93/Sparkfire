@@ -208,7 +208,7 @@ describe("v2 workflow architecture", () => {
         requestBody = Buffer.concat(chunks).toString("utf8");
         response.setHeader("Content-Type", "application/json");
         response.end(JSON.stringify({
-          answer: "<ref>SparklingKit</ref><box><30><40><400><120></box>",
+          answer: "<ref>Sparkfire</ref><box><30><40><400><120></box>",
           image_width: 640,
           image_height: 480,
           boxes: [{ x1: 19.2, y1: 19.2, x2: 256, y2: 57.6 }],
@@ -244,21 +244,21 @@ describe("v2 workflow architecture", () => {
       buffer: Buffer.alloc(0),
       stream: undefined,
     } as unknown as Express.Multer.File;
-    const created = await store.createGroundingJob([upload], ["SparklingKit"]);
+    const created = await store.createGroundingJob([upload], ["Sparkfire"]);
     const processor = await import("./processor.js");
     await processor.processRun(created.id, created.runs[0].id);
 
     const completed = await store.readJob(created.id);
     expect(requestUrl).toBe("/predict-upload");
     expect(requestBody).toContain("ground_text");
-    expect(requestBody).toContain("SparklingKit");
+    expect(requestBody).toContain("Sparkfire");
     expect(completed.status).toBe("done");
     expect(completed.moduleId).toBe("grounding");
     expect(completed.outputFiles).toEqual(["grounding-preview.svg", "grounding.annotations.json"]);
     expect(completed.artifacts.map((artifact) => artifact.kind)).toEqual(["source-image", "grounded-image", "annotations"]);
     const preview = await fs.readFile(path.join(store.jobDir(created.id), "output", "grounding-preview.svg"), "utf8");
     expect(preview).toContain("<rect");
-    expect(preview).toContain("SparklingKit");
+    expect(preview).toContain("Sparkfire");
     const annotations = JSON.parse(await fs.readFile(path.join(store.jobDir(created.id), "output", "grounding.annotations.json"), "utf8"));
     expect(annotations.queries[0].boxes[0]).toEqual({ x1: 19.2, y1: 19.2, x2: 256, y2: 57.6 });
   });
@@ -317,7 +317,7 @@ describe("v2 workflow architecture", () => {
         response.setHeader("Content-Type", "application/json");
         response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({
           title: "Local AI workspace",
-          root: { label: "SparklingKit", note: "A file-oriented workspace", children: [
+          root: { label: "Sparkfire", note: "A file-oriented workspace", children: [
             { label: "Tools", children: [{ label: "OCR", children: [] }, { label: "Transcription", children: [] }] },
             { label: "Workflows", children: [] },
           ] },
@@ -332,7 +332,7 @@ describe("v2 workflow architecture", () => {
     await store.initializeData();
     const settings = await store.readSettings();
     await store.writeSettings({ ...settings, endpoints: { ...settings.endpoints, llm: { enabled: true, baseUrl: `http://127.0.0.1:${address.port}/v1`, model: "mind-map-model", apiKey: "", capabilities: ["text"] } } });
-    const created = await store.createMindMapJob("Explain the SparklingKit workspace", { depth: 4, breadth: 5 });
+    const created = await store.createMindMapJob("Explain the Sparkfire workspace", { depth: 4, breadth: 5 });
     const processor = await import("./processor.js");
     await processor.processRun(created.id, created.runs[0].id);
 
@@ -342,7 +342,7 @@ describe("v2 workflow architecture", () => {
     expect(completed.outputFiles).toEqual(["mindmap.json", "mindmap-outline.md"]);
     expect(completed.artifacts.map((artifact) => artifact.kind)).toEqual(["text", "mindmap", "document"]);
     const mindmap = JSON.parse(await fs.readFile(store.safeOutputPath(created.id, "mindmap.json"), "utf8"));
-    expect(mindmap).toMatchObject({ version: 1, title: "Local AI workspace", root: { id: "node-1", label: "SparklingKit" } });
+    expect(mindmap).toMatchObject({ version: 1, title: "Local AI workspace", root: { id: "node-1", label: "Sparkfire" } });
     expect(await fs.readFile(store.safeOutputPath(created.id, "mindmap-outline.md"), "utf8")).toContain("**OCR**");
     expect(JSON.parse(requestBody)).toMatchObject({ model: "mind-map-model", response_format: { type: "json_object" } });
   });

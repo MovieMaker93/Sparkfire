@@ -787,7 +787,7 @@ export async function createChat(linkedJobId?: string): Promise<ChatRecord> {
     chat.messages.push({
       id: randomUUID(),
       role: "system",
-      content: `Use the following SparklingKit job context. Answer accurately from it and say when the answer is absent. Compatible image artifacts are attached only when the configured language model accepts image input. If no image is attached, do not claim visual details that are not present in the prompt, annotations, or metadata.\n\n${source}`,
+      content: `Use the following Sparkfire job context. Answer accurately from it and say when the answer is absent. Compatible image artifacts are attached only when the configured language model accepts image input. If no image is attached, do not claim visual details that are not present in the prompt, annotations, or metadata.\n\n${source}`,
       createdAt: now,
     });
   }

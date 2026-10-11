@@ -133,7 +133,7 @@ export function WorkflowsPage() {
         <span className="workflow-card-icon"><GitBranch size={23} /></span>
         <span className="workflow-card-copy">
           <strong>{definition.name}</strong>
-          <p>{definition.description || "A reusable SparklingKit workflow"}</p>
+          <p>{definition.description || "A reusable Sparkfire workflow"}</p>
           <span className="workflow-card-meta">
             <b>{definition.nodes.length} nodes · revision {definition.revision}</b>
             <span className="workflow-card-badges">

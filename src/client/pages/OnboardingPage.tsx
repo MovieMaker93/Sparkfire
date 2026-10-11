@@ -32,9 +32,9 @@ const serviceDescriptions: Record<EndpointKind, string> = {
 const checkedReferenceKinds: EndpointKind[] = [...REFERENCE_ENDPOINT_KINDS, ...OPTIONAL_REFERENCE_ENDPOINT_KINDS];
 const isOptionalReferenceKind = (kind: EndpointKind) => (OPTIONAL_REFERENCE_ENDPOINT_KINDS as readonly EndpointKind[]).includes(kind);
 
-// The fork has no hosted installer (run.sparklingkit.com installs upstream), so the stack starts from a clone.
-const installCommand = `git clone --depth 1 https://github.com/MovieMaker93/SparklingKit.git
-cd SparklingKit
+// There is no hosted installer, so the stack starts from a clone.
+const installCommand = `git clone --depth 1 https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
 ./scripts/start-dgx-spark.sh --accept-model-licenses`;
 
 export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
@@ -168,15 +168,15 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
   return <main className="onboarding-page">
     <div className="onboarding-shell">
       <header className="onboarding-header">
-        <div className="brand-wordmark">SparklingKit</div>
+        <div className="brand-wordmark">Sparkfire</div>
         {canCancel && <button className="button-secondary compact" onClick={onCancel}>Back to workspace</button>}
       </header>
 
       <section className="onboarding-content onboarding-setup">
         <div className="onboarding-intro">
-          <span>{canCancel ? "Deployment setup" : "Welcome to SparklingKit"}</span>
+          <span>{canCancel ? "Deployment setup" : "Welcome to Sparkfire"}</span>
           <h1>Connect your AI services</h1>
-          <p>Run the reference model stack on a DGX Spark or connect compatible services you already operate. The LLM endpoint is yours to choose. SparklingKit keeps the workspace and inference layers independent.</p>
+          <p>Run the reference model stack on a DGX Spark or connect compatible services you already operate. The LLM endpoint is yours to choose. Sparkfire keeps the workspace and inference layers independent.</p>
         </div>
 
         {canCancel && configuredCount > 0 && <div className="onboarding-existing-note">
@@ -193,14 +193,14 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
         {tab !== "manual" ? <div className="onboarding-tab-panel" role="tabpanel">
           <div className="onboarding-panel-heading">
             <span className="onboarding-option-icon">{tab === "local" ? <Cpu size={24} /> : <Network size={24} />}</span>
-            <div><h2>{tab === "local" ? "Start the model stack on this machine" : "Start the model stack on your DGX Spark"}</h2><p>{tab === "local" ? "Local means the server running this SparklingKit container, not the phone or computer viewing this page." : "Use the same model installer, then provide an address reachable from the SparklingKit server."}</p></div>
+            <div><h2>{tab === "local" ? "Start the model stack on this machine" : "Start the model stack on your DGX Spark"}</h2><p>{tab === "local" ? "Local means the server running this Sparkfire container, not the phone or computer viewing this page." : "Use the same model installer, then provide an address reachable from the Sparkfire server."}</p></div>
           </div>
 
           <div className="onboarding-step"><span>1</span><div><h3>Install and start the models</h3><p>Model weights remain on the DGX and are downloaded from their publishers.</p></div></div>
           <div className="onboarding-command"><span><ServerCog size={18} /><code>{installCommand}</code></span><button onClick={() => void copyText(installCommand)} aria-label="Copy model installation command"><Copy size={17} /></button></div>
           <p className="onboarding-script-note">The script builds the service images, downloads pinned model revisions and starts the services in a memory-safe order. It never installs Docker itself; <code>./scripts/start-dgx-spark.sh status</code> and <code>stop</code> manage the stack later.</p>
 
-          <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "SparklingKit uses Docker's host gateway to reach ports 8332–8334, 8336, and 8337." : "Ports 8330, 8332–8334, 8336, and 8337 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
+          <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "Sparkfire uses Docker's host gateway to reach ports 8332–8334, 8336, and 8337." : "Ports 8330, 8332–8334, 8336, and 8337 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
           {tab === "remote" && <label className="onboarding-host-field">DGX hostname or IP<input className="input" value={remoteHost} onChange={(event) => { setRemoteHost(event.target.value); setVerifiedReference(undefined); setReferenceChecks({}); setError(""); }} placeholder="192.168.22.33 or dgx-spark.local" /></label>}
 
           <ReferenceChecks checks={referenceChecks} />

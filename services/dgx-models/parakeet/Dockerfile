@@ -1,5 +1,5 @@
 # NVIDIA Parakeet speech recognition: parakeet.cpp's parakeet-server (ggml on CUDA) behind a small Python
-# adapter that gives it the endpoints SparklingKit already speaks. Both stages use the PyTorch base image
+# adapter that gives it the endpoints Sparkfire already speaks. Both stages use the PyTorch base image
 # the other GPU services use, so the CUDA toolkit that builds the engine is the one that runs it.
 ARG PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:25.11-py3@sha256:4a85d8cf6fb3a943280960b8948cf4e9b6eca77b4414c68c9b2c7bb863f79b70
 ARG PARAKEET_REF=v0.5.0
