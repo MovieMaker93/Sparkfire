@@ -6,8 +6,9 @@
   "bump-minor-pre-major": true,
   "packages": {
     ".": {
-      "package-name": "sparklingkit",
-      "changelog-path": "CHANGELOG.md"
+      "package-name": "sparkfire",
+      "changelog-path": "CHANGELOG.md",
+      "release-as": "0.1.0"
     }
   },
   "changelog-sections": [
