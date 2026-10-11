@@ -185,7 +185,7 @@ The prebuilt image is pulled and recreated while `./data` remains mounted in pla
 
 SparklingKit and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
 
-The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app and works once a grounding endpoint is configured in Settings; recheck any such model's terms when deploying, because model publishers may update them independently.
+The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app, hidden from menus and actions until a grounding endpoint is enabled in Settings, and works once it is; recheck any such model's terms when deploying, because model publishers may update them independently.
 
 ## Using different services
 

@@ -3,7 +3,8 @@ import path from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { ARTIFACT_KINDS, WORKFLOW_NODE_TYPES, type JobKind, type JobManifest, type WorkflowDefinition } from "../../shared/contracts.js";
+import { ARTIFACT_KINDS, WORKFLOW_NODE_TYPES, type JobKind, type JobManifest, type ModuleId, type WorkflowDefinition } from "../../shared/contracts.js";
+import { getModuleContract } from "../../shared/module-router.js";
 import { createStarterWorkflow, validateWorkflowDefinition, workflowServiceContracts } from "../../shared/workflows.js";
 import { DATA_DIR } from "../config.js";
 import { enqueueFlowRun, stopFlowWork } from "../queue.js";
@@ -90,7 +91,8 @@ router.get("/workflow-nodes", async (_request, response) => {
   const services = workflowServiceContracts(settings.endpoints.llm.capabilities || ["text"]).map((contract) => {
     const providerKind = contract.id === "llm-prompt" || contract.id === "chat" ? "llm" : contract.id === "text-to-image" ? "image-generation" : contract.id === "transcription" ? "stt" : contract.id;
     const endpoint = settings.endpoints[providerKind as keyof typeof settings.endpoints];
-    return { ...contract, configured: Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model) };
+    const configured = Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model);
+    return { ...contract, configured, hidden: Boolean(!configured && getModuleContract(contract.id as ModuleId)?.hiddenUntilConfigured) };
   });
   response.json({ services, artifactKinds: ARTIFACT_KINDS });
 });

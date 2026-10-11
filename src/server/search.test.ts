@@ -40,6 +40,8 @@ describe("workspace search", () => {
 
     const tools = await searchWorkspace("translate", { scope: "tools" });
     expect(tools.results.some((result) => result.type === "module" && result.moduleId === "translation")).toBe(true);
+    // Grounding has no endpoint in a fresh install, so the tool stays out of search like everywhere else.
+    expect((await searchWorkspace("grounding", { scope: "tools" })).results).toEqual([]);
   });
 
   it("supports recent and per-module work scopes", async () => {
