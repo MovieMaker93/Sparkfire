@@ -17,10 +17,10 @@ services:
       IMAGE_GENERATION_BASE_URL: http://host.docker.internal:8336/v1
       IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
       # start-dgx-spark.sh --video-backend none sets this empty, so the endpoint is not configured.
-      VIDEO_GENERATION_BASE_URL: ${SPARKLINGKIT_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}
+      VIDEO_GENERATION_BASE_URL: ${SPARKFIRE_VIDEO_BASE_URL-${SPARKLINGKIT_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}}
       VIDEO_GENERATION_MODEL: FastH3
-      SPARKLINGKIT_SETUP_COMPLETE: "true"
-      SPARKLINGKIT_DEPLOYMENT_MODE: all-in-one
+      SPARKFIRE_SETUP_COMPLETE: "true"
+      SPARKFIRE_DEPLOYMENT_MODE: all-in-one
 
   model-downloader:
     profiles: [tools]
@@ -118,7 +118,7 @@ services:
       retries: 120
       start_period: 2m
 
-  # Alternative OCR backend (SPARKLINGKIT_OCR_BACKEND=paddleocr-vl). It replaces unlimited-ocr on :8332:
+  # Alternative OCR backend (SPARKFIRE_OCR_BACKEND=paddleocr-vl). It replaces unlimited-ocr on :8332:
   # the adapter runs PP-DocLayout on CPU and sends each detected element to the VLM below.
   paddleocr-vlm:
     image: vllm/vllm-openai:v0.24.0@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f
@@ -232,7 +232,7 @@ services:
       retries: 120
       start_period: 3m
 
-  # One image service on :8336 whose model is chosen at deploy time with SPARKLINGKIT_IMAGE_BACKEND:
+  # One image service on :8336 whose model is chosen at deploy time with SPARKFIRE_IMAGE_BACKEND:
   # z-image (Z-Image-Turbo, default), qwen-image-2.1 (Qwen-Image 2.1, float8 weights, ~34 GB cap) or
   # qwen-image-2.1-turbo (the same model distilled to 8 steps).
   # Model path, name, steps and sizes follow the backend unless overridden below.
@@ -253,7 +253,7 @@ services:
       TRANSFORMERS_OFFLINE: "1"
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      IMAGE_BACKEND: ${SPARKLINGKIT_IMAGE_BACKEND:-z-image}
+      IMAGE_BACKEND: ${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}
       PORT: "8336"
       # Empty uses the backend's own default (flash for Z-Image, SDPA for Qwen-Image).
       ATTENTION_BACKEND: ${IMAGE_ATTENTION_BACKEND:-}

@@ -744,7 +744,7 @@ function hasErrorCode(error: unknown, code: string) {
 }
 
 const server = app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`SparklingKit listening on http://0.0.0.0:${PORT}`);
+  console.log(`Sparkfire listening on http://0.0.0.0:${PORT}`);
   await startWorker();
 });
 

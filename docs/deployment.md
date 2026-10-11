@@ -1,143 +1,71 @@
 # Application deployment and upgrades
 
-SparklingKit's release distribution is a Docker Compose application containing the prebuilt workspace image and Redis. AI services are configured after the web panel starts and are not bundled into the application image.
+Sparkfire is installed from a clone of this repository. The workspace is one Docker Compose application,
+the app and Redis; AI services are configured after the web panel starts and are never bundled into the
+application image. On a DGX Spark, `scripts/start-dgx-spark.sh` runs the workspace and the reference model
+stack together (see [DGX Spark](dgx-spark.md)).
 
-## Install from the hosted release
-
-```bash
-curl -fsSLO https://run.sparklingkit.com/stable/install.sh
-less install.sh
-bash install.sh
-```
-
-The installer requires Docker Engine, Docker Compose v2, and curl. It does not install Docker, use `sudo`, or remove an existing installation. By default it creates `./sparklingkit` beneath the current directory. Use another location with:
+## Install the workspace
 
 ```bash
-bash install.sh --dir /srv/sparklingkit
+git clone https://github.com/MovieMaker93/Sparkfire.git
+cd Sparkfire
+./scripts/start-sparkfire.sh --model-host dgx-spark.local   # models on another machine
+./scripts/start-sparkfire.sh --configure-later              # or set endpoints in the browser
 ```
 
-## Install from GitHub source
+The script builds the app image, starts Redis and the app, and waits until `/api/health` answers. An
+existing `data/config/settings.json` is kept as it is. Without the script, `cp .env.example .env`, edit the
+endpoints and run `docker compose up -d --build`.
 
-```bash
-git clone https://github.com/stevibe/SparklingKit.git
-cd SparklingKit
-./distribution/install.sh --from-source --dir /srv/sparklingkit
-```
+Each release also publishes a multi-platform image (`linux/amd64`, `linux/arm64`) with an SBOM and
+provenance, `ghcr.io/moviemaker93/sparkfire:<version>`, for people who keep their own Compose file.
 
-The source and hosted paths install the same three operational files:
+## Network exposure
 
-```text
-/srv/sparklingkit/
-├── compose.yaml
-├── sparklingkit
-└── data/
-    ├── .redis/
-    ├── config/
-    ├── jobs/
-    ├── chats/
-    └── ...
-```
-
-`./data:/data` is a direct bind mount. Copying the installation directory while the containers are stopped therefore captures the complete durable workspace and Redis state.
-
-## Network access
-
-The default release binds port 54321 on all host interfaces so phones and other trusted-network devices can open `http://SERVER-IP:54321`. SparklingKit does not currently include multi-user authentication; place it behind a VPN or authenticated reverse proxy and do not expose port 54321 directly to the public internet.
-
-To bind only to the local machine, create `.env` beside `compose.yaml`:
-
-```dotenv
-SPARKLINGKIT_BIND=127.0.0.1
-SPARKLINGKIT_PORT=54321
-SPARKLINGKIT_IMAGE=ghcr.io/stevibe/sparklingkit:latest
-```
-
-## Routine operations
-
-Run commands from the installation directory:
-
-```bash
-./sparklingkit start
-./sparklingkit status
-./sparklingkit logs
-./sparklingkit restart
-./sparklingkit stop
-```
-
-`stop` does not use `docker compose down --volumes` and never removes `./data`.
+Port 54321 is published on all host interfaces so phones and other devices on the trusted network can open
+`http://SERVER-IP:54321`. Sparkfire has no authentication: put it behind a VPN or an authenticated reverse
+proxy and never expose port 54321 to the public internet. Change the host port with `SPARKFIRE_PORT` in
+`.env`.
 
 ## Upgrade
 
 ```bash
-./sparklingkit update
+git pull
+./scripts/start-dgx-spark.sh --accept-model-licenses [the options you installed with]
+# or, for the workspace only:
+./scripts/start-sparkfire.sh
 ```
 
-The update command:
+The start scripts rebuild what changed and recreate the containers; `data/` and the Redis volume are left
+alone, and saved settings win over environment variables. To stay on a release, check out its tag
+(`git checkout v0.1.0`) before running the script.
 
-1. downloads the current Compose and management files from the release channel;
-2. verifies both files against the published SHA-256 manifest;
-3. retains the previous operational files and running image identity for rollback;
-4. pulls the image selected by `SPARKLINGKIT_IMAGE` and the configured Redis image;
-5. recreates changed containers without touching the bind mount;
-6. waits for `/api/health`; and
-7. reports the local and LAN URLs.
+Persisted schema changes are additive and are not undone by checking out an older tag, so back up `data/`
+before a major-version upgrade.
 
-The default image follows the stable `latest` channel. For controlled upgrades, pin a version in `.env`:
+### Coming from SparklingKit
 
-```dotenv
-SPARKLINGKIT_IMAGE=ghcr.io/stevibe/sparklingkit:0.2.0
-```
+Point an existing checkout at this repository (`git remote set-url origin
+https://github.com/MovieMaker93/Sparkfire.git && git pull`) and run the start script again. The compose
+project, container and image names keep their `sparklingkit` prefix, so the Redis volume, model downloads
+and running containers are reused; `SPARKLINGKIT_*` variables in `.env` still work.
 
-Change the version deliberately and run `./sparklingkit update`. Versioned Compose files attached to GitHub releases are already pinned to the matching semantic version.
+## Backups
 
-If the five-model reference stack was installed on a DGX Spark with the hosted model installer, update that independent layer from its own installation directory:
+`data/` is the durable record: settings, jobs, files, chats and workflows. Redis holds only queue state.
 
 ```bash
-./sparklingkit-dgx update
+docker compose --project-name sparklingkit stop app
+tar -czf sparkfire-data-backup.tar.gz data
+docker compose --project-name sparklingkit start app
 ```
 
-This verifies the latest DGX bundle, stops the complete model stack, rebuilds changed service adapters, refreshes pulled images, and then starts and checks every model endpoint sequentially without replacing model data. Interrupted updates are recovered to the prior stack before another change is attempted. See [DGX Spark reference deployment](dgx-spark.md#operations) for rollback and legacy-installation instructions.
+To restore, stop the app, replace `./data` with the backup, and start the same or a newer Sparkfire version.
 
-Version 0.1.3 and earlier must first bootstrap the current verified lifecycle manager. From the existing DGX stack directory, run:
+## Releases
 
-```bash
-curl -fsSL https://run.sparklingkit.com/dgx/stable/install.sh | bash -s -- --update --dir "$PWD"
-```
-
-## Roll back the application image
-
-If the previous image is still in Docker's local cache:
-
-```bash
-./sparklingkit rollback
-```
-
-This creates a local Compose override for the recorded image and recreates only the application container. Run `./sparklingkit update` to leave rollback mode and return to the image configured in `compose.yaml` or `.env`.
-
-Rollback does not reverse persisted schema migrations. SparklingKit migrations must therefore remain additive and backward-conscious. Back up the installation directory before a major-version upgrade.
-
-## Back up and restore
-
-Stop the application before taking a filesystem-level backup:
-
-```bash
-./sparklingkit stop
-tar -czf sparklingkit-data-backup.tar.gz data
-./sparklingkit start
-```
-
-To restore, stop the containers, replace `./data` with the backup, and start the same or a compatible SparklingKit version.
-
-## Release artifacts
-
-Tagging a release runs `.github/workflows/release.yml`, which:
-
-- validates the TypeScript source and tests;
-- builds `linux/amd64` and `linux/arm64` images;
-- publishes semantic-version and `latest` tags to GHCR;
-- attaches SBOM and provenance metadata;
-- attests the container and release assets;
-- publishes version-pinned Compose and management files; and
-- creates a checksum-verified DGX model-stack bundle.
-
-`run.sparklingkit.com/stable/` should mirror the current release's `install.sh`, `compose.yaml`, and `sparklingkit` assets. Versioned GitHub release assets remain the immutable source of truth.
+`.github/workflows/fork-release.yml` runs release-please on `main`. It keeps a release pull request with the
+next version and `CHANGELOG.md`; merging it tags the release, publishes the app image and attaches a
+`sparkfire-dgx-stack-<version>.tar.gz` bundle with everything `start-dgx-spark.sh` needs, plus its SHA-256
+sums.

@@ -50,7 +50,7 @@ export function App() {
   }
 
   return (
-    <ToastProvider>{!settings ? <div className="onboarding-loading"><div className="brand-wordmark">SparklingKit</div>{settingsError ? <><p>{settingsError}</p><button className="button-secondary" onClick={() => window.location.reload()}>Try again</button></> : <Loader />}</div> : (!settings.setup.completed || !hasConfiguredService || location.pathname === "/setup") ? <OnboardingPage settings={settings} canCancel={settings.setup.completed && hasConfiguredService} onComplete={completeOnboarding} onCancel={() => navigate("/", { replace: true })} /> : <GlobalSearchProvider><AppShell>
+    <ToastProvider>{!settings ? <div className="onboarding-loading"><div className="brand-wordmark">Sparkfire</div>{settingsError ? <><p>{settingsError}</p><button className="button-secondary" onClick={() => window.location.reload()}>Try again</button></> : <Loader />}</div> : (!settings.setup.completed || !hasConfiguredService || location.pathname === "/setup") ? <OnboardingPage settings={settings} canCancel={settings.setup.completed && hasConfiguredService} onComplete={completeOnboarding} onCancel={() => navigate("/", { replace: true })} /> : <GlobalSearchProvider><AppShell>
       <Suspense fallback={<div className="page-wrap"><div className="skeleton h-64" /></div>}>
         <Routes location={backgroundLocation}>
           <Route path="/" element={<Dashboard />} />

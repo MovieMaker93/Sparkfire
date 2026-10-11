@@ -1,4 +1,4 @@
-"""PaddleOCR-VL adapter for SparklingKit.
+"""PaddleOCR-VL adapter for Sparkfire.
 
 PaddleOCR-VL needs a layout stage (PP-DocLayout) in front of the 0.9B vision-language model. The VLM is
 served by vLLM in its own container; this adapter runs the PaddleOCR pipeline against it and returns

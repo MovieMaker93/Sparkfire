@@ -1,8 +1,8 @@
-# SparklingKit Architecture
+# Sparkfire Architecture
 
 ## System shape
 
-SparklingKit is a modular monolith. Product capabilities are modules, inference servers are providers, durable results are artifacts, and each invocation is a workflow run.
+Sparkfire is a modular monolith. Product capabilities are modules, inference servers are providers, durable results are artifacts, and each invocation is a workflow run.
 
 ```text
 Source files

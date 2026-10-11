@@ -1,8 +1,8 @@
-"""Parakeet adapter for SparklingKit.
+"""Parakeet adapter for Sparkfire.
 
 NVIDIA Parakeet runs as parakeet.cpp's `parakeet-server`, which has GET /health and
 POST /v1/audio/transcriptions only, takes WAV only and handles one request at a time. This adapter starts
-that server on a private port and puts the surface SparklingKit already speaks in front of it:
+that server on a private port and puts the surface Sparkfire already speaks in front of it:
 
   GET  /health                    200 once the engine answers, 503 until then (readiness checks wait on it)
   GET  /v1/models                 the configured model name, which the engine cannot list
@@ -28,7 +28,7 @@ from starlette.datastructures import UploadFile
 
 # Everything else in the request (model, temperature, prompt, language) means nothing to the engine.
 FORWARDED_FIELDS = ("response_format", "timestamp_granularities[]")
-NOT_WAV = "Upload WAV audio; SparklingKit sends 16 kHz WAV chunks"
+NOT_WAV = "Upload WAV audio; Sparkfire sends 16 kHz WAV chunks"
 UNREACHABLE = b'{"detail":"The Parakeet engine is not reachable"}'
 
 

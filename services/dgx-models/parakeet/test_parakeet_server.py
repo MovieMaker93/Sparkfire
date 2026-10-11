@@ -116,7 +116,7 @@ class AdapterTests(unittest.TestCase):
     def test_refuses_audio_that_is_not_wav(self):
         response = self.client.post("/v1/audio/transcriptions", files={"file": ("a.mp3", b"ID3" + b"\x00" * 64, "audio/mpeg")})
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "Upload WAV audio; SparklingKit sends 16 kHz WAV chunks")
+        self.assertEqual(response.json()["detail"], "Upload WAV audio; Sparkfire sends 16 kHz WAV chunks")
         self.assertEqual(FakeEngine.bodies, [])
 
     def test_engine_down_gives_503(self):
