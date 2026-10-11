@@ -17,30 +17,30 @@
    tinted families for status and module colours. The light theme mirrors each step. */
 :root {
   color-scheme: dark;
-  --sk-n0: #090a0c;
-  --sk-n1: #0d0f12;
-  --sk-n2: #111318;
-  --sk-n3: #15181d;
-  --sk-n4: #191c21;
-  --sk-n5: #1d2127;
-  --sk-n6: #22262d;
-  --sk-n7: #292e35;
-  --sk-n8: #303640;
-  --sk-n9: #3a414a;
-  --sk-n10: #4a515c;
-  --sk-n11: #5e6570;
-  --sk-n12: #7f8792;
-  --sk-n13: #a7adb5;
-  --sk-n14: #c4cad1;
-  --sk-n15: #e2e5e9;
-  --sk-n16: #f1f3f4;
+  --sk-n0: #0d0b0a;
+  --sk-n1: #121010;
+  --sk-n2: #161312;
+  --sk-n3: #1b1716;
+  --sk-n4: #1f1b19;
+  --sk-n5: #241f1d;
+  --sk-n6: #2a2422;
+  --sk-n7: #312b28;
+  --sk-n8: #3a332f;
+  --sk-n9: #453d38;
+  --sk-n10: #564c46;
+  --sk-n11: #6c615a;
+  --sk-n12: #8d8178;
+  --sk-n13: #b1a69c;
+  --sk-n14: #cbc2b9;
+  --sk-n15: #e5ded7;
+  --sk-n16: #f4efea;
   --sk-n17: #ffffff;
-  --sk-amber-1: #2d2715;
-  --sk-amber-2: #302711;
-  --sk-amber-3: #655227;
-  --sk-amber-4: #b06000;
-  --sk-amber-5: #c6b968;
-  --sk-amber-6: #f2c661;
+  --sk-amber-1: #29260f;
+  --sk-amber-2: #2d2a0e;
+  --sk-amber-3: #615a24;
+  --sk-amber-4: #a68a00;
+  --sk-amber-5: #d4c86a;
+  --sk-amber-6: #efd35e;
   --sk-blue-3: #0842a0;
   --sk-blue-4: #0b57d0;
   --sk-blue-6: #c5d9f0;
@@ -68,38 +68,38 @@
   --sk-teal-6: #9ed8ca;
   --sk-overlay: 255 255 255;
   --sk-shadow: 1;
-  --sk-glow: rgba(53, 82, 125, .16);
-  --sk-accent: #67dca5;
-  --sk-accent-hover: #82e6b7;
-  --sk-accent-ink: #062418;
-  --sk-accent-soft: rgba(103, 220, 165, .14);
+  --sk-glow: rgba(255, 122, 61, .11);
+  --sk-accent: #ff7a3d;
+  --sk-accent-hover: #ff935f;
+  --sk-accent-ink: #200b00;
+  --sk-accent-soft: rgba(255, 122, 61, .14);
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --sk-n0: #f2f3f5;
-  --sk-n1: #f7f8fa;
+  --sk-n0: #f5f2ee;
+  --sk-n1: #f9f7f4;
   --sk-n2: #ffffff;
   --sk-n3: #ffffff;
-  --sk-n4: #fbfbfc;
-  --sk-n5: #f2f4f6;
-  --sk-n6: #ebeef1;
-  --sk-n7: #e4e8ec;
-  --sk-n8: #d9dee4;
-  --sk-n9: #cbd0d7;
-  --sk-n10: #adb3bc;
-  --sk-n11: #8b929c;
-  --sk-n12: #6b727d;
-  --sk-n13: #555c66;
-  --sk-n14: #41474f;
-  --sk-n15: #2b3036;
-  --sk-n16: #16191d;
-  --sk-n17: #0c0e11;
-  --sk-amber-1: #f7f0e2;
-  --sk-amber-2: #ebe1d0;
-  --sk-amber-3: #d9c49d;
-  --sk-amber-4: #d27c26;
-  --sk-amber-5: #6c6516;
-  --sk-amber-6: #614800;
+  --sk-n4: #fcfbf9;
+  --sk-n5: #f4f1ed;
+  --sk-n6: #eeeae5;
+  --sk-n7: #e7e2dc;
+  --sk-n8: #ddd6cf;
+  --sk-n9: #cfc7bf;
+  --sk-n10: #b2a99f;
+  --sk-n11: #908579;
+  --sk-n12: #70665c;
+  --sk-n13: #5a5048;
+  --sk-n14: #463d36;
+  --sk-n15: #2f2924;
+  --sk-n16: #1a1613;
+  --sk-n17: #0e0b09;
+  --sk-amber-1: #f8f4dc;
+  --sk-amber-2: #eee6c4;
+  --sk-amber-3: #dccb8c;
+  --sk-amber-4: #b8900f;
+  --sk-amber-5: #6a6114;
+  --sk-amber-6: #5a4b00;
   --sk-blue-3: #b8c0ff;
   --sk-blue-4: #6687ff;
   --sk-blue-6: #3c4d5e;
@@ -125,13 +125,13 @@
   --sk-teal-4: #679a90;
   --sk-teal-5: #17705f;
   --sk-teal-6: #235349;
-  --sk-overlay: 15 23 42;
+  --sk-overlay: 26 22 19;
   --sk-shadow: .32;
-  --sk-glow: rgba(103, 220, 165, .10);
-  --sk-accent: #12805a;
-  --sk-accent-hover: #0d6c4b;
+  --sk-glow: rgba(194, 65, 12, .07);
+  --sk-accent: #c2410c;
+  --sk-accent-hover: #a3360a;
   --sk-accent-ink: #ffffff;
-  --sk-accent-soft: rgba(18, 128, 90, .12);
+  --sk-accent-soft: rgba(194, 65, 12, .10);
 }
 
 
@@ -700,7 +700,7 @@ textarea.input { @apply text-[16px]; resize: vertical; }
 .chat-composer textarea { @apply max-h-44 min-h-10 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-[16px] leading-7 outline-none placeholder:text-[var(--sk-n12)]; }
 .send-button { @apply flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--sk-blue-4)] text-[var(--sk-n17)] transition hover:bg-[var(--sk-blue-3)] disabled:bg-[var(--sk-n15)] disabled:text-[var(--sk-n12)]; box-shadow: 0 1px 3px rgba(11,87,208,.25); }
 /* First-run deployment */
-.onboarding-page { @apply min-h-screen text-[var(--sk-n16)]; background: radial-gradient(circle at 72% -15%, rgba(65, 96, 143, .2), transparent 34rem), var(--sk-n0); }
+.onboarding-page { @apply min-h-screen text-[var(--sk-n16)]; background: radial-gradient(circle at 72% -15%, var(--sk-glow), transparent 34rem), var(--sk-n0); }
 .onboarding-shell { @apply mx-auto flex min-h-screen w-full max-w-[1240px] flex-col px-7 pb-14 sm:px-10 lg:px-14; }
 .onboarding-header { @apply flex min-h-24 items-center justify-between gap-4 border-b border-[var(--sk-n7)]; }
 .onboarding-content { @apply mx-auto w-full max-w-[1040px] py-14 lg:py-20; }
@@ -948,7 +948,7 @@ textarea.input { @apply text-[16px]; resize: vertical; }
 .confirm-dialog-error { @apply mt-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-[14px] text-red-700; }
 .confirm-dialog-actions { @apply mt-6 flex justify-end gap-2; }
 
-/* Dark graphite theme */
+/* Charcoal and ember theme */
 html { background: var(--sk-n0); }
 body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transparent 34rem), var(--sk-n0); }
 ::selection { background: rgb(var(--sk-overlay) / .24); color: var(--sk-n17); }
