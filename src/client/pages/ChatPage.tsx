@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, ArrowUp, Bot, Brain, Check, ChevronLeft, Copy, FileText, LoaderCircle, MessageCircle, Paperclip, Pencil, Plus, Search, Square, Trash2, UserRound, X } from "lucide-react";
 import { CHAT_EFFORTS, MAX_CHAT_ATTACHMENTS, type ChatEffort } from "../../shared/contracts";
-import { api, chatAttachmentUrl, streamChat, uploadChatAttachments } from "../api";
+import { api, chatAttachmentUrl, resumeChatStream, streamChat, uploadChatAttachments, type ChatStreamHandlers } from "../api";
 import { EFFORT_LABELS, modelLabel, readChatEffort, saveChatEffort } from "../chat-effort";
 import { createClientId } from "../client-id";
 import { writeClipboardText } from "../clipboard";
@@ -42,6 +42,9 @@ export function ChatPage() {
   const [referenceJob, setReferenceJob] = useState<Job>();
   const [referenceStatus, setReferenceStatus] = useState<"idle" | "loading" | "ready" | "missing">("idle");
   const controller = useRef<AbortController | undefined>(undefined);
+  // The chat whose answer `controller` follows, and a chat this page just created and already shows.
+  const following = useRef<string | undefined>(undefined);
+  const created = useRef<string | undefined>(undefined);
   const messages = useRef<HTMLDivElement>(null);
   const composerInput = useRef<HTMLTextAreaElement>(null);
   const initialPromptSent = useRef("");
@@ -69,16 +72,27 @@ export function ChatPage() {
       .catch(() => { if (active) setReferenceStatus("missing"); });
     return () => { active = false; };
   }, [chat?.linkedJobId]);
+  useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     let active = true;
     setError("");
+    // A chat created here gets its id in the URL after it is shown, and its first answer may already be under way.
+    if (id && (created.current === id || following.current === id)) {
+      created.current = undefined;
+      return () => { active = false; };
+    }
+    detach();
     if (!id) {
       setChat(undefined);
       setSettledChatId(undefined);
       return () => { active = false; };
     }
     api.chat(id)
-      .then((value) => { if (active) setChat(value); })
+      .then((value) => {
+        if (!active) return;
+        setChat(value);
+        void follow(id, (handlers, signal) => resumeChatStream(id, handlers, signal));
+      })
       .catch((value) => { if (active) { setChat(undefined); setError(value.message); } })
       .finally(() => { if (active) setSettledChatId(id); });
     return () => { active = false; };
@@ -95,8 +109,8 @@ export function ChatPage() {
   }, [input]);
 
   async function newChat() {
-    const created = await api.createChat();
-    navigate(`/chat/${created.id}`);
+    const next = await api.createChat();
+    navigate(`/chat/${next.id}`);
   }
   function askToDelete(item: Chat) {
     if (streaming && item.id === id) return;
@@ -147,10 +161,11 @@ export function ChatPage() {
   }
   async function ensureChat() {
     if (chat) return chat;
-    const created = await api.createChat();
-    setChat(created);
-    navigate(`/chat/${created.id}`, { replace: true });
-    return created;
+    const fresh = await api.createChat();
+    created.current = fresh.id;
+    setChat(fresh);
+    navigate(`/chat/${fresh.id}`, { replace: true });
+    return fresh;
   }
 
   async function addFiles(files: File[]) {
@@ -180,27 +195,65 @@ export function ChatPage() {
     setChat({ ...current, messages: [...current.messages, optimistic] });
     setPending({ items: [] });
     setInput("");
-    setDraft("");
-    setDraftReasoning("");
     setError("");
     setStreaming(true);
-    controller.current = new AbortController();
+    await follow(current.id, (handlers, signal) => streamChat(current.id, content, handlers, signal, { effort, attachmentIds: files.map((file) => file.id) }).then(() => true));
+  }
+
+  // Shows an answer the server is generating. Aborting `controller` only stops watching it: the server keeps
+  // generating and saves the answer, so leaving the page never loses it and coming back reattaches.
+  async function follow(chatId: string, open: (handlers: ChatStreamHandlers, signal: AbortSignal) => Promise<boolean>) {
+    controller.current?.abort();
+    const local = new AbortController();
+    controller.current = local;
+    following.current = chatId;
     let accumulated = "";
     let reasoning = "";
+    setDraft("");
+    setDraftReasoning("");
+    const owns = () => controller.current === local;
     try {
-      await streamChat(current.id, content, {
-        onDelta: (delta) => { accumulated += delta; setDraft(accumulated); },
-        onReasoning: (delta) => { reasoning += delta; setDraftReasoning(reasoning); },
+      const attached = await open({
+        onSnapshot: (answer) => { accumulated = answer.content; reasoning = answer.reasoning; setDraft(accumulated); setDraftReasoning(reasoning); setStreaming(true); },
+        onDelta: (delta) => { accumulated += delta; setDraft(accumulated); setStreaming(true); },
+        onReasoning: (delta) => { reasoning += delta; setDraftReasoning(reasoning); setStreaming(true); },
         onDone: () => undefined,
         onError: setError,
-      }, controller.current.signal, { effort, attachmentIds: files.map((file) => file.id) });
-      setChat(await api.chat(current.id));
-      setDraft("");
-      setDraftReasoning("");
+      }, local.signal);
+      if (attached) {
+        const saved = await api.chat(chatId);
+        if (owns()) setChat(saved);
+      }
+      if (owns()) {
+        setDraft("");
+        setDraftReasoning("");
+      }
     } catch (streamError) {
-      if ((streamError as Error).name !== "AbortError") setError(streamError instanceof Error ? streamError.message : String(streamError));
+      if (owns() && (streamError as Error).name !== "AbortError") setError(streamError instanceof Error ? streamError.message : String(streamError));
     } finally {
-      setStreaming(false);
+      if (owns()) {
+        controller.current = undefined;
+        following.current = undefined;
+        setStreaming(false);
+      }
+    }
+  }
+
+  function detach() {
+    controller.current?.abort();
+    controller.current = undefined;
+    following.current = undefined;
+    setStreaming(false);
+    setDraft("");
+    setDraftReasoning("");
+  }
+
+  async function stop() {
+    if (!chat) return;
+    try {
+      await api.stopChat(chat.id);
+    } catch (stopError) {
+      setError(stopError instanceof Error ? stopError.message : String(stopError));
     }
   }
 
@@ -256,7 +309,7 @@ export function ChatPage() {
             <button type="button" className="attach-button" onClick={() => fileInput.current?.click()} disabled={streaming || loadingChat || attachments.length >= MAX_CHAT_ATTACHMENTS} aria-label="Attach files" title="Attach images, PDFs, or text files"><Plus size={19} /></button>
             <input ref={fileInput} type="file" multiple accept={ATTACHMENT_ACCEPT} className="hidden" onChange={(event) => { void addFiles(Array.from(event.target.files || [])); event.target.value = ""; }} />
             <textarea ref={composerInput} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} onPaste={(event) => { const files = Array.from(event.clipboardData.files); if (files.length) { event.preventDefault(); void addFiles(files); } }} placeholder={loadingChat ? "Loading conversation…" : "Message your local model…"} rows={1} disabled={streaming || loadingChat} />
-            {streaming ? <button className="send-button" onClick={() => controller.current?.abort()} aria-label="Stop"><Square size={14} fill="currentColor" /></button> : <button className="send-button" onClick={() => void send()} disabled={loadingChat || uploading > 0 || (!input.trim() && !attachments.length)} aria-label="Send"><ArrowUp size={18} /></button>}
+            {streaming ? <button className="send-button" onClick={() => void stop()} aria-label="Stop"><Square size={14} fill="currentColor" /></button> : <button className="send-button" onClick={() => void send()} disabled={loadingChat || uploading > 0 || (!input.trim() && !attachments.length)} aria-label="Send"><ArrowUp size={18} /></button>}
           </div>
           <div className="chat-composer-footer">
             <div className="theme-choice effort-choice" role="radiogroup" aria-label="Thinking effort">

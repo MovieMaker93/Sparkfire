@@ -101,7 +101,9 @@ as a host name; they pass on Linux and in CI.
 - **Chat** is stored in `data/chats/<id>/chat.json`, with attached files in `attachments/`. The thinking
   effort (`off|low|medium|high`) becomes `chat_template_kwargs`; reasoning streams as separate events and
   is saved on the answer. Documents become text parts, images become `image_url` parts (newest four per
-  request), and only if the LLM endpoint declares image input.
+  request), and only if the LLM endpoint declares image input. An answer runs in the server
+  (`src/server/chat-generation.ts`), not in the browser request: a page that leaves stops listening, not the
+  model, and reattaches through `/api/chats/:id/stream`. One answer per chat at a time.
 
 ## Model services (DGX Spark reference stack)
 
