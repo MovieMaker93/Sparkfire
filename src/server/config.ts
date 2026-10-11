@@ -8,7 +8,12 @@ export const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT_DIR,
 export const CLIENT_DIR = path.resolve(ROOT_DIR, "dist-client");
 export const PORT = Number(process.env.PORT || 54321);
 export const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
-export const APP_VERSION = process.env.SPARKLINGKIT_VERSION || "development";
+// Sparkfire began as a fork of SparklingKit; installs that still set SPARKLINGKIT_* keep working.
+export function brandEnv(name: string, env: NodeJS.ProcessEnv = process.env) {
+  return env[`SPARKFIRE_${name}`] ?? env[`SPARKLINGKIT_${name}`];
+}
+
+export const APP_VERSION = brandEnv("VERSION") || "development";
 
 export const BUNDLED_SERVICE_CATALOG = REFERENCE_SERVICE_CATALOG;
 
@@ -23,10 +28,11 @@ function environmentEndpoint(baseUrl: string | undefined, model: string | undefi
   };
 }
 
-const configuredMode = DEPLOYMENT_MODES.includes(process.env.SPARKLINGKIT_DEPLOYMENT_MODE as (typeof DEPLOYMENT_MODES)[number])
-  ? process.env.SPARKLINGKIT_DEPLOYMENT_MODE as Settings["setup"]["mode"]
+const environmentMode = brandEnv("DEPLOYMENT_MODE");
+const configuredMode = DEPLOYMENT_MODES.includes(environmentMode as (typeof DEPLOYMENT_MODES)[number])
+  ? environmentMode as Settings["setup"]["mode"]
   : "custom";
-const explicitlyComplete = process.env.SPARKLINGKIT_SETUP_COMPLETE;
+const explicitlyComplete = brandEnv("SETUP_COMPLETE");
 const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
 
 export const defaultSettings: Settings = {
