@@ -8,12 +8,13 @@ import multer from "multer";
 import { z } from "zod";
 import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
-import { checkEndpoint, imageCapabilities, openChatStream, streamDelta, thinkingOptions, videoCapabilities, type ImageCapabilities, type VideoCapabilities } from "./ai.js";
+import { checkEndpoint, imageCapabilities, openChatStream, thinkingOptions, videoCapabilities, type ImageCapabilities, type VideoCapabilities } from "./ai.js";
 import { chatAttachmentPath, MAX_ATTACHMENTS_PER_MESSAGE, readChatAttachment, saveChatAttachment } from "./chat-attachments.js";
+import { chatGeneration, chatStreamDeltas, claimChatGeneration, releaseChatGeneration, type ChatGeneration } from "./chat-generation.js";
 import { modelMessagesForChat } from "./chat-messages.js";
 import { APP_VERSION, CLIENT_DIR, DATA_DIR, PORT } from "./config.js";
 import { jobEvents, publishJob } from "./events.js";
-import type { ChatMessage, EndpointKind, JobKind, PromptPreset, Settings } from "./models.js";
+import type { ChatMessage, ChatRecord, EndpointKind, JobKind, PromptPreset, Settings } from "./models.js";
 import { listModules } from "./modules/registry.js";
 import { TRANSLATION_PREVIEW_CHARACTER_LIMIT, translateContent } from "./modules/translation/service.js";
 import { searchWorkspace } from "./search.js";
@@ -598,6 +599,10 @@ app.patch("/api/chats/:id", async (request, response) => {
   response.json(await renameChat(request.params.id, title));
 });
 app.delete("/api/chats/:id", async (request, response) => {
+  // Wait for a running answer to stop first, or its final save would bring the deleted folder back.
+  const generation = chatGeneration(request.params.id);
+  generation?.stop({ discard: true });
+  await generation?.finished;
   await deleteChat(request.params.id);
   response.status(204).end();
 });
@@ -632,81 +637,78 @@ app.post("/api/chats/:id/messages", async (request, response) => {
   const attachmentIds = z.array(z.string()).max(MAX_ATTACHMENTS_PER_MESSAGE).default([]).parse(request.body?.attachmentIds);
   const effort = z.enum(CHAT_EFFORTS).optional().parse(request.body?.effort);
   if (!typed && !attachmentIds.length) return response.status(400).json({ error: "Write a message or attach a file" });
-  const chat = await readChat(request.params.id);
-  const attachments = await Promise.all(attachmentIds.map((attachmentId) => readChatAttachment(chat.id, attachmentId)));
-  const content = typed || `Please look at the attached ${attachments.length === 1 ? "file" : "files"}.`;
-  const settings = await readSettings();
-  const now = new Date().toISOString();
-  const userMessage: ChatMessage = { id: randomUUID(), role: "user", content, createdAt: now, ...(attachments.length ? { attachments } : {}) };
-  chat.messages.push(userMessage);
-  if (chat.title === "New conversation") chat.title = (typed || attachments[0]?.name || content).replace(/\s+/g, " ").slice(0, 54);
-  await writeChat(chat);
+  // Claimed before any await, so two quick sends cannot both start an answer and overwrite each other's messages.
+  const generation = claimChatGeneration(request.params.id);
+  if (!generation) return response.status(409).json({ error: "This conversation is still answering. Wait for it or stop it first." });
+  let chat: ChatRecord;
+  let settings: Settings;
+  try {
+    chat = await readChat(request.params.id);
+    const attachments = await Promise.all(attachmentIds.map((attachmentId) => readChatAttachment(chat.id, attachmentId)));
+    const content = typed || `Please look at the attached ${attachments.length === 1 ? "file" : "files"}.`;
+    settings = await readSettings();
+    const now = new Date().toISOString();
+    const userMessage: ChatMessage = { id: randomUUID(), role: "user", content, createdAt: now, ...(attachments.length ? { attachments } : {}) };
+    chat.messages.push(userMessage);
+    if (chat.title === "New conversation") chat.title = (typed || attachments[0]?.name || content).replace(/\s+/g, " ").slice(0, 54);
+    await writeChat(chat);
+  } catch (error) {
+    releaseChatGeneration(generation);
+    throw error;
+  }
 
+  followChatGeneration(generation, response);
+  void generation.run(
+    // Always the configured model: a chat created before a model switch would otherwise ask for one the server no longer serves.
+    async (signal) => chatStreamDeltas(await openChatStream(
+      settings.endpoints.llm,
+      await modelMessagesForChat(chat, settings),
+      chat.temperature,
+      signal,
+      thinkingOptions(effort),
+    )),
+    async ({ content, reasoning }) => {
+      const assistantMessage: ChatMessage = {
+        id: randomUUID(),
+        role: "assistant",
+        content,
+        createdAt: new Date().toISOString(),
+        ...(reasoning ? { reasoning } : {}),
+      };
+      // Read again rather than reuse `chat`: the conversation may have been renamed while the model was answering.
+      const latest = await readChat(chat.id);
+      latest.messages.push(assistantMessage);
+      latest.model = settings.endpoints.llm.model;
+      await writeChat(latest);
+      return assistantMessage;
+    },
+  );
+});
+
+// Reattaches a page to an answer still being generated, for example after the user left the chat and came back.
+app.get("/api/chats/:id/stream", (request, response) => {
+  const generation = chatGeneration(request.params.id);
+  if (!generation) return response.status(204).end();
+  followChatGeneration(generation, response);
+});
+
+app.post("/api/chats/:id/stop", (request, response) => {
+  chatGeneration(request.params.id)?.stop();
+  response.status(204).end();
+});
+
+function followChatGeneration(generation: ChatGeneration, response: Response) {
   response.setHeader("Content-Type", "text/event-stream");
   response.setHeader("Cache-Control", "no-cache, no-transform");
   response.setHeader("Connection", "keep-alive");
   response.flushHeaders();
-  let assistant = "";
-  let reasoning = "";
-  const upstreamController = new AbortController();
-  response.on("close", () => {
-    if (!response.writableEnded) upstreamController.abort();
+  // A closed page only stops listening; the answer keeps going and is saved for when the user comes back.
+  const unsubscribe = generation.subscribe((event) => {
+    response.write(`data: ${JSON.stringify(event)}\n\n`);
+    if ("done" in event || "error" in event) response.end();
   });
-  try {
-    // Always the configured model: a chat created before a model switch would otherwise ask for one the server no longer serves.
-    const body = await openChatStream(
-      settings.endpoints.llm,
-      await modelMessagesForChat(chat, settings),
-      chat.temperature,
-      upstreamController.signal,
-      thinkingOptions(effort),
-    );
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.startsWith("data:")) continue;
-        const data = line.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-        try {
-          const { content: delta, reasoning: thought } = streamDelta(JSON.parse(data));
-          if (thought) {
-            reasoning += thought;
-            response.write(`data: ${JSON.stringify({ reasoning: thought })}\n\n`);
-          }
-          if (delta) {
-            assistant += delta;
-            response.write(`data: ${JSON.stringify({ delta })}\n\n`);
-          }
-        } catch {
-          // Some compatible servers emit non-JSON bookkeeping events.
-        }
-      }
-      if (done) break;
-    }
-    if (!assistant.trim()) throw new Error("The language model finished without returning final content");
-    const assistantMessage: ChatMessage = {
-      id: randomUUID(),
-      role: "assistant",
-      content: assistant,
-      createdAt: new Date().toISOString(),
-      ...(reasoning.trim() ? { reasoning: reasoning.trim() } : {}),
-    };
-    chat.messages.push(assistantMessage);
-    chat.model = settings.endpoints.llm.model;
-    await writeChat(chat);
-    response.write(`data: ${JSON.stringify({ done: true, message: assistantMessage })}\n\n`);
-    response.end();
-  } catch (error) {
-    response.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : String(error) })}\n\n`);
-    response.end();
-  }
-});
+  response.on("close", unsubscribe);
+}
 
 if (await fs.stat(CLIENT_DIR).then((value) => value.isDirectory()).catch(() => false)) {
   app.use(express.static(CLIENT_DIR));
