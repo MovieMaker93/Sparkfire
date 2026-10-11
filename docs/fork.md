@@ -12,10 +12,11 @@ details. Measured results are in [`validation.md`](validation.md).
 - **Sidebar.** One "AI services" chip with a popover replaces the per-service status rows. The Spark monitor
   expands on click.
 - **Optional tools.** Grounding, whose service the stack does not ship, stays out of the sidebar, the Tools
-  page, search, Continue with actions, the Workbench filters, the workflow palette and the services chip
+  page, search, Continue with actions, the Workbench filters and tiles, the workflow palette and the services chip
   until a grounding endpoint is enabled. Settings → Services always lists it.
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
-  and thumbnails in Recent.
+  thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image" (which
+  returns once grounding is configured).
 - **Gallery** (`/gallery`). Every image and generated video across jobs, with source and model filters, a
   lightbox that plays videos, and a pick-two side-by-side compare.
 - **Job viewers.**

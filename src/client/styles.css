@@ -1046,7 +1046,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .dashboard-column-heading h1, .dashboard-column-heading h2 { @apply font-display text-[24px] font-bold tracking-[-.03em]; }
 .workbench-grid { @apply grid min-w-0 items-stretch gap-0 lg:grid-cols-12; }
 .workbench-card { @apply flex min-w-0 flex-col rounded-none border-0 border-b border-[var(--sk-n7)] bg-transparent p-6; box-shadow: none; }
-.workbench-file-card, .workbench-image-card, .workbench-translation-card, .workbench-chat-card, .workbench-grounding-link { @apply lg:col-span-6; }
+.workbench-file-card, .workbench-image-card, .workbench-translation-card, .workbench-chat-card, .workbench-tool-link { @apply lg:col-span-6; }
 .workbench-workflows-card { @apply lg:col-span-12; }
 .workbench-card-heading { @apply flex items-center gap-3.5; }
 .workbench-card-heading strong { @apply min-w-0 font-display text-[20px] font-bold tracking-[-.025em]; }
@@ -1055,7 +1055,8 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .workbench-translation-card .workbench-card-icon { @apply bg-[var(--sk-purple-1)] text-[var(--sk-purple-6)]; }
 .workbench-image-card .workbench-card-icon { @apply bg-[var(--sk-purple-2)] text-[var(--sk-purple-6)]; }
 .workbench-chat-card .workbench-card-icon { @apply bg-[var(--sk-n6)] text-[var(--sk-blue-6)]; }
-.workbench-grounding-link .workbench-card-icon { @apply bg-[var(--sk-n7)] text-[var(--sk-teal-6)]; }
+.workbench-tool-link .workbench-card-icon { @apply bg-[var(--sk-n7)] text-[var(--sk-teal-6)]; }
+.workbench-video-link .workbench-card-icon { @apply bg-[var(--sk-green-2)] text-[var(--sk-green-6)]; }
 .workbench-mindmap-link .workbench-card-icon { @apply bg-[var(--sk-n6)] text-[var(--sk-teal-6)]; }
 .workbench-file-drop { @apply mt-5 flex min-h-24 flex-1 cursor-pointer items-center gap-3.5 rounded-[16px] border border-dashed border-[var(--sk-n10)] bg-[var(--sk-n2)] p-4 transition hover:border-[var(--sk-n12)] hover:bg-[var(--sk-n3)]; }
 .workbench-file-drop.active { @apply border-[var(--sk-n15)] bg-[var(--sk-n5)]; }
@@ -1106,9 +1107,9 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .workbench-chat-composer { @apply relative mt-5 flex min-h-24 flex-1 items-end rounded-[16px] border border-[var(--sk-n9)] bg-[var(--sk-n2)] p-2.5 transition focus-within:border-[var(--sk-n14)]; }
 .workbench-chat-composer textarea { @apply min-h-16 flex-1 self-stretch resize-none bg-transparent px-2 py-1.5 text-[16px] leading-6 text-ink outline-none placeholder:text-[var(--sk-n12)]; }
 .workbench-chat-composer .send-button { @apply h-9 w-9 shrink-0; }
-.workbench-grounding-link { @apply grid min-h-32 grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 text-ink transition hover:bg-[var(--sk-n4)]; }
-.workbench-grounding-link .workbench-card-heading { @apply min-w-0; }
-.workbench-grounding-link > svg { @apply text-muted; }
+.workbench-tool-link { @apply grid min-h-32 grid-cols-[minmax(0,1fr)_auto] items-center gap-3.5 text-ink transition hover:bg-[var(--sk-n4)]; }
+.workbench-tool-link .workbench-card-heading { @apply min-w-0; }
+.workbench-tool-link > svg { @apply text-muted; }
 .workbench-workflows-card { @apply gap-0; }
 .workbench-workflows-card .workbench-card-icon { @apply bg-[var(--sk-n6)] text-[var(--sk-n15)]; }
 .workbench-workflow-list { @apply mt-4 grid grid-cols-1 border-t border-[var(--sk-n7)]; }
@@ -1155,7 +1156,9 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
   .workbench-workflow-list > button:nth-child(even) { @apply pl-6; }
   .workbench-image-card { @apply border-r border-b; }
   .workbench-chat-card { @apply border-b; }
-  .workbench-grounding-link:not(.workbench-mindmap-link) { @apply border-r; }
+  /* Tool links pair up in two columns; a third one (grounding, once configured) starts a new row. */
+  a.workbench-tool-link:nth-of-type(odd) { @apply border-r; }
+  a.workbench-tool-link:nth-of-type(n+3) { @apply border-t; }
 }
 
 .job-titlebar { background: color-mix(in srgb, var(--sk-n0) 94%, transparent); }
@@ -1771,7 +1774,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
   .image-size-options button { @apply flex-col items-start px-2.5; }
   .workbench-chat-card { @apply min-h-0; }
   .workbench-chat-composer textarea { @apply text-[16px]; }
-  .workbench-grounding-link { @apply min-h-28 grid-cols-[minmax(0,1fr)_auto]; }
+  .workbench-tool-link { @apply min-h-28 grid-cols-[minmax(0,1fr)_auto]; }
   .workbench-workflow-list { @apply grid-cols-1; }
   .upload-card { @apply rounded-[20px]; }
   .upload-dropzone { @apply min-h-[238px] p-6; }
