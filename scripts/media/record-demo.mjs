@@ -2,10 +2,11 @@
 //
 //   node record-demo.mjs [clip ...]      (BASE_URL, ASSETS, JOBS and OUT override the defaults below)
 //
-// Each clip is its own browser session, so it becomes its own video (<clip>.webm). Moments spent waiting for
-// a model are logged in <clip>.events.json; make-media.mjs fast-forwards them. Run it against a demo copy of
-// the app with demo data only (see scripts/media/README.md): everything on screen ends up in the README.
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+// Each clip is its own browser session, saved as Chromium's own screencast frames with their times
+// (<clip>/frames.json); make-media.mjs turns them into video. Moments spent waiting for a model are logged in
+// <clip>.events.json, and make-media.mjs fast-forwards them. Run it against a demo copy of the app with demo
+// data only (see scripts/media/README.md): everything on screen ends up in the README.
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 
@@ -32,21 +33,38 @@ const browser = await chromium.launch();
 await mkdir(OUT, { recursive: true });
 
 async function clip(name, scene) {
-  const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark", recordVideo: { dir: OUT, size: VIEWPORT } });
+  const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark" });
   await context.addInitScript(CURSOR);
   const page = await context.newPage();
+  const dir = path.join(OUT, name);
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(dir, { recursive: true });
   const started = Date.now();
   const events = [];
   const mark = (label) => events.push({ label, t: (Date.now() - started) / 1000 });
+  // Playwright's recordVideo squeezes the same frames into about 1 Mbit/s of VP8, which blurs text, so keep
+  // the frames themselves. Chromium sends one whenever the page repaints; each lasts until the next.
+  const frames = [];
+  const writes = [];
+  const cdp = await context.newCDPSession(page);
+  cdp.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+    const file = `${String(frames.length).padStart(6, "0")}.jpg`;
+    frames.push({ file, t: (metadata.timestamp ?? Date.now() / 1000) - started / 1000 });
+    writes.push(writeFile(path.join(dir, file), Buffer.from(data, "base64")));
+    cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+  });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: VIEWPORT.width, maxHeight: VIEWPORT.height });
   await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2);
   try {
     await scene(page, mark);
   } finally {
-    const video = page.video();
+    const end = (Date.now() - started) / 1000;
+    await cdp.send("Page.stopScreencast").catch(() => {});
+    await Promise.all(writes);
     await context.close();
-    await rename(await video.path(), path.join(OUT, `${name}.webm`));
+    await writeFile(path.join(dir, "frames.json"), JSON.stringify({ end, frames }));
     await writeFile(path.join(OUT, `${name}.events.json`), JSON.stringify(events, null, 1));
-    console.log(`recorded ${name} (${((Date.now() - started) / 1000).toFixed(1)} s)`);
+    console.log(`recorded ${name} (${end.toFixed(1)} s, ${frames.length} frames)`);
   }
 }
 
@@ -76,11 +94,15 @@ async function shot(page, name) {
 }
 
 const clips = {
-  // The home screen while real jobs run: the Running now strip, recent work with thumbnails, the services chip.
+  // The home screen while real jobs run: the Running now strip with images and a video, recent work, the services chip.
   async workbench(page) {
     for (const prompt of ["Watercolor map of a coastal town with a harbor and a lighthouse", "A minimalist poster of a wind turbine at sunrise, flat colors"]) {
       await api("/modules/text-to-image/jobs", { prompt, size: "1024x1024" });
     }
+    const video = new FormData();
+    video.set("prompt", "Stop-motion animation of a clay snail crossing a mossy log, soft studio light");
+    video.set("sound", "gentle forest ambience, a soft wooden xylophone");
+    await fetch(`${BASE_URL}/api/modules/text-to-video/jobs`, { method: "POST", body: video });
     await page.goto(`${BASE_URL}/`);
     await page.getByLabel("Running now").waitFor();
     await pause(2500);
@@ -144,33 +166,62 @@ const clips = {
     await pause(1800);
     await shot(page, "gallery");
     await glide(page, page.getByRole("button", { name: "Compare" }));
-    const picks = page.getByRole("button", { name: /^Pick / });
+    const picks = page.locator(".gallery-card:not(:has(.gallery-video-badge))").getByRole("button", { name: /^Pick / });
     await glide(page, picks.nth(0));
     await pause(600);
     await glide(page, picks.nth(2));
     await pause(3500);
   },
 
-  // Grounding: drag the before/after slider over the boxes the model found.
-  async grounding(page) {
-    await page.goto(`${BASE_URL}/jobs/${jobs.grounding}`);
-    await page.getByLabel("Image view").waitFor();
-    await pause(1800);
-    await glide(page, page.getByRole("button", { name: "Compare", exact: true }));
-    const slider = page.getByLabel("Comparison position");
-    await slider.waitFor();
-    await pause(800);
-    const box = await slider.boundingBox();
-    const y = box.y + box.height / 2;
-    await page.mouse.move(box.x + box.width * 0.5, y, { steps: 10 });
-    await page.mouse.down();
-    for (const at of [0.15, 0.85, 0.5]) {
-      await page.mouse.move(box.x + box.width * at, y, { steps: 30 });
-      await pause(500);
-    }
-    await page.mouse.up();
-    await shot(page, "grounding");
+  // Text to video on FastH3: a prompt and its sound, the progress view, then the finished clip playing.
+  async video(page, mark) {
+    await page.goto(`${BASE_URL}/tools/text-to-video`);
+    const prompt = page.locator(".video-generation-form .image-prompt-input");
+    await glide(page, prompt);
+    await prompt.pressSequentially("A small paper boat drifting down a rain-soaked street gutter at night, close-up, neon reflections on the water", { delay: 28 });
+    const sound = page.getByLabel("Sound");
+    await glide(page, sound);
+    await sound.pressSequentially("steady rain, trickling water, distant traffic", { delay: 28 });
+    await pause(600);
+    await glide(page, page.getByRole("button", { name: "Generate video" }));
+    await page.waitForURL(/\/jobs\//, { timeout: 60_000 });
+    await pause(2500);
+    mark("wait-start");
+    await page.locator(".status-badge.status-done").first().waitFor({ timeout: 900_000 });
+    mark("wait-end");
+    const player = page.locator("video").first();
+    await player.waitFor();
+    await player.evaluate((element) => { element.muted = true; return element.play(); });
+    await pause(5500);
+    await shot(page, "video");
     await pause(1500);
+  },
+
+  // Web search in chat: turn Web on, ask something current, watch the searches, then the cited answer.
+  async websearch(page, mark) {
+    await page.goto(`${BASE_URL}/chat`);
+    await glide(page, page.getByRole("radiogroup", { name: "Thinking effort" }).getByRole("radio", { name: "Low" }));
+    await pause(300);
+    await glide(page, page.getByRole("radiogroup", { name: "Web search" }).getByRole("radio", { name: "On" }));
+    await pause(500);
+    const box = page.getByPlaceholder("Message your local model…");
+    await glide(page, box);
+    await box.pressSequentially("What is the latest Node.js LTS release, and until when is it supported?", { delay: 24 });
+    await pause(400);
+    await page.keyboard.press("Enter");
+    mark("wait-start");
+    await page.locator(".message-activity-steps li").first().waitFor({ timeout: 300_000 });
+    await page.locator(".message-row:not(.message-user) .message-content").first().waitFor({ timeout: 600_000 });
+    mark("wait-end");
+    mark("stream-start");
+    await page.locator(".message-row:not(.message-user) .message-actions").last().waitFor({ timeout: 600_000 });
+    mark("stream-end");
+    await pause(1500);
+    await glide(page, page.locator(".message-activity summary").last());
+    await pause(1200);
+    await scroll(page, 500, 10);
+    await pause(2500);
+    await shot(page, "websearch");
   },
 
   // Chat: attach the report with the + button, choose a thinking level, watch the reasoning and the answer.
