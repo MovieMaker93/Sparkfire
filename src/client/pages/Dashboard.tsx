@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useDropzone } from "react-dropzone";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, FileText, FolderOpen, GitBranch, Image as ImageIcon, Languages, MessageCircle, Network, Play, Save, ScanSearch, ScanText, Search, Trash2, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, FileText, Film, FolderOpen, GitBranch, Image as ImageIcon, Languages, MessageCircle, Network, Play, Save, ScanSearch, ScanText, Search, Trash2, X } from "lucide-react";
 import { api, uploadJob, uploadTranslationJob } from "../api";
 import { cn, ConfirmDialog, displayTitle, formatBytes, JobIcon, jobLabel, JobThumb, Progress, StatusBadge, timeAgo } from "../components/ui";
 import { savedTranslationPreferences, translationLanguages, translationPreferenceKey, type TranslationPreferences } from "../translation";
@@ -132,6 +132,8 @@ export function Dashboard() {
   useEffect(() => { api.workflows().then(setWorkflows).catch(() => undefined); }, []);
   useEffect(() => { localStorage.setItem(translationPreferenceKey, JSON.stringify(translationPreferences)); }, [translationPreferences]);
 
+  // Grounding is hidden until its endpoint is configured; video only once the module list has it.
+  const visible = useCallback((moduleId: ModuleId) => { const module = modules.find((entry) => entry.id === moduleId); return Boolean(module && !module.hidden); }, [modules]);
   const configured = useCallback((moduleId: ModuleId) => Boolean(modules.find((module) => module.id === moduleId)?.configured), [modules]);
   const translationReady = configured("translation");
   useEffect(() => {
@@ -346,8 +348,9 @@ export function Dashboard() {
         {chatError && <p className="form-error">{chatError}</p>}
       </section>
 
-      <Link to="/tools/grounding" className="workbench-card workbench-grounding-link"><WorkbenchHeading icon={<ScanSearch size={22} />} title="Find something in an image" /><ArrowRight size={19} /></Link>
-      <Link to="/tools/mindmap" className="workbench-card workbench-grounding-link workbench-mindmap-link"><WorkbenchHeading icon={<Network size={22} />} title="Build an interactive mind map" /><ArrowRight size={19} /></Link>
+      {visible("text-to-video") && <Link to="/tools/text-to-video" className="workbench-card workbench-tool-link workbench-video-link"><WorkbenchHeading icon={<Film size={22} />} title="Create a video" /><ArrowRight size={19} /></Link>}
+      {visible("grounding") && <Link to="/tools/grounding" className="workbench-card workbench-tool-link"><WorkbenchHeading icon={<ScanSearch size={22} />} title="Find something in an image" /><ArrowRight size={19} /></Link>}
+      <Link to="/tools/mindmap" className="workbench-card workbench-tool-link workbench-mindmap-link"><WorkbenchHeading icon={<Network size={22} />} title="Build an interactive mind map" /><ArrowRight size={19} /></Link>
     </div>
     </section>
 
