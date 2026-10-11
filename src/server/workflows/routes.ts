@@ -69,8 +69,7 @@ function projectedArtifactKind(file: Express.Multer.File) {
 }
 
 async function updateFlowJob(jobId: string, patch: Omit<Partial<JobManifest>, "runs">) {
-  const current = await readJob(jobId);
-  return updateJob(jobId, { ...patch, runs: current.runs });
+  return updateJob(jobId, (current) => ({ ...patch, runs: current.runs }));
 }
 
 // The endpoint a workflow service runs on: the LLM for prompts and chats, else its module's provider.

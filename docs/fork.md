@@ -256,9 +256,7 @@ npm run dev
    - Add a host allowlist and an optional access token.
    - Run the app and service containers as a non-root user (Trivy DS-0002); existing `data/` folders need
      their ownership migrated.
-5. **Correctness and speed:**
-   - Add a per-job lock in `updateJob`.
-   - Send OCR pages and ASR chunks with bounded concurrency.
+5. **Speed:** send OCR pages and ASR chunks with bounded concurrency.
 6. **Long documents:**
    - Give chat and mind maps a token budget, then retrieval.
    - Add full-text search.

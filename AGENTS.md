@@ -161,6 +161,9 @@ Rules for this layer:
 - **Files stay the storage model.** Write JSON atomically through the store helpers, build paths only with
   `assertSafeName`, `safeArtifactPath` and friends, keep artifact lineage intact, and keep schema changes
   additive: never silently rewrite a user's folders.
+- **Change a job only through `updateJob` and the store helpers.** They hold a per-job lock, because the
+  worker and the API change the same `job.json`. When a patch depends on the manifest (appending to a list,
+  keeping the runs), pass `updateJob` a function of the current manifest instead of a value read earlier.
 - **Match the surrounding code.** Same naming, same density of comments. Comments say why, not what.
 - **Styles.** Use the `--sk-*` colour tokens and existing component classes (for example `.theme-choice` for
   segmented controls); never hard-code colours. Every UI change must work in the dark and light themes and

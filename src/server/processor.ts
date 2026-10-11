@@ -31,7 +31,7 @@ function hasWordTimes(result: TranscriptResult): result is TranscriptResult & { 
   return Array.isArray(result.words) && (result.words.length > 0 || !result.text.trim());
 }
 
-async function progress(id: string, patch: Partial<JobManifest>) {
+async function progress(id: string, patch: Parameters<typeof updateJob>[1]) {
   const next = await updateJob(id, patch);
   publishJob(id, next);
   return next;
@@ -483,8 +483,7 @@ export async function processPreset(jobId: string, slug: string, signal?: AbortS
     await assertNotCancelled(jobId, signal);
     const outputName = `summary.${preset.slug}.md`;
     await fs.writeFile(safeOutputPath(jobId, outputName), `${result}\n`);
-    const current = await readJob(jobId);
-    await progress(jobId, {
+    await progress(jobId, (current) => ({
       status: "done",
       progress: 100,
       stage: `${preset.name} complete`,
@@ -492,7 +491,7 @@ export async function processPreset(jobId: string, slug: string, signal?: AbortS
       completedAt: new Date().toISOString(),
       error: undefined,
       cancelRequested: false,
-    });
+    }));
   } catch (error) {
     if (error instanceof CancelledError || isAbort(error, signal)) {
       await progress(jobId, {

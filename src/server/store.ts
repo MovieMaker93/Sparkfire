@@ -580,8 +580,40 @@ export function userFacingOutputFiles(files: string[]) {
   return files.filter((file) => !/^(?:pages|chunks)\//.test(file));
 }
 
-export async function updateJob(id: string, patch: Partial<JobManifest>) {
-  const job = await readJob(id);
+// The queue worker runs in this process, so one lock per job here makes every change to a job.json a read,
+// modify and write that no other change interleaves with. Without it, a progress update could write back a
+// manifest read just before a stop request or a rename and silently undo it.
+const jobLocks = new Map<string, Promise<void>>();
+
+async function withJobLock<T>(id: string, task: () => Promise<T>): Promise<T> {
+  const previous = jobLocks.get(id) ?? Promise.resolve();
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const tail = previous.then(() => held);
+  jobLocks.set(id, tail);
+  await previous;
+  try {
+    return await task();
+  } finally {
+    release();
+    if (jobLocks.get(id) === tail) jobLocks.delete(id);
+  }
+}
+
+type JobPatch = Partial<JobManifest>;
+
+/**
+ * Changes a job's manifest under its lock. When the patch depends on the manifest (appending to a list, keeping
+ * the runs), pass a function: it gets the manifest as it is now. The function must not change the same job.
+ */
+export async function updateJob(id: string, patch: JobPatch | ((job: JobManifest) => JobPatch | Promise<JobPatch>)) {
+  return withJobLock(id, async () => {
+    const job = await readJob(id);
+    return saveJobPatch(id, job, typeof patch === "function" ? await patch(job) : patch);
+  });
+}
+
+async function saveJobPatch(id: string, job: JobManifest, patch: JobPatch) {
   const updatedAt = new Date().toISOString();
   const next: JobManifest = { ...job, ...patch, schemaVersion: 2, updatedAt };
   if (patch.outputFiles && !patch.artifacts) next.artifacts = syncOutputArtifacts(next, patch.outputFiles, next.runs.at(-1)?.id);
@@ -617,58 +649,62 @@ export async function createWorkflowRun(
   params: Record<string, unknown>,
   inputArtifactIds?: string[],
 ) {
-  const job = await readJob(jobId);
-  const now = new Date().toISOString();
-  const run: WorkflowRun = {
-    id: `run-${randomUUID().slice(0, 8)}`,
-    moduleId,
-    workflowId,
-    status: "queued",
-    progress: 0,
-    stage: "Waiting for a worker",
-    createdAt: now,
-    updatedAt: now,
-    inputArtifactIds: inputArtifactIds || job.artifacts.filter((artifact) => artifact.role === "primary").map((artifact) => artifact.id),
-    outputArtifactIds: [],
-    params,
-    steps: [],
-    warnings: [],
-  };
-  const next = await updateJob(jobId, {
-    status: "queued",
-    progress: 0,
-    stage: "Waiting for a worker",
-    detail: undefined,
-    error: undefined,
-    cancelRequested: false,
-    completedAt: undefined,
-    runs: [...job.runs, run],
+  return withJobLock(jobId, async () => {
+    const job = await readJob(jobId);
+    const now = new Date().toISOString();
+    const run: WorkflowRun = {
+      id: `run-${randomUUID().slice(0, 8)}`,
+      moduleId,
+      workflowId,
+      status: "queued",
+      progress: 0,
+      stage: "Waiting for a worker",
+      createdAt: now,
+      updatedAt: now,
+      inputArtifactIds: inputArtifactIds || job.artifacts.filter((artifact) => artifact.role === "primary").map((artifact) => artifact.id),
+      outputArtifactIds: [],
+      params,
+      steps: [],
+      warnings: [],
+    };
+    const next = await saveJobPatch(jobId, job, {
+      status: "queued",
+      progress: 0,
+      stage: "Waiting for a worker",
+      detail: undefined,
+      error: undefined,
+      cancelRequested: false,
+      completedAt: undefined,
+      runs: [...job.runs, run],
+    });
+    return { job: next, run };
   });
-  return { job: next, run };
 }
 
 export async function updateWorkflowRun(jobId: string, runId: string, patch: Partial<WorkflowRun>) {
-  const job = await readJob(jobId);
-  const index = job.runs.findIndex((run) => run.id === runId);
-  if (index < 0) throw notFound("Workflow run not found");
-  const updatedAt = new Date().toISOString();
-  const run = { ...job.runs[index], ...patch, id: runId, updatedAt };
-  const runs = job.runs.map((candidate, candidateIndex) => candidateIndex === index ? run : candidate);
-  const isCurrent = index === runs.length - 1;
-  const next = await updateJob(jobId, {
-    runs,
-    ...(isCurrent ? {
-      status: run.status,
-      progress: run.progress,
-      stage: run.stage,
-      warnings: run.warnings,
-      error: run.error,
-      cancelRequested: run.cancelRequested,
-      startedAt: run.startedAt,
-      completedAt: run.completedAt,
-    } : {}),
+  return withJobLock(jobId, async () => {
+    const job = await readJob(jobId);
+    const index = job.runs.findIndex((run) => run.id === runId);
+    if (index < 0) throw notFound("Workflow run not found");
+    const updatedAt = new Date().toISOString();
+    const run = { ...job.runs[index], ...patch, id: runId, updatedAt };
+    const runs = job.runs.map((candidate, candidateIndex) => candidateIndex === index ? run : candidate);
+    const isCurrent = index === runs.length - 1;
+    const next = await saveJobPatch(jobId, job, {
+      runs,
+      ...(isCurrent ? {
+        status: run.status,
+        progress: run.progress,
+        stage: run.stage,
+        warnings: run.warnings,
+        error: run.error,
+        cancelRequested: run.cancelRequested,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+      } : {}),
+    });
+    return { job: next, run };
   });
-  return { job: next, run };
 }
 
 export async function listJobs(): Promise<JobManifest[]> {
@@ -682,7 +718,8 @@ export async function listJobs(): Promise<JobManifest[]> {
 }
 
 export async function deleteJob(id: string) {
-  await fs.rm(jobDir(id), { recursive: true });
+  // Under the lock, so an update that already read the manifest cannot recreate the folder after this.
+  await withJobLock(id, () => fs.rm(jobDir(id), { recursive: true }));
 }
 
 export async function renameJob(id: string, title: string) {
@@ -690,59 +727,66 @@ export async function renameJob(id: string, title: string) {
 }
 
 export async function renameOutputFile(id: string, relative: string, requestedName: string) {
-  const job = await readJob(id);
-  if (!job.outputFiles.includes(relative)) throw notFound("Output file not found");
-  const directory = path.posix.dirname(relative);
-  const originalName = path.posix.basename(relative);
-  const name = renamedFileName(originalName, requestedName);
-  const nextRelative = directory === "." ? name : `${directory}/${name}`;
-  if (nextRelative === relative) return { job, file: relative };
-  const destination = safeOutputPath(id, nextRelative);
-  if (await exists(destination)) throw conflict("A file with that name already exists");
-  await fs.rename(safeOutputPath(id, relative), destination);
-  const next = await updateJob(id, {
-    outputFiles: job.outputFiles.map((file) => file === relative ? nextRelative : file),
-    artifacts: job.artifacts.map((artifact) => artifact.path === `output/${relative}` ? { ...artifact, name, path: `output/${nextRelative}` } : artifact),
+  return withJobLock(id, async () => {
+    const job = await readJob(id);
+    if (!job.outputFiles.includes(relative)) throw notFound("Output file not found");
+    const directory = path.posix.dirname(relative);
+    const originalName = path.posix.basename(relative);
+    const name = renamedFileName(originalName, requestedName);
+    const nextRelative = directory === "." ? name : `${directory}/${name}`;
+    if (nextRelative === relative) return { job, file: relative };
+    const destination = safeOutputPath(id, nextRelative);
+    if (await exists(destination)) throw conflict("A file with that name already exists");
+    await fs.rename(safeOutputPath(id, relative), destination);
+    const next = await saveJobPatch(id, job, {
+      outputFiles: job.outputFiles.map((file) => file === relative ? nextRelative : file),
+      artifacts: job.artifacts.map((artifact) => artifact.path === `output/${relative}` ? { ...artifact, name, path: `output/${nextRelative}` } : artifact),
+    });
+    return { job: next, file: nextRelative };
   });
-  return { job: next, file: nextRelative };
 }
 
 export async function deleteOutputFile(id: string, relative: string) {
-  const job = await readJob(id);
-  if (!job.outputFiles.includes(relative)) throw notFound("Output file not found");
-  const removedId = job.artifacts.find((artifact) => artifact.path === `output/${relative}`)?.id;
-  await fs.unlink(safeOutputPath(id, relative));
-  return updateJob(id, {
-    outputFiles: job.outputFiles.filter((file) => file !== relative),
-    artifacts: job.artifacts
-      .filter((artifact) => artifact.path !== `output/${relative}`)
-      .map((artifact) => removedId ? { ...artifact, derivedFrom: artifact.derivedFrom.filter((id) => id !== removedId) } : artifact),
-    runs: removedId ? job.runs.map((run) => ({ ...run, outputArtifactIds: run.outputArtifactIds.filter((id) => id !== removedId), inputArtifactIds: run.inputArtifactIds.filter((id) => id !== removedId) })) : job.runs,
+  return withJobLock(id, async () => {
+    const job = await readJob(id);
+    if (!job.outputFiles.includes(relative)) throw notFound("Output file not found");
+    const removedId = job.artifacts.find((artifact) => artifact.path === `output/${relative}`)?.id;
+    await fs.unlink(safeOutputPath(id, relative));
+    return saveJobPatch(id, job, {
+      outputFiles: job.outputFiles.filter((file) => file !== relative),
+      artifacts: job.artifacts
+        .filter((artifact) => artifact.path !== `output/${relative}`)
+        .map((artifact) => removedId ? { ...artifact, derivedFrom: artifact.derivedFrom.filter((id) => id !== removedId) } : artifact),
+      runs: removedId ? job.runs.map((run) => ({ ...run, outputArtifactIds: run.outputArtifactIds.filter((id) => id !== removedId), inputArtifactIds: run.inputArtifactIds.filter((id) => id !== removedId) })) : job.runs,
+    });
   });
 }
 
 export async function deleteInputFile(id: string, storedName: string) {
-  const job = await readJob(id);
-  if (!job.inputs.some((input) => input.storedName === storedName)) throw notFound("Source file not found");
-  const removedId = job.artifacts.find((artifact) => artifact.path === `input/${storedName}`)?.id;
-  await fs.unlink(safeInputPath(id, storedName));
-  return updateJob(id, {
-    inputs: job.inputs.filter((input) => input.storedName !== storedName),
-    artifacts: job.artifacts
-      .filter((artifact) => artifact.path !== `input/${storedName}`)
-      .map((artifact) => removedId ? { ...artifact, derivedFrom: artifact.derivedFrom.filter((id) => id !== removedId) } : artifact),
-    runs: removedId ? job.runs.map((run) => ({ ...run, inputArtifactIds: run.inputArtifactIds.filter((id) => id !== removedId) })) : job.runs,
+  return withJobLock(id, async () => {
+    const job = await readJob(id);
+    if (!job.inputs.some((input) => input.storedName === storedName)) throw notFound("Source file not found");
+    const removedId = job.artifacts.find((artifact) => artifact.path === `input/${storedName}`)?.id;
+    await fs.unlink(safeInputPath(id, storedName));
+    return saveJobPatch(id, job, {
+      inputs: job.inputs.filter((input) => input.storedName !== storedName),
+      artifacts: job.artifacts
+        .filter((artifact) => artifact.path !== `input/${storedName}`)
+        .map((artifact) => removedId ? { ...artifact, derivedFrom: artifact.derivedFrom.filter((id) => id !== removedId) } : artifact),
+      runs: removedId ? job.runs.map((run) => ({ ...run, inputArtifactIds: run.inputArtifactIds.filter((id) => id !== removedId) })) : job.runs,
+    });
   });
 }
 
 export async function renameInputFile(id: string, storedName: string, requestedName: string) {
-  const job = await readJob(id);
-  const input = job.inputs.find((item) => item.storedName === storedName);
-  if (!input) throw notFound("Source file not found");
-  const name = renamedFileName(input.name, requestedName);
-  return updateJob(id, {
-    inputs: job.inputs.map((item) => item.storedName === storedName ? { ...item, name } : item),
-    artifacts: job.artifacts.map((artifact) => artifact.path === `input/${storedName}` ? { ...artifact, name } : artifact),
+  return updateJob(id, (job) => {
+    const input = job.inputs.find((item) => item.storedName === storedName);
+    if (!input) throw notFound("Source file not found");
+    const name = renamedFileName(input.name, requestedName);
+    return {
+      inputs: job.inputs.map((item) => item.storedName === storedName ? { ...item, name } : item),
+      artifacts: job.artifacts.map((artifact) => artifact.path === `input/${storedName}` ? { ...artifact, name } : artifact),
+    };
   });
 }
 
