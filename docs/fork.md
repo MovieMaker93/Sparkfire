@@ -20,10 +20,18 @@ it. Measured results are in [`validation.md`](validation.md).
 
 ## Interface
 
-- **Themes.** All colours are tokens (`--sk-n0` to `--sk-n17` plus tinted families in `src/client/styles.css`).
-  Settings → General → Appearance switches between Dark, Light and System.
-- **Accent.** Primary actions, focus rings, the active navigation item and progress bars use one mint
-  accent (`--sk-accent`).
+- **Themes.** All colours are tokens (`--sk-n0` to `--sk-n17` plus tinted families in `src/client/styles.css`):
+  warm charcoal in the dark theme and warm paper in the light one, in place of upstream's cool grey.
+  Settings → General → Appearance switches between Dark, Light and System. Graph canvases and the HTML
+  preview take their colours from the same tokens.
+- **Accent.** Primary actions, focus rings, the active navigation item and progress bars use one ember
+  accent (`--sk-accent`). Progress bars run from it to a lighter tip (`--sk-accent-tip`) and shimmer while a
+  worker is on the job, unless the system asks for reduced motion. The active page has an ember bar on its
+  left edge. Warnings use a clear yellow, so they never read as the accent.
+- **Type.** Geist for text, Bricolage Grotesque for headings and the wordmark, Geist Mono for code, all
+  bundled from Fontsource.
+- **Shape.** Corners come from three tokens (`--sk-radius-sm`, `-md`, `-lg`: 6, 9 and 14 px). Buttons are
+  rounded rectangles rather than upstream's pills, and status badges are small tags.
 - **Mark.** A flame with a sparkle cut out of it, in the accent colour. It sits beside the wordmark in the
   sidebar, the mobile header and onboarding, stays alone when the sidebar collapses, and is the favicon,
   the home-screen icon and the GitHub social preview (`.github/media/social-preview.png`).

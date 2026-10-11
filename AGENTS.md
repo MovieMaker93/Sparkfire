@@ -162,9 +162,9 @@ Rules for this layer:
   `assertSafeName`, `safeArtifactPath` and friends, keep artifact lineage intact, and keep schema changes
   additive: never silently rewrite a user's folders.
 - **Match the surrounding code.** Same naming, same density of comments. Comments say why, not what.
-- **Styles.** Use the `--sk-*` colour tokens and existing component classes (for example `.theme-choice` for
-  segmented controls); never hard-code colours. Every UI change must work in the dark and light themes and
-  at 1440 and 375 px wide, with no horizontal scroll.
+- **Styles.** Use the `--sk-*` colour tokens, the `--sk-radius-*` corner tokens and existing component classes
+  (for example `.theme-choice` for segmented controls); never hard-code colours or one-off radii. Every UI
+  change must work in the dark and light themes and at 1440 and 375 px wide, with no horizontal scroll.
 - **Brand.** The mark is one path, `brandMarkPath` in `src/client/brand.ts`; draw it with `BrandMark` in the
   app. `src/client/public/` holds the favicon (the same path) and the PNG icons rendered from it: change
   them together.

@@ -381,7 +381,7 @@ Sparkfire started as a fork of SparklingKit 0.1.5 and is now its own project. Co
 
 | Area | What you get |
 | --- | --- |
-| **Interface** | Light, dark and system themes; a mint accent; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench; tools whose service is not configured stay out of the way |
+| **Interface** | Light, dark and system themes in warm charcoal and paper with an ember accent, Geist and Bricolage Grotesque type; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench; tools whose service is not configured stay out of the way |
 | **Gallery** | Every image and generated video with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
 | **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control with the reasoning shown live; answers that keep going when you leave the page; web search with cited sources |
