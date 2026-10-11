@@ -1,0 +1,40 @@
+# Web search for chat: a SearXNG instance only the app queries, over the compose network.
+# start-dgx-spark.sh adds this file and starts the service with --search-backend searxng; elsewhere use
+#   docker compose -f compose.yaml -f compose.search.yaml up -d
+# Searching sends what a conversation is about to the search engines SearXNG queries (Google, Bing, ...),
+# without the user's identity. Each conversation still has to turn web search on.
+
+services:
+  app:
+    environment:
+      # start-dgx-spark.sh --search-backend none sets this empty, so web search stays unconfigured.
+      WEB_SEARCH_BASE_URL: ${SPARKFIRE_SEARCH_BASE_URL-http://searxng:8080}
+
+  searxng:
+    image: searxng/searxng:2026.10.4-d48c4b555@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
+    container_name: sparklingkit-searxng
+    restart: unless-stopped
+    # Only on this host, for checks with curl; the app reaches it as http://searxng:8080.
+    ports:
+      - "127.0.0.1:8338:8080"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      # Generated once by start-dgx-spark.sh into data/searxng/secret.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+      # The settings are mounted read-only; do not try to take ownership of them.
+      FORCE_OWNERSHIP: "false"
+    volumes:
+      - ./services/searxng:/etc/searxng:ro
+    tmpfs:
+      - /var/cache/searxng:size=64m
+      - /tmp:size=16m
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "/usr/local/searxng/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
