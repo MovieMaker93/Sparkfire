@@ -1,8 +1,13 @@
+Sparkfire
+Copyright 2026 MovieMaker93
+
+Licensed under the Apache License, Version 2.0.
+
+Sparkfire is a derivative of SparklingKit (https://github.com/stevibe/SparklingKit).
+Its changes are described in docs/fork.md and recorded in the repository's commit history.
+The original notice follows.
+
 SparklingKit
 Copyright 2026 Steven Lei
 
 Licensed under the Apache License, Version 2.0.
-
-This copy is a modified fork maintained by MovieMaker93
-(https://github.com/MovieMaker93/SparklingKit). Its changes are described in
-docs/fork.md and recorded in the repository's commit history.
