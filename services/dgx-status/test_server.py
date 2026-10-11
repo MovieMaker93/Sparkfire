@@ -47,6 +47,17 @@ class ProcessServiceTests(unittest.TestCase):
             {"service": "asr", "serviceLabel": "ASR", "port": 8333, "model": "Parakeet-TDT-0.6B-v3"},
         )
 
+    def test_names_the_video_services_comfyui_by_its_private_port(self):
+        args = ["python3", "/opt/ComfyUI/main.py", "--listen", "127.0.0.1", "--port", "8347", "--disable-metadata"]
+        self.write_process(4343, args, {"MODEL_NAME": "FastH3"})
+        self.assertEqual(
+            server.resolve_process_service(4343),
+            {"service": "video-generation", "serviceLabel": "Video generation", "port": 8347, "model": "FastH3"},
+        )
+
+    def test_lists_video_generation_unless_its_port_is_empty(self):
+        self.assertIn(("video-generation", "Video generation", 8337), server.SERVICE_SPECS)
+
 
 if __name__ == "__main__":
     unittest.main()

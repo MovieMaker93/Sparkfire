@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Columns2, Download, ExternalLink, Images, X } from "lucide-react";
+import { Columns2, Download, ExternalLink, Images, Play, X } from "lucide-react";
 import { api, thumbnailUrl } from "../api";
 import { cn, displayTitle, timeAgo } from "../components/ui";
 import type { GalleryItem } from "../types";
@@ -21,6 +21,15 @@ export function artifactFileUrl(item: Pick<GalleryItem, "jobId" | "path">) {
 }
 
 const itemKey = (item: GalleryItem) => `${item.jobId}/${item.artifactId}`;
+
+const isVideo = (item: GalleryItem) => item.kind === "generated-video";
+
+/** The full-size view of an item: the image itself, or a player for a video (its thumbnail is a frame). */
+function ItemMedia({ item, compare = false }: { item: GalleryItem; compare?: boolean }) {
+  return isVideo(item)
+    ? <video src={artifactFileUrl(item)} controls playsInline preload="metadata" autoPlay={!compare} muted={compare} loop={compare} aria-label={itemTitle(item)} />
+    : <img src={artifactFileUrl(item)} alt={itemTitle(item)} />;
+}
 
 function itemTitle(item: GalleryItem) {
   return item.prompt || displayTitle({ title: item.jobTitle, type: item.jobType, moduleId: item.moduleId, workflowId: item.workflowId, createdAt: item.createdAt });
@@ -65,21 +74,22 @@ export function GalleryPage() {
   const items = data?.items || [];
   return <div className="page-wrap content-page gallery-page">
     <header className="gallery-header">
-      <div><h1>Gallery</h1><p>{data ? `${data.total} image${data.total === 1 ? "" : "s"}` : "Loading…"}</p></div>
+      <div><h1>Gallery</h1><p>{data ? `${data.total} result${data.total === 1 ? "" : "s"}` : "Loading…"}</p></div>
       <div className="gallery-controls">
-        <div className="theme-choice" role="radiogroup" aria-label="Image source">{sources.map((option) => <button key={option.value} type="button" role="radio" aria-checked={source === option.value} className={cn(source === option.value && "active")} onClick={() => setSource(option.value)}>{option.label}</button>)}</div>
+        <div className="theme-choice" role="radiogroup" aria-label="Source">{sources.map((option) => <button key={option.value} type="button" role="radio" aria-checked={source === option.value} className={cn(source === option.value && "active")} onClick={() => setSource(option.value)}>{option.label}</button>)}</div>
         {Boolean(data?.models.length) && <select className="input gallery-model" value={model} onChange={(event) => setModel(event.target.value)} aria-label="Model"><option value="">All models</option>{data!.models.map((name) => <option key={name} value={name}>{name}</option>)}</select>}
         <button type="button" className={comparing ? "button-primary compact" : "button-secondary compact"} onClick={() => { setComparing(!comparing); setPicked([]); }} aria-pressed={comparing}><Columns2 size={16} />Compare</button>
       </div>
     </header>
-    {comparing && <p className="gallery-hint">Pick two images to compare them side by side ({picked.length}/2).</p>}
+    {comparing && <p className="gallery-hint">Pick two results to compare them side by side ({picked.length}/2).</p>}
     {error && <p className="form-error">{error}</p>}
-    {data && !items.length ? <div className="empty-card"><Images size={28} /><strong>No images yet</strong><p>Generated images and uploaded pictures appear here.</p></div> : <div className="gallery-grid">
+    {data && !items.length ? <div className="empty-card"><Images size={28} /><strong>Nothing here yet</strong><p>Generated images and videos, and uploaded pictures, appear here.</p></div> : <div className="gallery-grid">
       {items.map((item) => {
         const pickIndex = picked.findIndex((candidate) => itemKey(candidate) === itemKey(item));
         return <figure key={itemKey(item)} className={cn("gallery-card", pickIndex >= 0 && "picked")}>
           <button type="button" onClick={() => choose(item)} aria-label={comparing ? `Pick ${itemTitle(item)} for comparison` : `Open ${itemTitle(item)}`}>
             <img src={thumbnailUrl(item.jobId, item.artifactId, 640)} alt="" loading="lazy" decoding="async" />
+            {isVideo(item) && <span className="gallery-video-badge"><Play size={12} />{item.duration ? `${item.duration} s` : "Video"}</span>}
             {comparing && <span className="gallery-pick" aria-hidden="true">{pickIndex >= 0 ? pickIndex + 1 : ""}</span>}
           </button>
           <figcaption><strong title={itemTitle(item)}>{itemTitle(item)}</strong><small>{item.model && <span className="gallery-model-chip">{item.model}</span>}{item.role === "source" ? "Uploaded" : "Generated"} · {timeAgo(item.createdAt)}</small></figcaption>
@@ -88,7 +98,7 @@ export function GalleryPage() {
     </div>}
     {open && <div className="modal-backdrop gallery-lightbox" onMouseDown={(event) => event.target === event.currentTarget && setOpen(undefined)}>
       <div className="gallery-lightbox-card" role="dialog" aria-modal="true" aria-label={itemTitle(open)}>
-        <img src={artifactFileUrl(open)} alt={itemTitle(open)} />
+        <ItemMedia item={open} />
         <aside>
           <button type="button" className="icon-button gallery-close" onClick={() => setOpen(undefined)} aria-label="Close"><X size={18} /></button>
           <ImageDetails item={open} />
@@ -100,9 +110,9 @@ export function GalleryPage() {
       </div>
     </div>}
     {picked.length === 2 && <div className="modal-backdrop gallery-compare" onMouseDown={(event) => event.target === event.currentTarget && setPicked([])}>
-      <div className="gallery-compare-card" role="dialog" aria-modal="true" aria-label="Compare images">
+      <div className="gallery-compare-card" role="dialog" aria-modal="true" aria-label="Compare results">
         <header><strong>Compare</strong><button type="button" className="icon-button" onClick={() => setPicked([])} aria-label="Close comparison"><X size={18} /></button></header>
-        <div className="gallery-compare-grid">{picked.map((item) => <section key={itemKey(item)}><img src={artifactFileUrl(item)} alt={itemTitle(item)} /><ImageDetails item={item} /></section>)}</div>
+        <div className="gallery-compare-grid">{picked.map((item) => <section key={itemKey(item)}><ItemMedia item={item} compare /><ImageDetails item={item} /></section>)}</div>
       </div>
     </div>}
   </div>;
@@ -114,6 +124,8 @@ function ImageDetails({ item }: { item: GalleryItem }) {
     ["Size", item.size?.replace("x", " × ")],
     ["Seed", item.seed],
     ["Steps", item.steps],
+    ["Length", item.duration ? `${item.duration} s` : undefined],
+    ["Quality", item.variant],
     ["Created", new Date(item.createdAt).toLocaleString()],
   ];
   return <div className="gallery-details">

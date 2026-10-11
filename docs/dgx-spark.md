@@ -44,9 +44,9 @@ less install.sh
 bash install.sh
 ```
 
-Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the six adjacent reference ports, verifies all five bundled AI services, then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
+Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started with `--video-backend none` still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
 
-Ports 8330–8336 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
+Ports 8330–8337 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
 ### SparklingKit with other providers
 
@@ -83,7 +83,8 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
 | 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
-| 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.40.0 |
+| 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.41.0 |
+| 8337 | Video generation | FastH3 (`FastVideo/FastVideo-FastH3-Trim-Comfy`, `FastVideo/FastVideo-FastH3-Comfy`) / ComfyUI 0df64eb |
 | 54321 | SparklingKit | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
@@ -107,6 +108,20 @@ Saved SparklingKit settings are never rewritten. After switching the speech serv
 choose `Parakeet-TDT-0.6B-v3` (or `Qwen3-ASR-1.7B`) under **Settings → Services → Speech to text**. Until then,
 transcription still works, with minute-long lines. The same holds in split mode, where
 `scripts/start-sparklingkit.sh` assumes the Parakeet id.
+
+### Video generation
+
+Port 8337 serves FastH3, FastVideo's distill of MiniMax H3, which makes video with its own sound track. A
+FastAPI adapter starts a pinned ComfyUI on 127.0.0.1:8347 and drives it over its HTTP API. Nothing loads at
+start: the first job loads the weights, and they are freed after ten idle minutes
+(`VIDEO_IDLE_UNLOAD_SECONDS`) or before a job that needs the other variant. Both variants, Fast and Sharp,
+and their shared text encoder and decoders download at pinned revisions, about 53 GB in all.
+
+The MiniMax H3 Community License covers use "worldwide, excluding" the European Union, the United Kingdom,
+South Korea and the United States, and asks that shared outputs be disclosed as machine-generated; every MP4
+carries that note in its metadata. Where the license does not apply, start the stack with
+`--video-backend none`: the service is not built, downloaded or started, and the app leaves its video
+endpoint off.
 
 ## Operations
 
@@ -185,7 +200,7 @@ The prebuilt image is pulled and recreated while `./data` remains mounted in pla
 
 SparklingKit and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
 
-The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app and works once a grounding endpoint is configured in Settings; recheck any such model's terms when deploying, because model publishers may update them independently.
+The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app, hidden from menus and actions until a grounding endpoint is enabled in Settings, and works once it is; recheck any such model's terms when deploying, because model publishers may update them independently.
 
 ## Using different services
 

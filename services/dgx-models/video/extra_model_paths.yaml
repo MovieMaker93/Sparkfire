@@ -1,0 +1,11 @@
+# Where ComfyUI finds the FastH3 files: the read-only model mount, laid out as start-dgx-spark.sh downloads
+# the two Hugging Face repositories.
+fasth3_trim:
+  base_path: /models/FastVideo/FastVideo-FastH3-Trim-Comfy
+  diffusion_models: diffusion_models
+  text_encoders: text_encoders
+  vae: vae
+
+fasth3_v2:
+  base_path: /models/FastVideo/FastVideo-FastH3-Comfy
+  diffusion_models: diffusion_models

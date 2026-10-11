@@ -1,5 +1,6 @@
 import type { ChatEffort } from "../shared/contracts";
 import type { ImageCapabilities } from "./image-capabilities";
+import type { VideoCapabilities } from "./video-capabilities";
 import type { Chat, ChatAttachment, EndpointConfig, GalleryItem, EndpointHealth, EndpointKind, FlowRun, Health, Job, ModuleDescriptor, ModuleId, PromptPreset, SearchResponse, SearchScope, Settings, SparkStatus, WorkflowDefinition, WorkflowRun, WorkflowValidationResult } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -44,7 +45,7 @@ export const api = {
   settings: () => request<Settings>("/api/settings"),
   saveSettings: (settings: Settings) => request<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(settings) }),
   modules: () => request<ModuleDescriptor[]>("/api/modules"),
-  workflowNodes: () => request<{ services: Array<{ id: string; title: string; accepts: string[]; produces: string[]; terminal?: boolean; configured: boolean }>; artifactKinds: string[] }>("/api/workflow-nodes"),
+  workflowNodes: () => request<{ services: Array<{ id: string; title: string; accepts: string[]; produces: string[]; terminal?: boolean; configured: boolean; hidden?: boolean }>; artifactKinds: string[] }>("/api/workflow-nodes"),
   workflows: () => request<WorkflowDefinition[]>("/api/workflows"),
   workflow: (id: string) => request<WorkflowDefinition>(`/api/workflows/${id}`),
   createWorkflow: (definition: WorkflowDefinition) => request<{ definition: WorkflowDefinition; validation: WorkflowValidationResult }>("/api/workflows", { method: "POST", body: JSON.stringify(definition) }),
@@ -65,6 +66,7 @@ export const api = {
   createTextTranslationJob: (text: string, sourceLanguage: string, targetLanguage: string) => request<Job>("/api/modules/translation/text", { method: "POST", body: JSON.stringify({ text, sourceLanguage, targetLanguage }) }),
   imageCapabilities: () => request<ImageCapabilities>("/api/modules/text-to-image/capabilities"),
   createImageJob: (prompt: string, size: string, options: { steps?: number; seed?: number } = {}) => request<Job>("/api/modules/text-to-image/jobs", { method: "POST", body: JSON.stringify({ prompt, size, ...options }) }),
+  videoCapabilities: () => request<VideoCapabilities>("/api/modules/text-to-video/capabilities"),
   createMindMapJob: (subject: string, options: { instructions?: string; depth: number; breadth: number }) => request<Job>("/api/modules/mindmap/jobs", { method: "POST", body: JSON.stringify({ subject, ...options }) }),
   jobs: () => request<{ jobs: Job[]; total: number }>("/api/jobs"),
   gallery: (options: { source?: "all" | "generated" | "uploaded"; model?: string; offset?: number; limit?: number } = {}) => {
@@ -128,6 +130,27 @@ export function uploadJob(files: File[], type: Job["type"], onProgress: (value: 
       else reject(new Error(payload.error || `Upload failed (${xhr.status})`));
     };
     xhr.onerror = () => reject(new Error("Upload failed: network error"));
+    xhr.send(form);
+  });
+}
+
+export interface VideoJobInput { prompt: string; size: string; duration: number; variant?: string; sound?: string; music?: string; seed?: number }
+
+/** Starts a video job; the optional first frame travels in the same multipart request. */
+export function uploadVideoJob(input: VideoJobInput, firstFrame: File | undefined, onProgress: (value: number) => void) {
+  return new Promise<Job>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    Object.entries(input).forEach(([key, value]) => { if (value !== undefined && value !== "") form.append(key, String(value)); });
+    if (firstFrame) form.append("firstFrame", firstFrame);
+    xhr.open("POST", "/api/modules/text-to-video/jobs");
+    xhr.upload.onprogress = (event) => event.lengthComputable && onProgress(Math.round((event.loaded / event.total) * 100));
+    xhr.onload = () => {
+      const payload = JSON.parse(xhr.responseText || "{}") as Job & { error?: string };
+      if (xhr.status >= 200 && xhr.status < 300) resolve(payload);
+      else reject(new Error(payload.error || `Could not start the video (${xhr.status})`));
+    };
+    xhr.onerror = () => reject(new Error("Could not start the video: network error"));
     xhr.send(form);
   });
 }

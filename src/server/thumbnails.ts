@@ -100,16 +100,22 @@ export interface GalleryItem {
   size?: string;
   seed?: number;
   steps?: number;
+  /** Seconds, for generated videos. */
+  duration?: number;
+  variant?: string;
 }
 
-const galleryKinds = new Set<Artifact["kind"]>(["generated-image", "grounded-image", "source-image"]);
+const galleryKinds = new Set<Artifact["kind"]>(["generated-image", "grounded-image", "source-image", "generated-video"]);
 
-/** Image artifacts across all jobs, newest first. Generation details come from artifact metadata, then run parameters. */
+/**
+ * Images and generated videos across all jobs, newest first. Generation details come from artifact metadata,
+ * then run parameters. Uploaded videos stay out: they are recordings to transcribe, not results.
+ */
 export function galleryItems(jobs: JobManifest[], options: { source?: "all" | "generated" | "uploaded"; model?: string } = {}): GalleryItem[] {
   const items: GalleryItem[] = [];
   for (const job of jobs) {
     for (const artifact of job.artifacts) {
-      if (!galleryKinds.has(artifact.kind) || thumbnailSource(artifact) !== "image") continue;
+      if (!galleryKinds.has(artifact.kind) || thumbnailSource(artifact) !== (artifact.kind === "generated-video" ? "video" : "image")) continue;
       const uploaded = artifact.role === "source";
       if (options.source === "generated" && uploaded) continue;
       if (options.source === "uploaded" && !uploaded) continue;
@@ -135,6 +141,8 @@ export function galleryItems(jobs: JobManifest[], options: { source?: "all" | "g
         size: text(meta.size) ?? (uploaded ? undefined : text(params.size)),
         seed: number(meta.seed) ?? (uploaded ? undefined : number(params.seed)),
         steps: number(meta.steps) ?? (uploaded ? undefined : number(params.steps)),
+        duration: artifact.kind === "generated-video" ? number(params.duration) : undefined,
+        variant: artifact.kind === "generated-video" ? text(params.variant) : undefined,
       };
       if (options.model && item.model !== options.model) continue;
       items.push(item);

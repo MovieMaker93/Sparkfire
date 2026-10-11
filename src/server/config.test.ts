@@ -9,6 +9,7 @@ describe("bundled service catalog", () => {
       stt: 8333,
       translation: 8334,
       imageGeneration: 8336,
+      videoGeneration: 8337,
     });
   });
 

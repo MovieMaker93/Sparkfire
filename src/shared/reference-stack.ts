@@ -6,12 +6,17 @@ export const REFERENCE_SERVICE_CATALOG = {
   stt: { port: 8333, model: "Parakeet-TDT-0.6B-v3" },
   translation: { port: 8334, model: "Hy-MT2-1.8B-FP8" },
   imageGeneration: { port: 8336, model: "Z-Image-Turbo" },
+  videoGeneration: { port: 8337, model: "FastH3" },
 } as const;
 
 // The endpoint kinds the reference deployment provides. The LLM is not bundled:
 // chat, mind maps and summaries use any OpenAI-compatible endpoint configured in Settings,
 // and neither is grounding (the module stays available through Settings).
 export const REFERENCE_ENDPOINT_KINDS = ["ocr", "stt", "translation", "image-generation"] as const;
+// Video generation is part of the reference stack too, but a deployment may leave it out
+// (start-dgx-spark.sh --video-backend none, where its model license does not apply), so setup
+// does not fail without it.
+export const OPTIONAL_REFERENCE_ENDPOINT_KINDS = ["video-generation"] as const;
 
 export function normalizeReferenceHost(value: string) {
   const trimmed = value.trim();
@@ -24,7 +29,7 @@ export function normalizeReferenceHost(value: string) {
   return parsed.hostname;
 }
 
-export function referenceSettingsForHost(settings: Settings, hostInput: string, mode: Settings["setup"]["mode"]): Settings {
+export function referenceSettingsForHost(settings: Settings, hostInput: string, mode: Settings["setup"]["mode"], options: { video?: boolean } = {}): Settings {
   const host = normalizeReferenceHost(hostInput);
   const origin = host.includes(":") ? `[${host}]` : host;
   const endpoint = (kind: EndpointKind, port: number, model: string) => ({
@@ -43,6 +48,7 @@ export function referenceSettingsForHost(settings: Settings, hostInput: string, 
       stt: endpoint("stt", REFERENCE_SERVICE_CATALOG.stt.port, REFERENCE_SERVICE_CATALOG.stt.model),
       translation: endpoint("translation", REFERENCE_SERVICE_CATALOG.translation.port, REFERENCE_SERVICE_CATALOG.translation.model),
       "image-generation": endpoint("image-generation", REFERENCE_SERVICE_CATALOG.imageGeneration.port, REFERENCE_SERVICE_CATALOG.imageGeneration.model),
+      "video-generation": { ...endpoint("video-generation", REFERENCE_SERVICE_CATALOG.videoGeneration.port, REFERENCE_SERVICE_CATALOG.videoGeneration.model), enabled: options.video !== false },
     },
   };
 }

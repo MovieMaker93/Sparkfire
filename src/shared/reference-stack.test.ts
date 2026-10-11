@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "../server/config.js";
-import { REFERENCE_ENDPOINT_KINDS, normalizeReferenceHost, referenceSettingsForHost } from "./reference-stack.js";
+import { OPTIONAL_REFERENCE_ENDPOINT_KINDS, REFERENCE_ENDPOINT_KINDS, normalizeReferenceHost, referenceSettingsForHost } from "./reference-stack.js";
 
 describe("reference stack settings", () => {
   it("accepts a hostname or a simple URL and rejects embedded connection details", () => {
@@ -21,7 +21,14 @@ describe("reference stack settings", () => {
     expect(settings.endpoints.stt.baseUrl).toBe("http://192.0.2.10:8333/v1");
     expect(settings.endpoints.translation.baseUrl).toBe("http://192.0.2.10:8334/v1");
     expect(settings.endpoints["image-generation"].baseUrl).toBe("http://192.0.2.10:8336/v1");
+    expect(settings.endpoints["video-generation"]).toMatchObject({ baseUrl: "http://192.0.2.10:8337/v1", model: "FastH3", enabled: true });
     expect(REFERENCE_ENDPOINT_KINDS.every((kind) => settings.endpoints[kind].enabled)).toBe(true);
+  });
+
+  it("keeps the video endpoint but leaves it off when the stack runs without video", () => {
+    const settings = referenceSettingsForHost(structuredClone(defaultSettings), "192.0.2.10", "split", { video: false });
+    expect(settings.endpoints["video-generation"]).toMatchObject({ baseUrl: "http://192.0.2.10:8337/v1", enabled: false });
+    expect(OPTIONAL_REFERENCE_ENDPOINT_KINDS).toEqual(["video-generation"]);
   });
 
   it("points speech recognition at the Parakeet service", () => {
