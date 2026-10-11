@@ -12,16 +12,16 @@ SKIP_PULL=false
 DEPLOY_APP=true
 REFRESH_IMAGES=false
 FORCE_RECREATE=false
-OCR_BACKEND="${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}"
-ASR_BACKEND="${SPARKLINGKIT_ASR_BACKEND:-parakeet}"
-IMAGE_BACKEND="${SPARKLINGKIT_IMAGE_BACKEND:-z-image}"
-VIDEO_BACKEND="${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}"
+OCR_BACKEND="${SPARKFIRE_OCR_BACKEND:-${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}}"
+ASR_BACKEND="${SPARKFIRE_ASR_BACKEND:-${SPARKLINGKIT_ASR_BACKEND:-parakeet}}"
+IMAGE_BACKEND="${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}"
+VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}}"
 
 usage() {
   cat <<'EOF'
 Usage: ./scripts/start-dgx-spark.sh [start|status|stop] [options]
 
-Set up and run SparklingKit's reference model stack on a 128 GB DGX Spark: OCR, transcription,
+Set up and run Sparkfire's reference model stack on a 128 GB DGX Spark: OCR, transcription,
 translation, image generation and video generation.
 
 Options:
@@ -31,7 +31,7 @@ Options:
   --skip-pull              Reuse existing pulled service images
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
-  --models-only            Run the model services and monitor without SparklingKit
+  --models-only            Run the model services and monitor without Sparkfire
   --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
   --asr-backend NAME       kept for compatibility: parakeet (the only ASR backend)
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
@@ -120,12 +120,14 @@ esac
 # Without a video service, the app's video endpoint and the monitor's video port stay empty, so neither
 # reports the service as missing.
 case "$VIDEO_BACKEND" in
-  fasth3) export SPARKLINGKIT_VIDEO_BASE_URL="http://host.docker.internal:8337/v1" SPARKLINGKIT_VIDEO_PORT="8337" ;;
-  none) export SPARKLINGKIT_VIDEO_BASE_URL="" SPARKLINGKIT_VIDEO_PORT="" ;;
+  fasth3) export SPARKFIRE_VIDEO_BASE_URL="http://host.docker.internal:8337/v1" SPARKFIRE_VIDEO_PORT="8337" ;;
+  none) export SPARKFIRE_VIDEO_BASE_URL="" SPARKFIRE_VIDEO_PORT="" ;;
   *) printf 'Unknown video backend: %s (use fasth3 or none)\n' "$VIDEO_BACKEND" >&2; exit 2 ;;
 esac
-export SPARKLINGKIT_OCR_BACKEND="$OCR_BACKEND" SPARKLINGKIT_ASR_BACKEND="$ASR_BACKEND" SPARKLINGKIT_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKLINGKIT_VIDEO_BACKEND="$VIDEO_BACKEND"
+export SPARKFIRE_OCR_BACKEND="$OCR_BACKEND" SPARKFIRE_ASR_BACKEND="$ASR_BACKEND" SPARKFIRE_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKFIRE_VIDEO_BACKEND="$VIDEO_BACKEND"
 
+# The project, container and image names keep the SparklingKit-era "sparklingkit" prefix: renaming them would
+# orphan the redis-data volume of existing installs and break the switch script's container checks.
 COMPOSE=(
   docker compose
   --project-name sparklingkit
@@ -177,7 +179,7 @@ if [[ "$ACTION" == "stop" ]]; then
   retire_old_containers stop
   if [[ "$DEPLOY_APP" == "true" ]]; then
     "${COMPOSE[@]}" stop
-    printf 'SparklingKit and the DGX model services are stopped. Persistent data was kept.\n'
+    printf 'Sparkfire and the DGX model services are stopped. Persistent data was kept.\n'
   else
     "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
@@ -207,7 +209,7 @@ show_status() {
     endpoint_status "Video generation" "http://127.0.0.1:8337/health"
   fi
   if [[ "$DEPLOY_APP" == "true" ]]; then
-    endpoint_status "SparklingKit" "http://127.0.0.1:54321/api/health"
+    endpoint_status "Sparkfire" "http://127.0.0.1:54321/api/health"
   fi
 }
 
@@ -237,7 +239,7 @@ if [[ "$ACCEPT_MODEL_LICENSES" == "true" ]]; then
   touch "$license_marker"
 elif [[ ! -f "$license_marker" ]]; then
   cat >&2 <<'EOF'
-The model weights are not covered by SparklingKit's Apache 2.0 license.
+The model weights are not covered by Sparkfire's Apache 2.0 license.
 Review the publishers' model cards before downloading. In particular,
 Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License,
 and FastH3 (video generation) uses the MiniMax H3 Community License, which grants use only "worldwide,
@@ -260,7 +262,7 @@ EOF
 fi
 
 if [[ "$SKIP_BUILD" != "true" ]]; then
-  printf '\nBuilding SparklingKit and DGX service images...\n'
+  printf '\nBuilding Sparkfire and DGX service images...\n'
   build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 z-image dgx-status)
   if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then build_targets+=(video-generation); fi
   if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
@@ -432,21 +434,21 @@ fi
 start_service dgx-status "System status" "http://127.0.0.1:8330/health" 120
 
 if [[ "$DEPLOY_APP" == "true" ]]; then
-  printf '\nStarting Redis and SparklingKit...\n'
+  printf '\nStarting Redis and Sparkfire...\n'
   if [[ "$FORCE_RECREATE" == "true" ]]; then
     "${COMPOSE[@]}" up -d --force-recreate redis app
   else
     "${COMPOSE[@]}" up -d redis app
   fi
-  wait_for_endpoint app "SparklingKit" "http://127.0.0.1:54321/api/health" 180
-  printf '\nSparklingKit is ready at http://localhost:54321\n\n'
+  wait_for_endpoint app "Sparkfire" "http://127.0.0.1:54321/api/health" 180
+  printf '\nSparkfire is ready at http://localhost:54321\n\n'
 else
   dgx_address="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
   printf '\nThe DGX model stack is ready.\n'
   if [[ -n "$dgx_address" ]]; then
-    printf 'Use %s as the model host when setting up SparklingKit on another server.\n\n' "$dgx_address"
+    printf 'Use %s as the model host when setting up Sparkfire on another server.\n\n' "$dgx_address"
   else
-    printf 'Use this DGX Spark hostname or LAN address when setting up SparklingKit.\n\n'
+    printf 'Use this DGX Spark hostname or LAN address when setting up Sparkfire.\n\n'
   fi
 fi
 show_status

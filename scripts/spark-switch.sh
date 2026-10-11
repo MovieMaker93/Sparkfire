@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Switch a single DGX Spark between another large, always-on LLM container (one that needs most of the
-# 121 GiB) and SparklingKit's model stack. The two never fit in memory at the same time.
+# 121 GiB) and Sparkfire's model stack. The two never fit in memory at the same time.
 #
 #   ./scripts/spark-switch.sh status
-#   ./scripts/spark-switch.sh sparklingkit [--yes] [start-dgx-spark.sh options...]
+#   ./scripts/spark-switch.sh sparkfire [--yes] [start-dgx-spark.sh options...]
 #   ./scripts/spark-switch.sh llm [--yes]
 #
 # Settings come from the environment or scripts/spark-switch.env (see spark-switch.env.example).
@@ -91,12 +91,12 @@ case "$ACTION" in
   status)
     printf 'Memory available: %s GiB\n' "$(available_gib)"
     if container_running "$LLM_CONTAINER"; then printf 'LLM (%s): running\n' "$LLM_CONTAINER"; else printf 'LLM (%s): stopped\n' "$LLM_CONTAINER"; fi
-    if sparklingkit_running; then printf 'SparklingKit models: running\n'; else printf 'SparklingKit models: stopped\n'; fi
+    if sparklingkit_running; then printf 'Sparkfire models: running\n'; else printf 'Sparkfire models: stopped\n'; fi
     ;;
-  sparklingkit)
+  sparkfire|sparklingkit)
     if container_running "$LLM_CONTAINER"; then
       llm_idle || exit 1
-      confirm "Stop $LLM_CONTAINER and start SparklingKit's model stack?" || exit 1
+      confirm "Stop $LLM_CONTAINER and start Sparkfire's model stack?" || exit 1
       docker stop -t 30 "$LLM_CONTAINER" >/dev/null
       printf 'Stopped %s.\n' "$LLM_CONTAINER"
     fi
@@ -105,7 +105,7 @@ case "$ACTION" in
     ;;
   llm)
     if sparklingkit_running; then
-      confirm "Stop SparklingKit's model stack and start $LLM_CONTAINER?" || exit 1
+      confirm "Stop Sparkfire's model stack and start $LLM_CONTAINER?" || exit 1
       ./scripts/start-dgx-spark.sh stop
     fi
     wait_for_memory
@@ -113,7 +113,7 @@ case "$ACTION" in
     wait_for_url "$LLM_HEALTH_URL" "$LLM_READY_TIMEOUT"
     ;;
   *)
-    printf 'Usage: %s status|sparklingkit|llm [--yes] [start-dgx-spark.sh options]\n' "$0" >&2
+    printf 'Usage: %s status|sparkfire|llm [--yes] [start-dgx-spark.sh options]\n' "$0" >&2
     exit 2
     ;;
 esac
