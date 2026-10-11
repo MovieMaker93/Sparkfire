@@ -307,7 +307,7 @@ export function ChatPage() {
               {visibleMessages.map((message) => <Message key={message.id} message={message} timezone={timezone} chatId={chat?.id} />)}
               {(draft || draftReasoning || draftActivity.length > 0) && <Message message={{ id: "draft", role: "assistant", content: draft, reasoning: draftReasoning, activity: draftActivity, createdAt: new Date().toISOString() }} timezone={timezone} streaming />}
               {streaming && !draft && !draftReasoning && !draftActivity.length && <div className="message-row"><span className="avatar avatar-ai"><Bot size={15} /></span><span className="thinking"><i /><i /><i /></span></div>}
-              {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+              {error && <p className="rounded-[var(--sk-radius-md)] bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
             </div>
           </>}
         </div>
