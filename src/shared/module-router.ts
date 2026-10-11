@@ -104,6 +104,22 @@ export const MODULE_CONTRACTS: readonly ModuleContract[] = [
     implementation: "ready",
   },
   {
+    id: "text-to-video",
+    title: "Text to video",
+    shortTitle: "Video",
+    description: "Create a short video with sound from a description, optionally starting from an image.",
+    icon: "film",
+    route: "/tools/text-to-video",
+    providerKind: "video-generation",
+    // Text becomes the prompt; an image becomes the first frame.
+    accepts: [...textResults, ...imageResults],
+    produces: ["generated-video"],
+    handoff: { mode: "workflow", workflows: [{ workflowId: "text-to-video.default", accepts: [...textResults, ...imageResults] }], maxInputs: 1 },
+    actionLabel: "Create video",
+    actionDescription: "Use this as the prompt or the first frame of a video",
+    implementation: "ready",
+  },
+  {
     id: "mindmap",
     title: "Mind map",
     shortTitle: "Map",

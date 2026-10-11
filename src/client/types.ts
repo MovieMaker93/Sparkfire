@@ -80,6 +80,9 @@ export interface GalleryItem {
   size?: string;
   seed?: number;
   steps?: number;
+  /** Seconds, for generated videos. */
+  duration?: number;
+  variant?: string;
 }
 
 export interface SparkStatus {

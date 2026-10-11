@@ -8,7 +8,7 @@ import multer from "multer";
 import { z } from "zod";
 import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
-import { checkEndpoint, imageCapabilities, openChatStream, streamDelta, thinkingOptions, type ImageCapabilities } from "./ai.js";
+import { checkEndpoint, imageCapabilities, openChatStream, streamDelta, thinkingOptions, videoCapabilities, type ImageCapabilities, type VideoCapabilities } from "./ai.js";
 import { chatAttachmentPath, MAX_ATTACHMENTS_PER_MESSAGE, readChatAttachment, saveChatAttachment } from "./chat-attachments.js";
 import { modelMessagesForChat } from "./chat-messages.js";
 import { APP_VERSION, CLIENT_DIR, DATA_DIR, PORT } from "./config.js";
@@ -28,6 +28,7 @@ import {
   createMindMapJob,
   createTextTranslationJob,
   createTextToImageJob,
+  createTextToVideoJob,
   deleteChat,
   deleteInputFile,
   deleteJob,
@@ -76,7 +77,7 @@ const settingsSchema = z.object({
   schemaVersion: z.literal(2),
   setup: z.object({ completed: z.boolean(), mode: z.enum(["all-in-one", "split", "custom"]), onboardingVersion: z.number().int().min(1), completedAt: z.string().datetime().optional() }),
   systemStatus: z.object({ baseUrl: z.union([z.string().url(), z.literal("")]) }),
-  endpoints: z.object({ stt: endpointSchema, ocr: endpointSchema, llm: endpointSchema, translation: endpointSchema, grounding: endpointSchema, "image-generation": endpointSchema }),
+  endpoints: z.object({ stt: endpointSchema, ocr: endpointSchema, llm: endpointSchema, translation: endpointSchema, grounding: endpointSchema, "image-generation": endpointSchema, "video-generation": endpointSchema }),
   audio: z.object({
     chunkTargetSec: z.number().int().min(15).max(3600),
     chunkOverlapSec: z.number().min(0).max(30),
@@ -132,6 +133,27 @@ async function currentImageCapabilities(settings: Settings) {
   if (cachedImageCapabilities?.key === key && Date.now() - cachedImageCapabilities.at < 60_000) return cachedImageCapabilities.value;
   const value = await imageCapabilities(endpoint);
   cachedImageCapabilities = { key, at: Date.now(), value };
+  return value;
+}
+// Multipart forms send every field as a string, so numbers are coerced and empty strings mean "not set".
+const optionalNumber = (schema: z.ZodNumber) => z.preprocess((value) => (value === "" || value === null ? undefined : value), z.coerce.number().pipe(schema).optional());
+const textToVideoSchema = z.object({
+  prompt: z.string().trim().min(1).max(12_000),
+  sound: z.string().trim().max(4000).default(""),
+  music: z.string().trim().max(2000).default(""),
+  size: z.string().regex(/^\d{3,4}x\d{3,4}$/, "Size must look like 864x480").default("864x480"),
+  duration: optionalNumber(z.number().int().min(1).max(60)),
+  variant: z.string().trim().regex(/^[a-z0-9-]{1,40}$/).optional().or(z.literal("").transform(() => undefined)),
+  seed: optionalNumber(z.number().int().min(0).max(2 ** 31 - 1)),
+});
+
+let cachedVideoCapabilities: { key: string; at: number; value: VideoCapabilities } | undefined;
+async function currentVideoCapabilities(settings: Settings) {
+  const endpoint = settings.endpoints["video-generation"];
+  const key = `${endpoint.baseUrl}|${endpoint.model}`;
+  if (cachedVideoCapabilities?.key === key && Date.now() - cachedVideoCapabilities.at < 60_000) return cachedVideoCapabilities.value;
+  const value = await videoCapabilities(endpoint);
+  cachedVideoCapabilities = { key, at: Date.now(), value };
   return value;
 }
 const mindMapSchema = z.object({
@@ -311,6 +333,58 @@ app.post("/api/modules/text-to-image/jobs", async (request, response) => {
     throw error;
   }
   response.status(201).json(job);
+});
+app.get("/api/modules/text-to-video/capabilities", async (_request, response) => {
+  response.json(await currentVideoCapabilities(await readSettings()));
+});
+app.post("/api/modules/text-to-video/jobs", upload.array("firstFrame", 1), async (request, response) => {
+  const files = (request.files || []) as Express.Multer.File[];
+  const discard = () => Promise.all(files.map((file) => fs.unlink(file.path).catch(() => undefined)));
+  try {
+    const input = textToVideoSchema.parse(request.body);
+    if (files.length && !/^image\/(?:png|jpeg|webp)$/.test(files[0].mimetype)) {
+      await discard();
+      return response.status(400).json({ error: "The first frame must be a PNG, JPEG or WebP image" });
+    }
+    const settings = await readSettings();
+    const module = listModules(settings).find((candidate) => candidate.id === "text-to-video");
+    if (!module?.configured) {
+      await discard();
+      return response.status(409).json({ error: "Configure and enable the Video generation service first" });
+    }
+    const capabilities = await currentVideoCapabilities(settings);
+    const model = capabilities.model || "The video model";
+    const duration = input.duration ?? capabilities.durations[0];
+    const variant = input.variant ?? capabilities.defaultVariant;
+    const problem = !capabilities.sizes.some((size) => size.value === input.size) ? `${model} does not offer ${input.size.replace("x", " × ")}`
+      : !capabilities.durations.includes(duration) ? `${model} makes videos of ${capabilities.durations.map((value) => `${value} s`).join(" or ")}`
+      : variant && capabilities.variants.length && !capabilities.variants.some((option) => option.id === variant) ? `${model} has no ${variant} variant`
+      : files.length && !capabilities.firstFrame ? `${model} cannot start from an image`
+      : "";
+    if (problem) {
+      await discard();
+      return response.status(400).json({ error: problem });
+    }
+    const job = await createTextToVideoJob(input.prompt, {
+      prompt: input.prompt,
+      size: input.size,
+      duration,
+      ...(variant ? { variant } : {}),
+      ...(input.sound ? { sound: input.sound } : {}),
+      ...(input.music ? { music: input.music } : {}),
+      ...(input.seed !== undefined ? { seed: input.seed } : {}),
+    }, files[0]);
+    try {
+      await enqueueJob(job.id);
+    } catch (error) {
+      await updateJob(job.id, { status: "failed", stage: "Queue unavailable", error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
+    response.status(201).json(job);
+  } catch (error) {
+    await discard();
+    throw error;
+  }
 });
 app.post("/api/modules/mindmap/jobs", async (request, response) => {
   const input = mindMapSchema.parse(request.body);

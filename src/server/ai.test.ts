@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { asrProfile, cleanAsrText, DEFAULT_IMAGE_SIZES, generateImage, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio } from "./ai.js";
+import { asrProfile, cleanAsrText, DEFAULT_IMAGE_SIZES, DEFAULT_VIDEO_CAPABILITIES, generateImage, generateVideo, imageCapabilities, ocrPage, ocrProfile, streamDelta, thinkingOptions, transcribeAudio, videoCapabilities } from "./ai.js";
 
 const cleanup: Array<() => Promise<unknown>> = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((work) => work())); });
@@ -191,6 +191,76 @@ describe("image generation", () => {
     const result = await generateImage({ baseUrl, model: "configured-name", apiKey: "", enabled: true }, "a harbor", { size: "1536x1024", seed: 7, steps: 9 });
     expect(JSON.parse(body)).toMatchObject({ prompt: "a harbor", size: "1536x1024", seed: 7, steps: 9 });
     expect(result).toMatchObject({ model: "Z-Image-Turbo", seed: 7, steps: 9, mimeType: "image/png" });
+  });
+});
+
+describe("video generation", () => {
+  async function videoServer(reply: { status?: number; type?: string; body: Buffer | string; headers?: Record<string, string> }, seen: { body?: string } = {}) {
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => chunks.push(chunk));
+      request.on("end", () => {
+        seen.body = Buffer.concat(chunks).toString("utf8");
+        response.writeHead(reply.status || 200, { "Content-Type": reply.type || "video/mp4", ...reply.headers });
+        response.end(reply.body);
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    cleanup.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not start");
+    return `http://127.0.0.1:${address.port}/v1`;
+  }
+
+  async function folder() {
+    const created = await fs.mkdtemp(path.join(tmpdir(), "sparklingkit-video-"));
+    cleanup.push(() => fs.rm(created, { recursive: true, force: true }));
+    return created;
+  }
+
+  it("reads the adapter's capabilities and falls back to one conservative option", async () => {
+    const baseUrl = await jsonServer((url) => url === "/v1/capabilities"
+      ? { model: "FastH3", sizes: [{ value: "864x480", label: "480p", ratio: "16:9", quality: "standard" }, { value: "huge" }], durations: [5, 8, 0, "9"], variants: [{ id: "fast", label: "Fast", description: "Trim" }, { id: "Bad Id" }], defaultVariant: "missing", firstFrame: true, disclosure: "AI-generated with MiniMax H3 (FastH3)" }
+      : {});
+    expect(await videoCapabilities({ baseUrl, model: "FastH3", apiKey: "", enabled: true })).toEqual({
+      model: "FastH3",
+      sizes: [{ value: "864x480", label: "480p", ratio: "16:9", quality: "standard" }],
+      durations: [5, 8],
+      variants: [{ id: "fast", label: "Fast", description: "Trim" }],
+      defaultVariant: "fast",
+      firstFrame: true,
+      disclosure: "AI-generated with MiniMax H3 (FastH3)",
+      reported: true,
+    });
+    const silent = await jsonServer(() => ({ unrelated: true }));
+    expect(await videoCapabilities({ baseUrl: silent, model: "x", apiKey: "", enabled: true })).toEqual(DEFAULT_VIDEO_CAPABILITIES);
+  });
+
+  it("sends the request with the first frame and streams the video to disk", async () => {
+    const seen: { body?: string } = {};
+    const mp4 = Buffer.concat([Buffer.from("ftypmp42"), Buffer.alloc(4096, 7)]);
+    const baseUrl = await videoServer({ body: mp4, headers: { "X-Model": "FastH3", "X-Seed": "42", "X-Variant": "sharp", "X-Frames": "192", "X-Elapsed-Seconds": "118.4", "X-Disclosure": "AI-generated with MiniMax H3 (FastH3)" } }, seen);
+    const destination = path.join(await folder(), "generated-video.mp4");
+    const result = await generateVideo({ baseUrl, model: "FastH3", apiKey: "", enabled: true }, {
+      prompt: "a paper boat", sound: "rain", size: "1280x736", duration: 8, variant: "sharp", seed: 42, firstFrame: { bytes: Buffer.from("png-bytes"), mimeType: "image/png" },
+    }, destination);
+    expect(JSON.parse(seen.body || "{}")).toEqual({
+      model: "FastH3", prompt: "a paper boat", sound: "rain", size: "1280x736", duration: 8, variant: "sharp", seed: 42,
+      first_frame: `data:image/png;base64,${Buffer.from("png-bytes").toString("base64")}`,
+    });
+    expect(await fs.readFile(destination)).toEqual(mp4);
+    expect(result).toEqual({ bytes: mp4.length, model: "FastH3", seed: 42, variant: "sharp", frames: 192, elapsedSeconds: 118.4, disclosure: "AI-generated with MiniMax H3 (FastH3)" });
+  });
+
+  it("fails on an error or a reply that is not a video, leaving no partial file", async () => {
+    const directory = await folder();
+    const failing = await videoServer({ status: 502, type: "application/json", body: JSON.stringify({ detail: "SamplerCustomAdvanced failed" }) });
+    await expect(generateVideo({ baseUrl: failing, model: "FastH3", apiKey: "", enabled: true }, { prompt: "p", size: "864x480", duration: 5 }, path.join(directory, "a.mp4"))).rejects.toThrow(/502.*SamplerCustomAdvanced failed/);
+    const wrongType = await videoServer({ type: "application/json", body: "{}" });
+    await expect(generateVideo({ baseUrl: wrongType, model: "FastH3", apiKey: "", enabled: true }, { prompt: "p", size: "864x480", duration: 5 }, path.join(directory, "b.mp4"))).rejects.toThrow(/did not return a video/);
+    const empty = await videoServer({ body: Buffer.alloc(0) });
+    await expect(generateVideo({ baseUrl: empty, model: "FastH3", apiKey: "", enabled: true }, { prompt: "p", size: "864x480", duration: 5 }, path.join(directory, "c.mp4"))).rejects.toThrow(/empty video/);
+    expect(await fs.readdir(directory)).toEqual([]);
   });
 });
 

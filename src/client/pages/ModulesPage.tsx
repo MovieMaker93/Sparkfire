@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, ExternalLink, FileText, FolderOpen, Image as ImageIcon, Languages, MessageCircle, Network, ScanSearch, ScanText, Search, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, ExternalLink, FileText, Film, FolderOpen, Image as ImageIcon, Languages, MessageCircle, Network, ScanSearch, ScanText, Search, X } from "lucide-react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, uploadGroundingJob, uploadJob } from "../api";
+import { api, thumbnailUrl, uploadGroundingJob, uploadJob, uploadVideoJob } from "../api";
 import { cn, JobIcon, StatusBadge, timeAgo } from "../components/ui";
 import { moduleWorkflowForArtifact } from "../../shared/module-router";
 import { savedTranslationPreferences, translationLanguages, translationPreferenceKey } from "../translation";
 import type { Job, JobKind, ModuleDescriptor, ModuleId } from "../types";
 import { useGlobalSearch } from "../components/GlobalSearch";
 import { useImageCapabilities } from "../image-capabilities";
+import { promptBehindArtifact, useVideoCapabilities } from "../video-capabilities";
 import { SearchSelect } from "../components/SearchSelect";
 import { useToast } from "../components/ToastProvider";
 
@@ -20,6 +21,7 @@ const icons = {
   languages: Languages,
   "scan-search": ScanSearch,
   image: ImageIcon,
+  film: Film,
   network: Network,
   "message-circle": MessageCircle,
 };
@@ -30,11 +32,13 @@ const moduleHistoryTitles: Record<ModuleId, string> = {
   translation: "Translations",
   grounding: "Located images",
   "text-to-image": "Generated images",
+  "text-to-video": "Generated videos",
   mindmap: "Mind maps",
   chat: "Conversations",
 };
 
 const translationDebounceMs = 900;
+const imageArtifactKinds: string[] = ["source-image", "generated-image", "grounded-image"];
 
 function useModules() {
   const [modules, setModules] = useState<ModuleDescriptor[]>([]);
@@ -89,6 +93,14 @@ export function ModulePage() {
   const [imageSteps, setImageSteps] = useState("");
   const [imageSeed, setImageSeed] = useState("");
   const imageCapabilities = useImageCapabilities();
+  const [videoPrompt, setVideoPrompt] = useState("");
+  const [videoSound, setVideoSound] = useState("");
+  const [videoMusic, setVideoMusic] = useState("");
+  const [videoSize, setVideoSize] = useState("");
+  const [videoDuration, setVideoDuration] = useState("");
+  const [videoVariant, setVideoVariant] = useState("");
+  const [videoSeed, setVideoSeed] = useState("");
+  const videoCapabilities = useVideoCapabilities();
   const [mindMapMode, setMindMapMode] = useState<"topic" | "result">("topic");
   const [mindMapSubject, setMindMapSubject] = useState("");
   const [mindMapDepth, setMindMapDepth] = useState("4");
@@ -102,10 +114,10 @@ export function ModulePage() {
   const onDrop = useCallback((accepted: File[]) => { setFiles(accepted); setSelectedArtifact(""); setError(""); }, []);
   const accepts = useMemo<Record<string, string[]>>(() => Object.fromEntries(moduleId === "ocr"
     ? [["image/*", []], ["application/pdf", [".pdf"]]]
-    : moduleId === "grounding"
+    : moduleId === "grounding" || moduleId === "text-to-video"
       ? [["image/png", [".png"]], ["image/jpeg", [".jpg", ".jpeg"]], ["image/webp", [".webp"]]]
       : [["audio/*", []], ["video/*", []]]), [moduleId]);
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: accepts, maxFiles: moduleId === "grounding" ? 1 : 100, disabled: uploading || !module || module.implementation !== "ready" });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: accepts, maxFiles: moduleId === "grounding" || moduleId === "text-to-video" ? 1 : 100, disabled: uploading || !module || module.implementation !== "ready" });
   useEffect(() => {
     if (moduleId === "chat") return;
     let active = true;
@@ -171,14 +183,20 @@ export function ModulePage() {
     }
   }, [compatibleArtifacts, moduleId, searchParams, selectedArtifact]);
   useEffect(() => {
-    if (moduleId !== "text-to-image" || !selectedArtifactEntry || importedPromptRef.current === selectedArtifactEntry.value) return;
+    if (!["text-to-image", "text-to-video"].includes(moduleId) || !selectedArtifactEntry || importedPromptRef.current === selectedArtifactEntry.value) return;
     importedPromptRef.current = selectedArtifactEntry.value;
+    const setPrompt = moduleId === "text-to-video" ? setVideoPrompt : setImagePrompt;
+    // An image handed to the video tool becomes its first frame; the prompt that made it is the natural start.
+    if (imageArtifactKinds.includes(selectedArtifactEntry.artifact.kind)) {
+      setPrompt(promptBehindArtifact(selectedArtifactEntry.job, selectedArtifactEntry.artifact));
+      return;
+    }
     fetch(artifactUrl(selectedArtifactEntry.job.id, selectedArtifactEntry.artifact))
       .then(async (response) => {
         if (!response.ok) throw new Error("Could not load the selected text result");
         return response.text();
       })
-      .then((content) => setImagePrompt(content.replace(/<!--[\s\S]*?-->\s*/g, "").trim().slice(0, 12_000)))
+      .then((content) => setPrompt(content.replace(/<!--[\s\S]*?-->\s*/g, "").trim().slice(0, 12_000)))
       .catch((value) => setError(value instanceof Error ? value.message : String(value)));
   }, [moduleId, selectedArtifactEntry]);
 
@@ -293,6 +311,45 @@ export function ModulePage() {
       setError(value instanceof Error ? value.message : String(value));
     } finally {
       setUploading(false);
+    }
+  }
+
+  function videoOptions() {
+    const seed = Number.parseInt(videoSeed, 10);
+    const variant = videoVariant || videoCapabilities.defaultVariant;
+    return {
+      prompt: videoPrompt.trim(),
+      size: videoSize || videoCapabilities.sizes[0].value,
+      duration: Number(videoDuration) || videoCapabilities.durations[0],
+      ...(variant ? { variant } : {}),
+      ...(videoSound.trim() ? { sound: videoSound.trim() } : {}),
+      ...(videoMusic.trim() ? { music: videoMusic.trim() } : {}),
+      ...(Number.isInteger(seed) && seed >= 0 ? { seed } : {}),
+    };
+  }
+
+  async function createVideo() {
+    if (!videoPrompt.trim()) return;
+    setUploading(true); setError("");
+    try {
+      if (selectedArtifactEntry) {
+        const workflowId = moduleWorkflowForArtifact("text-to-video", selectedArtifactEntry.artifact.kind);
+        if (!workflowId) throw new Error("This result cannot start a video");
+        const queued = await api.startRun(selectedArtifactEntry.job.id, {
+          moduleId: "text-to-video",
+          workflowId,
+          inputArtifactIds: [selectedArtifactEntry.artifact.id],
+          params: { artifactId: selectedArtifactEntry.artifact.id, ...videoOptions() },
+        });
+        navigate(`/jobs/${queued.job.id}`);
+      } else {
+        const job = await uploadVideoJob(videoOptions(), files[0], setUploadProgress);
+        navigate(`/jobs/${job.id}`);
+      }
+    } catch (value) {
+      setError(value instanceof Error ? value.message : String(value));
+    } finally {
+      setUploading(false); setUploadProgress(0);
     }
   }
 
@@ -433,6 +490,27 @@ export function ModulePage() {
         <label className="field-label">Seed<input className="input mt-2" type="number" inputMode="numeric" min={0} value={imageSeed} onChange={(event) => setImageSeed(event.target.value)} placeholder="Random" /></label>
       </div><p>Reuse a seed with the same prompt and size to reproduce an image, or to compare models fairly.</p></details>
       <div className="module-form-actions"><button className="button-primary" onClick={() => void createImage()} disabled={uploading || !module.configured || !imagePrompt.trim()}>{uploading ? "Starting…" : <><ImageIcon size={18} />Generate image</>}</button></div>
+    </section> : module.id === "text-to-video" ? <section className="module-form-card image-generation-form video-generation-form">
+      <div className="module-form-heading"><h2>Describe the video</h2><p>Write what happens and how it sounds. The prompt, any starting image, and the video with its sound stay together as one piece of work.</p></div>
+      {!module.configured && <div className="module-setup-note"><span>The Video generation service is not configured yet.</span><Link to="/settings" state={{ backgroundLocation: location }}>Configure service</Link></div>}
+      {selectedArtifactEntry ? <ImportedArtifactCard job={selectedArtifactEntry.job} artifact={selectedArtifactEntry.artifact} onRemove={() => { setSelectedArtifact(""); importedPromptRef.current = ""; setVideoPrompt(""); }} compact /> : videoCapabilities.firstFrame && <div {...getRootProps()} className={cn("grounding-dropzone", isDragActive && "active", files.length && "has-file")}>
+        <input {...getInputProps()} />
+        <span className="grounding-dropzone-icon"><ImageIcon size={24} /></span>
+        <span className="grounding-dropzone-copy"><strong>{files[0]?.name || (isDragActive ? "Drop the image here" : "Start from an image (optional)")}</strong><small>{files[0] ? "The video opens on this frame; describe it in the prompt too" : "PNG, JPEG, or WebP"}</small></span>
+        {files[0] ? <button type="button" className="button-secondary" onClick={(event) => { event.stopPropagation(); setFiles([]); }}>Remove</button> : <button type="button" className="button-secondary">Browse</button>}
+      </div>}
+      <label className="field-label">Prompt<textarea className="input mt-2 image-prompt-input" value={videoPrompt} onChange={(event) => setVideoPrompt(event.target.value)} placeholder="A red paper boat drifting down a rain gutter, close-up, gentle rain, soft light, reflections on the water" maxLength={12000} /></label>
+      <div className="video-sound-fields"><label className="field-label">Sound<input className="input mt-2" value={videoSound} onChange={(event) => setVideoSound(event.target.value)} placeholder="Optional: rain on tin, distant traffic" maxLength={4000} /></label><label className="field-label">Music<input className="input mt-2" value={videoMusic} onChange={(event) => setVideoMusic(event.target.value)} placeholder="Optional: soft piano, slow tempo" maxLength={2000} /></label></div>
+      <div className="video-options">
+        <label className="field-label">Size<SearchSelect className="module-search-select" value={videoSize || videoCapabilities.sizes[0].value} onChange={setVideoSize} options={videoCapabilities.sizes.map((size) => ({ value: size.value, label: `${size.label} · ${size.value.replace("x", " × ")}` }))} searchPlaceholder="Search sizes" ariaLabel="Video size" /></label>
+        <label className="field-label">Length<SearchSelect className="module-search-select" value={videoDuration || String(videoCapabilities.durations[0])} onChange={setVideoDuration} options={videoCapabilities.durations.map((seconds) => ({ value: String(seconds), label: `${seconds} seconds` }))} searchPlaceholder="Search lengths" ariaLabel="Video length" /></label>
+        {videoCapabilities.variants.length > 0 && <label className="field-label">Quality<SearchSelect className="module-search-select" value={videoVariant || videoCapabilities.defaultVariant || videoCapabilities.variants[0].id} onChange={setVideoVariant} options={videoCapabilities.variants.map((variant) => ({ value: variant.id, label: variant.description ? `${variant.label} · ${variant.description}` : variant.label }))} searchPlaceholder="Search quality" ariaLabel="Video quality" /></label>}
+      </div>
+      <details className="image-advanced"><summary>Advanced{videoCapabilities.model ? <small>{videoCapabilities.model}</small> : null}</summary><div className="image-advanced-fields">
+        <label className="field-label">Seed<input className="input mt-2" type="number" inputMode="numeric" min={0} value={videoSeed} onChange={(event) => setVideoSeed(event.target.value)} placeholder="Random" /></label>
+      </div><p>Reuse a seed with the same prompt, size, and length to reproduce a video.</p></details>
+      {videoCapabilities.disclosure && <p className="generated-disclosure">Each video is labelled “{videoCapabilities.disclosure}”. Say so when you share it.</p>}
+      <div className="module-form-actions"><button className="button-primary" onClick={() => void createVideo()} disabled={uploading || !module.configured || !videoPrompt.trim()}>{uploading ? files.length && !selectedArtifactEntry ? `Uploading ${uploadProgress}%` : "Starting…" : <><Film size={18} />Generate video</>}</button></div>
     </section> : <section className="module-coming-card">
       <span className={`module-card-icon module-card-icon-${module.id}`}><Icon size={28} /></span>
       <div><h2>The workspace is ready for this module</h2><p>The provider can already be configured in Settings. Execution will be enabled when this module&apos;s workflow contract is connected.</p></div>
@@ -447,8 +525,9 @@ function ModuleHistory({ module, jobs }: { module: ModuleDescriptor; jobs: Job[]
     <header><h2>{moduleHistoryTitles[module.id]}</h2><div className="module-history-actions"><small>{jobs.length}</small><button className="list-search-button" onClick={() => openSearch({ scope: module.id === "chat" ? "chats" : "work", moduleId: module.id, title: `Search ${moduleHistoryTitles[module.id].toLocaleLowerCase()}` })} aria-label={`Search ${moduleHistoryTitles[module.id]}`} title={`Search ${moduleHistoryTitles[module.id]}`}><Search size={17} /></button></div></header>
     <div className="module-history-list">{jobs.slice(0, 12).map((job) => {
       const image = job.outputFiles.find((file) => /\.(?:png|jpe?g|webp|gif|avif|svg)$/i.test(file));
+      const video = image ? undefined : job.artifacts.find((artifact) => artifact.kind === "generated-video");
       return <Link to={`/jobs/${job.id}`} className="module-history-item" key={job.id}>
-        {image ? <span className="module-history-thumbnail"><img src={`/api/jobs/${job.id}/files/${image.split("/").map(encodeURIComponent).join("/")}`} alt="" loading="lazy" /></span> : <JobIcon type={job.type} moduleId={job.moduleId} />}
+        {image ? <span className="module-history-thumbnail"><img src={`/api/jobs/${job.id}/files/${image.split("/").map(encodeURIComponent).join("/")}`} alt="" loading="lazy" /></span> : video ? <span className="module-history-thumbnail"><img src={thumbnailUrl(job.id, video.id, 160)} alt="" loading="lazy" /></span> : <JobIcon type={job.type} moduleId={job.moduleId} />}
         <span className="module-history-copy"><strong>{job.title}</strong><span><StatusBadge status={job.status} /><small>{timeAgo(job.createdAt)}</small></span></span>
         <ArrowRight size={16} />
       </Link>;

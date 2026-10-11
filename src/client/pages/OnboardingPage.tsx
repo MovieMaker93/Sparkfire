@@ -4,7 +4,7 @@ import { api } from "../api";
 import { cn } from "../components/ui";
 import { useToast } from "../components/ToastProvider";
 import { ENDPOINT_KINDS, type EndpointConfig, type EndpointHealth, type EndpointKind, type Settings } from "../../shared/contracts";
-import { REFERENCE_ENDPOINT_KINDS, referenceSettingsForHost } from "../../shared/reference-stack";
+import { OPTIONAL_REFERENCE_ENDPOINT_KINDS, REFERENCE_ENDPOINT_KINDS, referenceSettingsForHost } from "../../shared/reference-stack";
 
 type OnboardingTab = "local" | "remote" | "manual";
 type InstallSource = "hosted" | "github";
@@ -16,6 +16,7 @@ const serviceLabels: Record<EndpointKind, string> = {
   translation: "Translation",
   grounding: "Grounding",
   "image-generation": "Image generation",
+  "video-generation": "Video generation",
 };
 
 const serviceDescriptions: Record<EndpointKind, string> = {
@@ -25,7 +26,12 @@ const serviceDescriptions: Record<EndpointKind, string> = {
   translation: "Dedicated multilingual translation",
   grounding: "Locate objects and regions inside images",
   "image-generation": "Generate images from text prompts",
+  "video-generation": "Generate videos with sound from text or an image",
 };
+
+// Video generation may be left out of a deployment (--video-backend none), so its absence does not fail setup.
+const checkedReferenceKinds: EndpointKind[] = [...REFERENCE_ENDPOINT_KINDS, ...OPTIONAL_REFERENCE_ENDPOINT_KINDS];
+const isOptionalReferenceKind = (kind: EndpointKind) => (OPTIONAL_REFERENCE_ENDPOINT_KINDS as readonly EndpointKind[]).includes(kind);
 
 const hostedInstallCommand = "curl -fsSL https://run.sparklingkit.com/dgx/stable/install.sh | bash -s -- --accept-model-licenses";
 const githubInstallCommand = `git clone --depth 1 https://github.com/stevibe/SparklingKit.git
@@ -74,11 +80,12 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
     setChecking(true);
     setError("");
     setVerifiedReference(undefined);
-    setReferenceChecks(Object.fromEntries(REFERENCE_ENDPOINT_KINDS.map((kind) => [kind, "testing"])));
+    setReferenceChecks(Object.fromEntries(checkedReferenceKinds.map((kind) => [kind, "testing"])));
     try {
       const host = tab === "local" ? "host.docker.internal" : remoteHost;
-      const candidate = referenceSettingsForHost(settings, host, tab === "local" ? "all-in-one" : "split");
-      const results = await Promise.all(REFERENCE_ENDPOINT_KINDS.map(async (kind) => {
+      const mode = tab === "local" ? "all-in-one" : "split";
+      const candidate = referenceSettingsForHost(settings, host, mode);
+      const results = await Promise.all(checkedReferenceKinds.map(async (kind) => {
         try {
           return [kind, await api.testEndpoint(kind, candidate.endpoints[kind])] as const;
         } catch (value) {
@@ -87,13 +94,14 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
       }));
       const checks = Object.fromEntries(results) as Record<EndpointKind, EndpointHealth>;
       setReferenceChecks(checks);
-      const failures = results.filter(([, result]) => !result.ok).map(([kind]) => serviceLabels[kind]);
+      const failures = results.filter(([kind, result]) => !result.ok && !isOptionalReferenceKind(kind)).map(([kind]) => serviceLabels[kind]);
       if (failures.length) {
         setError(`${REFERENCE_ENDPOINT_KINDS.length - failures.length}/${REFERENCE_ENDPOINT_KINDS.length} bundled AI services responded. Check ${failures.join(", ")} and try again.`);
         return;
       }
-      setVerifiedReference(candidate);
-      toast.success("Bundled services verified", "Review the connection and apply when ready.");
+      const missingOptional = results.filter(([kind, result]) => !result.ok && isOptionalReferenceKind(kind)).map(([kind]) => serviceLabels[kind]);
+      setVerifiedReference(missingOptional.length ? referenceSettingsForHost(settings, host, mode, { video: false }) : candidate);
+      toast.success("Bundled services verified", missingOptional.length ? `${missingOptional.join(", ")} did not answer and stays off until you enable it in Settings.` : "Review the connection and apply when ready.");
     } catch (value) {
       setReferenceChecks({});
       setError(value instanceof Error ? value.message : String(value));
@@ -172,7 +180,7 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
         <div className="onboarding-intro">
           <span>{canCancel ? "Deployment setup" : "Welcome to SparklingKit"}</span>
           <h1>Connect your AI services</h1>
-          <p>Run the four-model reference stack on a DGX Spark or connect compatible services you already operate. The LLM endpoint is yours to choose. SparklingKit keeps the workspace and inference layers independent.</p>
+          <p>Run the reference model stack on a DGX Spark or connect compatible services you already operate. The LLM endpoint is yours to choose. SparklingKit keeps the workspace and inference layers independent.</p>
         </div>
 
         {canCancel && configuredCount > 0 && <div className="onboarding-existing-note">
@@ -189,20 +197,20 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
         {tab !== "manual" ? <div className="onboarding-tab-panel" role="tabpanel">
           <div className="onboarding-panel-heading">
             <span className="onboarding-option-icon">{tab === "local" ? <Cpu size={24} /> : <Network size={24} />}</span>
-            <div><h2>{tab === "local" ? "Start the model stack on this machine" : "Start the model stack on your DGX Spark"}</h2><p>{tab === "local" ? "Local means the server running this SparklingKit container, not the phone or computer viewing this page." : "Use the same four-model installer, then provide an address reachable from the SparklingKit server."}</p></div>
+            <div><h2>{tab === "local" ? "Start the model stack on this machine" : "Start the model stack on your DGX Spark"}</h2><p>{tab === "local" ? "Local means the server running this SparklingKit container, not the phone or computer viewing this page." : "Use the same model installer, then provide an address reachable from the SparklingKit server."}</p></div>
           </div>
 
-          <div className="onboarding-step"><span>1</span><div><h3>Install and start the four models</h3><p>Model weights remain on the DGX and are downloaded from their publishers.</p></div></div>
+          <div className="onboarding-step"><span>1</span><div><h3>Install and start the models</h3><p>Model weights remain on the DGX and are downloaded from their publishers.</p></div></div>
           <div className="onboarding-source-tabs"><button className={installSource === "hosted" ? "active" : ""} onClick={() => setInstallSource("hosted")}>Hosted installer</button><button className={installSource === "github" ? "active" : ""} onClick={() => setInstallSource("github")}>GitHub source</button></div>
           <div className="onboarding-command"><span><ServerCog size={18} /><code>{installCommand}</code></span><button onClick={() => void copyText(installCommand)} aria-label="Copy model installation command"><Copy size={17} /></button></div>
           <p className="onboarding-script-note">The hosted one-liner verifies the release bundle checksum and never installs Docker itself. It also installs <code>./sparklingkit-dgx</code> for future stack updates and rollback. Choose GitHub source if you prefer to inspect the files first.</p>
 
-          <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "SparklingKit uses Docker's host gateway to reach ports 8332–8334 and 8336." : "Ports 8330, 8332–8334 and 8336 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
+          <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "SparklingKit uses Docker's host gateway to reach ports 8332–8334, 8336, and 8337." : "Ports 8330, 8332–8334, 8336, and 8337 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
           {tab === "remote" && <label className="onboarding-host-field">DGX hostname or IP<input className="input" value={remoteHost} onChange={(event) => { setRemoteHost(event.target.value); setVerifiedReference(undefined); setReferenceChecks({}); setError(""); }} placeholder="192.168.22.33 or dgx-spark.local" /></label>}
 
           <ReferenceChecks checks={referenceChecks} />
           {error && <p className="onboarding-error" role="alert">{error}</p>}
-          <div className="onboarding-review-note"><strong>Applying this preset updates four service URLs, four model names, and the optional system-monitor URL.</strong><span>It does not change workspace data or processing settings.</span></div>
+          <div className="onboarding-review-note"><strong>Applying this preset updates the bundled service URLs and model names, and the optional system-monitor URL.</strong><span>It does not change workspace data or processing settings.</span></div>
           <div className="onboarding-actions">{canCancel && <button className="button-secondary" onClick={onCancel}>Cancel</button>}{!verifiedReference ? <button className="button-primary" onClick={() => void verifyReference()} disabled={checking || (tab === "remote" && !remoteHost.trim())}>{checking ? <><LoaderCircle size={18} className="animate-spin" />Checking services…</> : "Verify services"}</button> : <button className="button-primary" onClick={() => void applyReference()} disabled={saving}>{saving ? <><LoaderCircle size={18} className="animate-spin" />Applying…</> : <><Check size={18} />Apply and continue</>}</button>}</div>
         </div> : <div className="onboarding-tab-panel onboarding-manual-panel" role="tabpanel">
           <div className="onboarding-panel-heading"><span className="onboarding-option-icon"><Settings2 size={24} /></span><div><h2>Configure services independently</h2><p>Add any compatible local, network, or cloud endpoint. You only need to configure the capabilities you plan to use.</p></div></div>
@@ -233,9 +241,10 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
 
 function ReferenceChecks({ checks }: { checks: Partial<Record<EndpointKind, EndpointHealth | "testing">> }) {
   if (!Object.keys(checks).length) return null;
-  return <div className="onboarding-reference-checks">{REFERENCE_ENDPOINT_KINDS.map((kind) => {
+  return <div className="onboarding-reference-checks">{checkedReferenceKinds.map((kind) => {
     const result = checks[kind];
-    return <div className={cn(result !== "testing" && result?.ok ? "online" : result === "testing" ? "checking" : "offline")} key={kind}><span>{result === "testing" ? <LoaderCircle size={16} className="animate-spin" /> : result?.ok ? <Check size={16} /> : <i />}</span><strong>{serviceLabels[kind]}</strong><small>{result === "testing" ? "Checking…" : result?.ok ? `${result.latencyMs} ms` : result?.error || "Unavailable"}</small></div>;
+    const optional = isOptionalReferenceKind(kind);
+    return <div className={cn(result !== "testing" && result?.ok ? "online" : result === "testing" ? "checking" : optional ? "skipped" : "offline")} key={kind}><span>{result === "testing" ? <LoaderCircle size={16} className="animate-spin" /> : result?.ok ? <Check size={16} /> : <i />}</span><strong>{serviceLabels[kind]}{optional ? " · optional" : ""}</strong><small>{result === "testing" ? "Checking…" : result?.ok ? `${result.latencyMs} ms` : optional ? "Not running · stays off" : result?.error || "Unavailable"}</small></div>;
   })}</div>;
 }
 

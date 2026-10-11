@@ -81,6 +81,7 @@ function migrateBundledServiceDefaults(saved: Partial<Settings>) {
   move("translation", true);
   move("grounding", true);
   move("image-generation", true);
+  move("video-generation", true);
   return changed;
 }
 
@@ -173,6 +174,7 @@ function outputArtifactKind(file: string): ArtifactKind {
   if (lower === "mindmap.json" || lower.endsWith(".mindmap.json")) return "mindmap";
   if (lower.includes("grounding") && /\.(?:svg|png|jpe?g|webp)$/.test(lower)) return "grounded-image";
   if (/\.(?:png|jpe?g|webp|gif|avif)$/.test(lower)) return "generated-image";
+  if (/\.(?:mp4|webm|mov|mkv)$/.test(lower)) return "generated-video";
   if (/\.(?:srt|vtt)$/.test(lower)) return "subtitle";
   if (lower.endsWith(".json")) return lower.includes("ground") ? "annotations" : "structured-data";
   if (lower.includes("translation")) return "translation";
@@ -322,8 +324,19 @@ export async function createJob(
 }
 
 export async function createTextToImageJob(prompt: string, params: Record<string, unknown> = {}): Promise<JobManifest> {
+  if (!prompt.trim()) throw invalid("Enter an image description");
+  return createPromptJob("text-to-image", prompt, params);
+}
+
+/** A video job from a prompt, with an optional uploaded image the video starts from. */
+export async function createTextToVideoJob(prompt: string, params: Record<string, unknown> = {}, firstFrame?: Express.Multer.File): Promise<JobManifest> {
+  if (!prompt.trim()) throw invalid("Enter a video description");
+  return createPromptJob("text-to-video", prompt, params, firstFrame);
+}
+
+async function createPromptJob(moduleId: "text-to-image" | "text-to-video", prompt: string, params: Record<string, unknown>, image?: Express.Multer.File): Promise<JobManifest> {
   const normalizedPrompt = prompt.trim();
-  if (!normalizedPrompt) throw invalid("Enter an image description");
+  const workflowId = `${moduleId}.default`;
   const title = normalizedPrompt.replace(/\s+/g, " ").slice(0, 80);
   const settings = await readSettings();
   const id = `${timestampId(settings.ui.timezone)}_${slugify(title)}-${randomUUID().slice(0, 6)}`;
@@ -332,12 +345,17 @@ export async function createTextToImageJob(prompt: string, params: Record<string
   const storedName = "prompt.txt";
   await fs.writeFile(path.join(root, "input", storedName), `${normalizedPrompt}\n`, "utf8");
   const inputs = [{ name: "Prompt.txt", storedName, mimeType: "text/plain", size: Buffer.byteLength(`${normalizedPrompt}\n`) }];
+  if (image) {
+    const imageName = `first-frame${path.extname(image.originalname).toLowerCase()}`;
+    await fs.rename(image.path, path.join(root, "input", imageName));
+    inputs.push({ name: image.originalname, storedName: imageName, mimeType: image.mimetype, size: image.size });
+  }
   const now = new Date().toISOString();
   const artifacts = sourceArtifacts(inputs, now);
   const run: WorkflowRun = {
     id: `run-${randomUUID().slice(0, 8)}`,
-    moduleId: "text-to-image",
-    workflowId: "text-to-image.default",
+    moduleId,
+    workflowId,
     status: "queued",
     progress: 0,
     stage: "Waiting for a worker",
@@ -353,8 +371,8 @@ export async function createTextToImageJob(prompt: string, params: Record<string
     schemaVersion: 2,
     id,
     type: "text",
-    moduleId: "text-to-image",
-    workflowId: "text-to-image.default",
+    moduleId,
+    workflowId,
     status: "queued",
     createdAt: now,
     updatedAt: now,
