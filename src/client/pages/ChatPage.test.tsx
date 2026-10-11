@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ChatMarkdown, chatReferenceNames, formatMessageTime, formatMessageTimestamp } from "./ChatPage";
+import { answerSources, ChatMarkdown, chatReferenceNames, formatMessageTime, formatMessageTimestamp, webSearchUsable } from "./ChatPage";
+import { defaultSettings } from "../../server/config";
 import type { Chat, Job } from "../types";
 
 describe("ChatMarkdown", () => {
@@ -52,5 +53,23 @@ describe("chatReferenceNames", () => {
     } as Job;
 
     expect(chatReferenceNames(chat, job)).toEqual(["notes.md", "reference.png"]);
+  });
+});
+
+describe("web search in chat", () => {
+  it("offers the Web switch only with a configured service and a tool-calling model", () => {
+    const settings = structuredClone(defaultSettings);
+    settings.webSearch = { enabled: true, provider: "searxng", baseUrl: "http://127.0.0.1:8338" };
+    expect(webSearchUsable(settings)).toBe(false);
+    settings.endpoints.llm.capabilities = ["text", "tools"];
+    expect(webSearchUsable(settings)).toBe(true);
+  });
+
+  it("lists each source once by number, preferring the title of a page the model read", () => {
+    expect(answerSources([
+      { id: "a", tool: "web_search", input: "spark", status: "done", sources: [{ n: 1, title: "Snippet title", url: "https://a.example" }, { n: 2, title: "B", url: "https://b.example" }] },
+      { id: "b", tool: "fetch_page", input: "https://a.example", status: "done", sources: [{ n: 1, title: "Page title", url: "https://a.example" }] },
+      { id: "c", tool: "web_search", input: "again", status: "done", sources: [{ n: 2, title: "B again", url: "https://b.example" }] },
+    ])).toEqual([{ n: 1, title: "Page title", url: "https://a.example" }, { n: 2, title: "B", url: "https://b.example" }]);
   });
 });
