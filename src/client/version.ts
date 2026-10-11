@@ -2,7 +2,8 @@ export interface ReleaseManifest {
   version: string;
 }
 
-export const releaseManifestUrl = "https://run.sparklingkit.com/stable/version.json";
+// The fork's own releases; upstream's manifest would announce versions this fork does not have.
+export const releaseManifestUrl = "https://api.github.com/repos/MovieMaker93/SparklingKit/releases/latest";
 
 function versionParts(value: string) {
   const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
@@ -26,10 +27,14 @@ export function isNewerVersion(current: string | undefined, candidate: string | 
   return false;
 }
 
+export function releaseFromGitHub(release: unknown): ReleaseManifest {
+  const tag = (release as { tag_name?: unknown } | null)?.tag_name;
+  if (typeof tag !== "string" || !versionParts(tag)) throw new Error("Release manifest has an invalid version");
+  return { version: tag };
+}
+
 export async function latestRelease(signal?: AbortSignal) {
-  const response = await fetch(releaseManifestUrl, { headers: { Accept: "application/json" }, signal });
+  const response = await fetch(releaseManifestUrl, { headers: { Accept: "application/vnd.github+json" }, signal });
   if (!response.ok) throw new Error(`Release manifest returned ${response.status}`);
-  const manifest = await response.json() as Partial<ReleaseManifest>;
-  if (!manifest.version || !versionParts(manifest.version)) throw new Error("Release manifest has an invalid version");
-  return manifest as ReleaseManifest;
+  return releaseFromGitHub(await response.json());
 }

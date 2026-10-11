@@ -93,8 +93,8 @@ function gibibytes(bytes: number) {
 function ProductFooter({ currentVersion, latest }: { currentVersion?: string; latest?: ReleaseManifest }) {
   const updateAvailable = isNewerVersion(currentVersion, latest?.version);
   return <footer className="product-footer">
-    <div className="product-footer-links"><a href="https://sparklingkit.com" target="_blank" rel="noreferrer">sparklingkit.com</a><i /><a href="https://github.com/stevibe/SparklingKit" target="_blank" rel="noreferrer">GitHub</a></div>
-    <div className="product-footer-version" aria-live="polite"><span>{displayVersion(currentVersion)}</span>{updateAvailable && <a href="https://github.com/stevibe/SparklingKit/blob/main/docs/deployment.md#upgrade" target="_blank" rel="noreferrer" title={`${displayVersion(latest?.version)} is available. Open the upgrade guide.`}>Update available</a>}</div>
+    <div className="product-footer-links"><a href="https://github.com/MovieMaker93/SparklingKit" target="_blank" rel="noreferrer">GitHub</a></div>
+    <div className="product-footer-version" aria-live="polite"><span>{displayVersion(currentVersion)}</span>{updateAvailable && <a href="https://github.com/MovieMaker93/SparklingKit/blob/main/docs/deployment.md#upgrade" target="_blank" rel="noreferrer" title={`${displayVersion(latest?.version)} is available. Open the upgrade guide.`}>Update available</a>}</div>
   </footer>;
 }
 

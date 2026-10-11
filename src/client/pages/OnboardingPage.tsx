@@ -7,7 +7,6 @@ import { ENDPOINT_KINDS, type EndpointConfig, type EndpointHealth, type Endpoint
 import { OPTIONAL_REFERENCE_ENDPOINT_KINDS, REFERENCE_ENDPOINT_KINDS, referenceSettingsForHost } from "../../shared/reference-stack";
 
 type OnboardingTab = "local" | "remote" | "manual";
-type InstallSource = "hosted" | "github";
 
 const serviceLabels: Record<EndpointKind, string> = {
   llm: "Multimodal LLM",
@@ -33,10 +32,10 @@ const serviceDescriptions: Record<EndpointKind, string> = {
 const checkedReferenceKinds: EndpointKind[] = [...REFERENCE_ENDPOINT_KINDS, ...OPTIONAL_REFERENCE_ENDPOINT_KINDS];
 const isOptionalReferenceKind = (kind: EndpointKind) => (OPTIONAL_REFERENCE_ENDPOINT_KINDS as readonly EndpointKind[]).includes(kind);
 
-const hostedInstallCommand = "curl -fsSL https://run.sparklingkit.com/dgx/stable/install.sh | bash -s -- --accept-model-licenses";
-const githubInstallCommand = `git clone --depth 1 https://github.com/stevibe/SparklingKit.git
+// The fork has no hosted installer (run.sparklingkit.com installs upstream), so the stack starts from a clone.
+const installCommand = `git clone --depth 1 https://github.com/MovieMaker93/SparklingKit.git
 cd SparklingKit
-./scripts/start-dgx-models.sh --accept-model-licenses`;
+./scripts/start-dgx-spark.sh --accept-model-licenses`;
 
 export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
   settings: Settings;
@@ -45,7 +44,6 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
   onCancel: () => void;
 }) {
   const [tab, setTab] = useState<OnboardingTab>(settings.setup.mode === "split" ? "remote" : settings.setup.mode === "custom" && canCancel ? "manual" : "local");
-  const [installSource, setInstallSource] = useState<InstallSource>("hosted");
   const [remoteHost, setRemoteHost] = useState(guessReferenceHost(settings));
   const [draft, setDraft] = useState<Settings>(() => structuredClone(settings));
   const [referenceChecks, setReferenceChecks] = useState<Partial<Record<EndpointKind, EndpointHealth | "testing">>>({});
@@ -167,8 +165,6 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
     }
   }
 
-  const installCommand = installSource === "hosted" ? hostedInstallCommand : githubInstallCommand;
-
   return <main className="onboarding-page">
     <div className="onboarding-shell">
       <header className="onboarding-header">
@@ -201,9 +197,8 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
           </div>
 
           <div className="onboarding-step"><span>1</span><div><h3>Install and start the models</h3><p>Model weights remain on the DGX and are downloaded from their publishers.</p></div></div>
-          <div className="onboarding-source-tabs"><button className={installSource === "hosted" ? "active" : ""} onClick={() => setInstallSource("hosted")}>Hosted installer</button><button className={installSource === "github" ? "active" : ""} onClick={() => setInstallSource("github")}>GitHub source</button></div>
           <div className="onboarding-command"><span><ServerCog size={18} /><code>{installCommand}</code></span><button onClick={() => void copyText(installCommand)} aria-label="Copy model installation command"><Copy size={17} /></button></div>
-          <p className="onboarding-script-note">The hosted one-liner verifies the release bundle checksum and never installs Docker itself. It also installs <code>./sparklingkit-dgx</code> for future stack updates and rollback. Choose GitHub source if you prefer to inspect the files first.</p>
+          <p className="onboarding-script-note">The script builds the service images, downloads pinned model revisions and starts the services in a memory-safe order. It never installs Docker itself; <code>./scripts/start-dgx-spark.sh status</code> and <code>stop</code> manage the stack later.</p>
 
           <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "SparklingKit uses Docker's host gateway to reach ports 8332–8334, 8336, and 8337." : "Ports 8330, 8332–8334, 8336, and 8337 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
           {tab === "remote" && <label className="onboarding-host-field">DGX hostname or IP<input className="input" value={remoteHost} onChange={(event) => { setRemoteHost(event.target.value); setVerifiedReference(undefined); setReferenceChecks({}); setError(""); }} placeholder="192.168.22.33 or dgx-spark.local" /></label>}
