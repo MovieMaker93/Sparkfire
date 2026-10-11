@@ -66,7 +66,7 @@ Describe a picture and get it back in seconds. With Qwen-Image-2.1-Turbo, which 
 
 ### Make videos with sound
 
-Describe a scene, and optionally how it sounds, and FastH3 makes a 5, 8 or 10 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Five seconds at 480p take about a minute. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
+Describe a scene, and optionally how it sounds, and FastH3 makes a 5, 8 or 10 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Five seconds at 480p take about a minute. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks. Videos render one at a time, so a second one waits its turn while the rest of the app keeps working ([Heavy jobs take turns](#heavy-jobs-take-turns)).
 
 FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) made by [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, and it runs in [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org. [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark; Sparkfire adopted FastH3 after studying the Studio's Spark setup and measurements. Why each video setting is what it is: [Video: choices and trade-offs](#video-choices-and-trade-offs).
 
@@ -255,7 +255,18 @@ These are the measured figures from [docs/validation.md](docs/validation.md) min
 
 That leaves about 90 GiB for an LLM of your choice (Saluki needs about 13 GiB), a grounding server if you run one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB.
 
-**Keep the queue at two workers** (Settings → Advanced, the default) on a Spark. The queue sets how many jobs run at once, and the app reads it only at start. Two is the safer setting: a video and a large image can already run side by side, and those two set the memory peak. Jobs past the second wait their turn. Raising the number adds less memory than you might expect, because OCR and transcription use little beyond what their services already hold (vLLM reserves PaddleOCR-VL's memory at start, and Parakeet works through 30-second chunks). What it does add is GPU contention, which slows every running job. Chat answers do not go through the queue, so they run alongside whatever the queue holds with either setting.
+**Keep the queue at two workers** (Settings → Advanced, the default) on a Spark. The queue sets how many jobs run at once besides video, which has its own lane (below), and the app reads it only at start. Two is the safer setting: with a video running, two more jobs such as a large image can run beside it, and the video and the image set the memory peak. Jobs past the second wait their turn. Raising the number adds less memory than you might expect, because OCR and transcription use little beyond what their services already hold (vLLM reserves PaddleOCR-VL's memory at start, and Parakeet works through 30-second chunks). What it does add is GPU contention, which slows every running job. Chat answers do not go through the queue, so they run alongside whatever the queue holds with either setting.
+
+### Heavy jobs take turns
+
+Some jobs load tens of GiB only while they work. Today that is video (35–57 GiB per job). Two of them side by side do not fit on a Spark next to the rest of the stack, so Sparkfire runs them **one at a time**:
+
+- **One heavy job at a time, in order.** Ask for a second video while one renders and it shows *Waiting for the GPU* with what is running, then starts by itself. You can stop it while it waits.
+- **Everything else keeps going.** Heavy jobs wait on their own queue, so OCR, transcription, translation, images, mind maps and chat never queue behind a video. They run more slowly while it renders, because they share the GPU.
+- **Workflows too.** A video node in a workflow waits for the same lane as a video started from its page.
+- **Switching frees memory first.** A heavy service keeps its weights for a while after a job (video: 10 minutes), so the next video starts warm. When the next heavy job belongs to a different module, Sparkfire first tells the previous service to free its weights, instead of loading on top of them.
+
+Music generation is being evaluated for the same lane: a YuE2 song adds about 20 GiB, which fits beside the busy stack but not beside a video job ([docs/validation.md](docs/validation.md)).
 
 ## Video: choices and trade-offs
 
@@ -274,7 +285,7 @@ FastH3 shares one Spark with four other models and your LLM, so each video setti
 | Prompt | The form fills the model's own sections: scene, `overall_soundscape`, `non_diegetic_music` | Multi-shot prompts have to be written in that format by hand | FastH3 was trained on sectioned prompts; a prompt already written that way is kept as is |
 | First frame | Scaled to the chosen size with a centre crop | An image of another shape loses its edges | Keeps the size you picked. The prompt should describe the image, so a generated image hands over the prompt that made it |
 | Memory | Weights load on the first job and unload after 10 idle minutes, or before switching variants | A cold job waits about 10 s longer; ComfyUI keeps about 5 GiB after unloading | Holding them would leave the Spark 34–44 GiB heavier between jobs |
-| Concurrency | No extra queue rule; the service renders one video at a time | A second video waits for the first | The largest job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB with Saluki loaded, leaving about 14 GiB for other jobs |
+| Concurrency | Videos take turns in the [heavy-job lane](#heavy-jobs-take-turns), on their own queue | A second video waits for the first, shown as *Waiting for the GPU*; other jobs do not wait behind it | The largest job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB with Saluki loaded, leaving about 14 GiB for other jobs |
 | Transfer | The MP4 streams to disk as the response body; a request may take up to an hour | A long render keeps one connection open | The video never sits in memory as base64 |
 | Repeats | ComfyUI caches identical requests | The same prompt, seed and settings give back the same video | It returns in about 2 s; change the seed under Advanced for a new take |
 | Default install | Video is built and downloaded unless you pass `--video-backend none` | About 53 GB more disk and a longer first install | Video with sound is part of Sparkfire; the flag covers the excluded territories, and onboarding treats video as optional |
