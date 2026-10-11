@@ -25,7 +25,6 @@ export function saveChatEffort(effort: ChatEffort) {
 
 // Friendly names for the model ids this fork's DGX backends serve; any other id is shown as configured.
 const MODEL_LABELS: Record<string, string> = {
-  "qwen36-35b-a3b-nvfp4": "Qwen3.6-35B-A3B",
   "saluki-27b": "Saluki 27B",
 };
 

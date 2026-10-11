@@ -90,7 +90,7 @@ SPARKLINGKIT_IMAGE=ghcr.io/stevibe/sparklingkit:0.2.0
 
 Change the version deliberately and run `./sparklingkit update`. Versioned Compose files attached to GitHub releases are already pinned to the matching semantic version.
 
-If the six-model reference stack was installed on a DGX Spark with the hosted model installer, update that independent layer from its own installation directory:
+If the five-model reference stack was installed on a DGX Spark with the hosted model installer, update that independent layer from its own installation directory:
 
 ```bash
 ./sparklingkit-dgx update

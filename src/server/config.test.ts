@@ -5,11 +5,9 @@ describe("bundled service catalog", () => {
   it("keeps the status monitor and model services on their assigned ports", () => {
     expect(Object.fromEntries(Object.entries(BUNDLED_SERVICE_CATALOG).map(([key, service]) => [key, service.port]))).toEqual({
       systemStatus: 8330,
-      llm: 8331,
       ocr: 8332,
       stt: 8333,
       translation: 8334,
-      grounding: 8335,
       imageGeneration: 8336,
     });
   });
