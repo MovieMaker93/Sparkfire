@@ -85,6 +85,9 @@ as a host name; they pass on Linux and in CI.
   duplicate those rules in UI code.
 - **Queue and progress.** Jobs run on a BullMQ worker inside the API process. Progress reaches the browser
   through server-sent events at `/api/jobs/:id/events`.
+- **Optional modules.** A module whose service the reference stack does not ship sets
+  `hiddenUntilConfigured` in its contract (today only grounding). The API then marks it `hidden` while its
+  endpoint is off, and every UI list of tools and actions leaves it out; Settings still shows the endpoint.
 - **Settings.** `data/config/settings.json`. Environment variables only seed a new file; saved settings win
   on later starts, so upgrades never overwrite a user's endpoints.
 - **Model calls** live in `src/server/ai.ts`. Every request carries its own `AbortSignal` timeout. A global

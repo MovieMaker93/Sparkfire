@@ -3,22 +3,25 @@ import type { ModuleDescriptor, ModuleId, Settings } from "../models.js";
 
 export function listModules(settings?: Settings): ModuleDescriptor[] {
   const modelInputs = settings?.endpoints.llm.capabilities || ["text"];
-  return MODULE_CONTRACTS.map((contract) => ({
-    id: contract.id,
-    title: contract.title,
-    shortTitle: contract.shortTitle,
-    description: contract.description,
-    icon: contract.icon,
-    route: contract.route,
-    providerKind: contract.providerKind,
-    accepts: acceptedArtifactKinds(contract, modelInputs),
-    produces: [...contract.produces],
-    actions: nextModuleActions(contract, modelInputs).map((action) => ({ ...action, accepts: [...action.accepts] })),
-    implementation: contract.implementation,
-    configured: settings
-      ? Boolean(settings.endpoints[contract.providerKind]?.enabled && settings.endpoints[contract.providerKind]?.baseUrl && settings.endpoints[contract.providerKind]?.model)
-      : undefined,
-  }));
+  return MODULE_CONTRACTS.map((contract) => {
+    const endpoint = settings?.endpoints[contract.providerKind];
+    const configured = settings ? Boolean(endpoint?.enabled && endpoint.baseUrl && endpoint.model) : undefined;
+    return {
+      id: contract.id,
+      title: contract.title,
+      shortTitle: contract.shortTitle,
+      description: contract.description,
+      icon: contract.icon,
+      route: contract.route,
+      providerKind: contract.providerKind,
+      accepts: acceptedArtifactKinds(contract, modelInputs),
+      produces: [...contract.produces],
+      actions: nextModuleActions(contract, modelInputs).map((action) => ({ ...action, accepts: [...action.accepts] })),
+      implementation: contract.implementation,
+      configured,
+      hidden: Boolean(contract.hiddenUntilConfigured && configured === false),
+    };
+  });
 }
 
 export function getModule(id: ModuleId, settings?: Settings) {

@@ -162,7 +162,7 @@ export function JobPage() {
   const producingModule = selectedArtifact?.role === "source" ? job.moduleId : job.runs.find((run) => run.id === selectedArtifact?.createdByRunId)?.moduleId;
   const sourceModuleId = modules.some((module) => module.id === producingModule) ? producingModule as ModuleId : undefined;
   const nextActions = selectedArtifact
-    ? compatibleModuleContracts(selectedArtifact.kind, sourceModuleId).filter((contract) => contract.id !== "chat")
+    ? compatibleModuleContracts(selectedArtifact.kind, sourceModuleId).filter((contract) => contract.id !== "chat" && !modules.find((module) => module.id === contract.id)?.hidden)
     : [];
   const compatibleWorkflows = selectedArtifact ? workflows.filter((workflow) => workflow.enabled && workflowAcceptsArtifact(workflow, selectedArtifact.kind)) : [];
   const workflowLabel = flowRun?.definition.name || modules.find((module) => module.id === job.moduleId)?.title || (job.type === "audio" ? "Transcription" : "OCR");

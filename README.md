@@ -79,7 +79,7 @@ Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024
 
 ### Find things in images
 
-Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint configured in Settings (this fork used LocateAnything-3B).
+Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint: the tool stays hidden until you enable one in Settings → Services (this fork used LocateAnything-3B).
 
 [![Wind turbines and a lighthouse boxed in a photo, with the before/after slider moving across (click for the MP4)](.github/media/grounding.webp)](.github/media/grounding.mp4)
 

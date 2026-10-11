@@ -10,6 +10,8 @@ export interface ModuleContract extends Omit<ModuleDescriptor, "actions" | "conf
   actionLabel: string;
   actionDescription: string;
   allowSelfHandoff?: boolean;
+  /** For modules whose service the reference stack does not ship: shown only once an endpoint is configured. */
+  hiddenUntilConfigured?: boolean;
 }
 
 const textResults: ArtifactKind[] = ["document", "transcript", "translation", "redacted-document", "text"];
@@ -87,6 +89,7 @@ export const MODULE_CONTRACTS: readonly ModuleContract[] = [
     actionLabel: "Find in image",
     actionDescription: "Locate and frame something in this image",
     implementation: "ready",
+    hiddenUntilConfigured: true,
   },
   {
     id: "text-to-image",

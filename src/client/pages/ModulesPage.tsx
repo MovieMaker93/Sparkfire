@@ -49,7 +49,7 @@ export function ModulesPage() {
     <header className="workspace-heading"><div><h1>Tools for daily work</h1><p>Start with a file, then carry its results into the next task without uploading it again.</p></div></header>
     {error && <div className="error-card">{error}</div>}
     {!modules.length && !error ? <div className="module-grid">{Array.from({ length: 5 }, (_, index) => <div className="skeleton module-card-skeleton" key={index} />)}</div> : <div className="module-grid">
-      {modules.map((module) => {
+      {modules.filter((module) => !module.hidden).map((module) => {
         const Icon = icons[module.icon];
         return <Link className="module-card" to={module.route} key={module.id}>
           <span className={`module-card-icon module-card-icon-${module.id}`}><Icon size={24} /></span>
