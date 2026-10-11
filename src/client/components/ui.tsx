@@ -38,8 +38,15 @@ export function StatusBadge({ status }: { status: JobStatus }) {
   return <span className={cn("status-badge", `status-${status}`)}><Icon size={13} className={running && status !== "queued" ? "animate-spin" : ""} />{label}</span>;
 }
 
+/** How a job's progress bar is drawn: moving while a worker is on it, red once it failed. */
+export function progressTone(status: JobStatus): "active" | "failed" | undefined {
+  if (status === "failed") return "failed";
+  return ["preparing", "processing", "merging"].includes(status) ? "active" : undefined;
+}
+
 export function Progress({ job }: { job: Pick<Job, "progress" | "status"> }) {
-  return <div className="progress-track"><span className={cn("progress-fill", job.status === "failed" && "bg-red-500")} style={{ width: `${job.progress}%` }} /></div>;
+  const tone = progressTone(job.status);
+  return <div className="progress-track"><span className={cn("progress-fill", tone && `progress-${tone}`)} style={{ width: `${job.progress}%` }} /></div>;
 }
 
 export function ConfirmDialog({

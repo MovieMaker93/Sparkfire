@@ -21,7 +21,7 @@ export function applyTheme(preference: ThemePreference | undefined) {
   const apply = () => {
     const theme = resolveTheme(preference, media?.matches ?? true);
     document.documentElement.dataset.theme = theme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#090a0c" : "#f2f3f5");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "dark" ? "#0d0b0a" : "#f5f2ee");
   };
   apply();
   try { window.localStorage.setItem(themeStorageKey, preference || "auto"); } catch { /* Storage can be unavailable in private contexts. */ }

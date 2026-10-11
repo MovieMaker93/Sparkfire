@@ -468,13 +468,13 @@ function WorkflowRunGraph({ flowRun }: { flowRun: FlowRun }) {
     const running = selected && targetStatus === "running";
     const completed = selected && sourceStatus === "succeeded" && ["running", "succeeded"].includes(targetStatus);
     const inactive = sourceStatus === "skipped" || (sourceStatus === "succeeded" && Boolean(sourceRun?.selectedPortIds.length) && !selected);
-    const color = running ? "#f1f3f4" : completed ? "#72d9a4" : "#555d67";
+    const color = running ? "var(--sk-n16)" : completed ? "var(--sk-green-6)" : "var(--sk-n10)";
     const label = ["output", "files", "input"].includes(edge.from.portId) ? undefined : edge.from.portId;
     return { id: edge.id, source: edge.from.nodeId, target: edge.to.nodeId, type: "smoothstep", animated: running, label, style: { stroke: color, strokeWidth: running ? 2.5 : 2, opacity: inactive ? 0.25 : 1 }, markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color } };
   }), [flowRun]);
   return <div className="workflow-status-graph" aria-label={`Live node status for ${flowRun.definition.name}`}>
     <ReactFlow<WorkflowStatusCanvasNode, Edge> nodes={nodes} edges={edges} nodeTypes={workflowStatusNodeTypes} fitView fitViewOptions={{ padding: 0.2, minZoom: 0.55, maxZoom: 1 }} minZoom={0.2} maxZoom={1.5} nodesDraggable={false} nodesConnectable={false} elementsSelectable={false} deleteKeyCode={null} colorMode="dark">
-      <Background color="#343a43" gap={22} size={1} /><Controls showInteractive={false} />
+      <Background color="var(--sk-n8)" gap={22} size={1} /><Controls showInteractive={false} />
     </ReactFlow>
     <div className="workflow-status-gesture">Drag to explore · Pinch to zoom</div>
   </div>;
@@ -587,8 +587,19 @@ export function extractHtml(content: string, file: string) {
   return null;
 }
 
-export function htmlDocument(content: string) {
-  const theme = `<style id="sparklingkit-preview-theme">:root{color-scheme:dark}html,body{background:#15181d;color:#e8eaed}body{font-family:Inter,Arial,sans-serif;margin:0;padding:32px;line-height:1.6}a{color:#f1f3f4;text-decoration-color:#7f8792}table{border-collapse:collapse;width:100%}th,td{border:1px solid #3c424b;padding:10px;text-align:left}th{background:#20242a}code{background:#252a31;border-radius:4px;padding:2px 5px}img{max-width:100%}</style>`;
+/** The theme colours an HTML preview needs: its iframe cannot read the page's CSS variables. */
+export type PreviewPalette = { scheme: "dark" | "light"; background: string; text: string; link: string; underline: string; border: string; head: string; code: string };
+
+export function previewPalette(): PreviewPalette | undefined {
+  if (typeof document === "undefined") return undefined;
+  const style = getComputedStyle(document.documentElement);
+  const token = (step: string) => style.getPropertyValue(`--sk-${step}`).trim();
+  return { scheme: document.documentElement.dataset.theme === "light" ? "light" : "dark", background: token("n3"), text: token("n15"), link: token("n16"), underline: token("n12"), border: token("n9"), head: token("n5"), code: token("n6") };
+}
+
+export function htmlDocument(content: string, palette = previewPalette()) {
+  const colours = palette ? `:root{color-scheme:${palette.scheme}}html,body{background:${palette.background};color:${palette.text}}a{color:${palette.link};text-decoration-color:${palette.underline}}th,td{border-color:${palette.border}}th{background:${palette.head}}code{background:${palette.code}}` : "";
+  const theme = `<style id="sparkfire-preview-theme">body{font-family:"Geist Variable",Geist,system-ui,sans-serif;margin:0;padding:32px;line-height:1.6}table{border-collapse:collapse;width:100%}th,td{border:1px solid;padding:10px;text-align:left}code{border-radius:4px;padding:2px 5px}img{max-width:100%}${colours}</style>`;
   if (/<!doctype\s+html|<html[\s>]/i.test(content)) {
     if (/<\/head>/i.test(content)) return content.replace(/<\/head>/i, `${theme}</head>`);
     return content.replace(/<html([^>]*)>/i, `<html$1><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${theme}</head>`);
