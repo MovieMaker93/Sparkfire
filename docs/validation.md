@@ -145,6 +145,52 @@ through the app.
   529 tokens. Chat already exposes the thinking control; the mind-map executor should turn thinking off
   for a llama.cpp backend.
 
+## Video generation: FastH3 through the service
+
+The `video-generation` service (ComfyUI 0df64eb behind the adapter) on 2026-10-11, next to the four-service
+stack (PaddleOCR-VL, Parakeet, Hy-MT2, Qwen-Image-2.1-Turbo) and Saluki 27B in `llama-server`, plus a few
+small containers that are not SparklingKit's. Requests went straight to the service, one at a time, with
+the same prompt and a sound description; host memory is MemTotal − MemAvailable, sampled every 0.5 s.
+
+Before any video work the Spark used about 50 GiB. Starting the service added nothing measurable: ComfyUI
+loads no weights until the first job (0.65 GiB of GPU memory for its CUDA context).
+
+| Request (seed 42 unless noted) | Time | Peak used | Above the 50 GiB idle |
+| --- | --- | --- | --- |
+| Fast, 864x480, 5 s, cold (weights load first) | 62–69 s | 84.7 GiB | +35 GiB |
+| Fast, 864x480, 5 s, warm (seed 8) | 58 s | 85.3 GiB | +35 GiB |
+| Fast, 1280x736, 5 s | 155 s | 91.2 GiB | +41 GiB |
+| Fast, 1344x768, 5 s | 168 s | 91.3 GiB | +41 GiB |
+| Fast, 1280x736, 8 s (192 frames) | 260 s | 94.6 GiB | +45 GiB |
+| Fast, 864x480, 5 s, from a first frame | 66 s | 88.1 GiB | +38 GiB |
+| Sharp, 864x480, 5 s (frees Fast, loads Sharp) | 117 s | 94.4 GiB | +44 GiB |
+| Sharp, 1280x736, 5 s | 392 s | 99.7 GiB | +50 GiB |
+| Sharp, 1344x768, 5 s | 272 s | 99.6 GiB | +50 GiB |
+| Sharp, 1280x736, 8 s | 392 s | 102.6 GiB | +53 GiB |
+
+- **Resident between jobs:** Fast holds about 34 GiB, Sharp about 44 GiB. ComfyUI's own process reached
+  39.2 GiB of GPU memory during the Sharp 8 s job.
+- **Unload:** `POST /v1/unload` returned 40.5 GiB (95.8 to 55.3 GiB). About 5 GiB stays with ComfyUI after
+  it: 1.4 GiB of GPU memory and its process RAM. The idle timeout does the same by itself: after a job that
+  ended at about 09:53, the service freed Fast at 10:03, and the Spark went back to 55.7 GiB.
+- **Through the app:** "Continue with → Create video" on a Qwen-Image result made a 5 s, 864x480 video in
+  66 s, stored in the image's job and derived from it, with the image's prompt and the disclosure line on the
+  run. The video opened on the image and kept its painted sign legible.
+- **Every video** was H.264 with AAC sound, 124 frames for 5 s and 192 for 8 s, and carried the
+  "AI-generated with MiniMax H3 (FastH3)" comment.
+- **Cache:** repeating a request with the same seed, prompt and settings returned in 2 s; ComfyUI reused the
+  sampled result and only wrote the file again.
+- **Variance:** Sharp at 1280x736 took longer than at 1344x768 in this run (392 s against 272 s); the 8 s
+  run at 1280x736 also took 392 s. Treat the Sharp times as a range until they are repeated.
+- **Compared with the bake-off** (2026-10-10, run by hand in a ComfyUI container): the Fast times match
+  (66 s at 480p, about 170 s at 720p). The peaks above idle are higher here (+41 against +35 GiB at 720p),
+  because this run counts from an idle stack with no ComfyUI process at all.
+
+The decision gate of the plan was a peak of +40 GiB above idle. Fast stays under it at 480p and passes it
+by 1–5 GiB at 720p, 768p and 8 s; Sharp passes it by up to 13 GiB. With Saluki loaded the worst case,
+Sharp at 1280x736 for 8 s, used 102.6 of 121 GiB, so the stack still has about 18 GiB for a second job
+and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
+
 ## Memory
 
 Per container, with every service loaded and idle (`nvidia-smi` per process for GPU memory, `docker stats` for
@@ -176,6 +222,8 @@ measured with every service loaded and idle.
 | Parakeet in place of Qwen3-ASR, everything else unchanged (2026-10-10) | 14–15 GiB less; available memory went from 35 to 49 GiB |
 | One job per module, with Saluki as the LLM and Parakeet as the ASR (2026-10-10) | 73.5 GiB peak; 92.4 GiB in a degenerate pass |
 | Four-service stack: LLM, Qwen3-ASR and grounding removed (2026-10-10) | ≈ 29 GiB idle, ≈ 38 GiB at the old busy peak — derived by subtracting their rows above |
+| Four-service stack, Saluki and other small containers, video service idle (2026-10-11) | about 50 GiB |
+| Same, during the largest video job (Sharp, 1280x736, 8 s) | 102.6 GiB peak |
 
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
 transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
