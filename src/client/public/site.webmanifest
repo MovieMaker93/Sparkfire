@@ -1,0 +1,14 @@
+{
+  "name": "Sparkfire",
+  "short_name": "Sparkfire",
+  "description": "A local AI workspace for one DGX Spark",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#090a0c",
+  "theme_color": "#090a0c",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -154,7 +154,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .mobile-tabbar a, .mobile-tabbar > button { @apply flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-[14px] border-0 bg-transparent text-[14px] font-semibold text-muted; }
 .mobile-tabbar a.active { @apply text-ink; }
 .mobile-tabbar a.active svg { @apply rounded-[10px] bg-[var(--sk-n7)] p-1; width: 30px; height: 30px; }
-.brand-wordmark { @apply font-display text-[26px] leading-none font-extrabold tracking-[-.06em] text-ink; }
+.brand-wordmark { @apply inline-flex items-center gap-[.15em] font-display text-[26px] leading-none font-extrabold tracking-[-.06em] text-ink; }
+/* Sized in em so the mark follows the wordmark wherever it is enlarged. */
+.brand-mark { @apply h-[1.15em] w-[1.15em] shrink-0 text-[var(--sk-accent)]; }
 .sidebar-brand-row { @apply mb-4 flex h-8 shrink-0 items-center justify-between gap-2 pr-0 pl-3; }
 .sidebar-collapse-button { @apply flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-[11px] text-muted transition hover:bg-[var(--sk-n16)] hover:text-ink; }
 .sidebar-search-button { @apply mb-7 flex h-11 w-full shrink-0 cursor-pointer items-center gap-3 rounded-[13px] border border-[var(--sk-n8)] bg-[var(--sk-n3)] px-3.5 text-[14px] font-semibold text-muted transition hover:border-[var(--sk-n10)] hover:bg-[var(--sk-n5)] hover:text-ink; }
@@ -234,8 +236,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @media (min-width: 768px) {
   .sidebar-collapsed .sidebar { @apply w-20 px-3; }
   .sidebar-collapsed .main-content { margin-left: 80px; }
-  .sidebar-collapsed .sidebar-brand-row { @apply justify-center px-0; }
-  .sidebar-collapsed .sidebar-brand-row .brand-wordmark, .sidebar-collapsed .sidebar-search-button span, .sidebar-collapsed .sidebar-search-button kbd, .sidebar-collapsed .nav-label, .sidebar-collapsed .nav-link > span, .sidebar-collapsed .nav-link > small, .sidebar-collapsed .service-monitor .status-card-heading, .sidebar-collapsed .service-copy { @apply hidden; }
+  .sidebar-collapsed .sidebar-brand-row { @apply h-auto flex-col justify-center gap-3 px-0; }
+  .sidebar-collapsed .sidebar-brand-row .brand-wordmark > span, .sidebar-collapsed .sidebar-search-button span, .sidebar-collapsed .sidebar-search-button kbd, .sidebar-collapsed .nav-label, .sidebar-collapsed .nav-link > span, .sidebar-collapsed .nav-link > small, .sidebar-collapsed .service-monitor .status-card-heading, .sidebar-collapsed .service-copy { @apply hidden; }
   .sidebar-collapsed .sidebar-search-button { @apply mx-auto w-12 justify-center px-0; }
   .sidebar-collapsed .nav-link { @apply mx-auto w-12 justify-center px-0; }
   .sidebar-collapsed .module-nav-list { @apply mt-3; }

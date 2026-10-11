@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Check, CircleAlert, Copy, Cpu, Eye, EyeOff, LoaderCircle, Network, ServerCog, Settings2 } from "lucide-react";
 import { api } from "../api";
+import { BrandWordmark } from "../components/BrandMark";
 import { cn } from "../components/ui";
 import { useToast } from "../components/ToastProvider";
 import { ENDPOINT_KINDS, type EndpointConfig, type EndpointHealth, type EndpointKind, type Settings } from "../../shared/contracts";
@@ -168,7 +169,7 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
   return <main className="onboarding-page">
     <div className="onboarding-shell">
       <header className="onboarding-header">
-        <div className="brand-wordmark">Sparkfire</div>
+        <div className="brand-wordmark"><BrandWordmark /></div>
         {canCancel && <button className="button-secondary compact" onClick={onCancel}>Back to workspace</button>}
       </header>
 
