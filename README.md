@@ -1,4 +1,6 @@
-# Sparkfire 🔥 — a local AI workspace for one DGX Spark
+<img src="src/client/public/favicon.svg" width="64" height="64" alt="">
+
+# Sparkfire — a local AI workspace for one DGX Spark
 
 [![CI](https://github.com/MovieMaker93/Sparkfire/actions/workflows/ci.yml/badge.svg)](https://github.com/MovieMaker93/Sparkfire/actions/workflows/ci.yml)
 [![Security](https://github.com/MovieMaker93/Sparkfire/actions/workflows/security.yml/badge.svg)](https://github.com/MovieMaker93/Sparkfire/actions/workflows/security.yml)
