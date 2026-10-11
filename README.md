@@ -194,6 +194,14 @@ That leaves about 90 GiB for an LLM of your choice (Saluki needs ~13 GiB), a gro
 one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp,
 1280 × 736, 8 s) brought the Spark to 102.6 of 121 GiB. Full measurements are in [docs/validation.md](docs/validation.md).
 
+**Keep the queue at two workers** (Settings → Advanced, the default) on a Spark. The queue sets how many
+jobs run at once, and the app reads it only at start. Two is the safer setting: a video and a large image
+can already run side by side, and those two set the memory peak. Jobs past the second wait their turn.
+Raising the number adds less memory than you might expect, because OCR and transcription use little beyond
+what their services already hold (vLLM reserves PaddleOCR-VL's memory at start, and Parakeet works through
+30-second chunks). What it does add is GPU contention, which slows every running job. Chat answers do not
+go through the queue, so they run alongside whatever the queue holds with either setting.
+
 ## Video: choices and trade-offs
 
 FastH3 shares one Spark with four other models and your LLM, so each video setting trades quality or speed
