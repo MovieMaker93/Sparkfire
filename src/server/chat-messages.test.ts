@@ -48,4 +48,23 @@ describe("chat model messages", () => {
     settings.endpoints.llm.capabilities = ["text"];
     expect((await modelMessagesForChat(chat, settings)).at(-1)?.content).toBe("What is in this image?");
   });
+
+  it("sends an answer's text but not the searches and pages behind it", async () => {
+    const store = await import("./store.js");
+    await store.initializeData();
+    const settings = await store.readSettings();
+    const chat = await store.createChat();
+    const createdAt = new Date().toISOString();
+    chat.messages.push(
+      { id: "u", role: "user", content: "Latest Spark firmware?", createdAt },
+      { id: "a", role: "assistant", content: "Version 7 [1](https://example.com).", createdAt, reasoning: "Searched.", activity: [
+        { id: "c", tool: "web_search", input: "spark firmware", status: "done", sources: [{ n: 1, title: "Notes", url: "https://example.com" }] },
+      ] },
+    );
+    const { modelMessagesForChat } = await import("./chat-messages.js");
+    expect(await modelMessagesForChat(chat, settings)).toEqual([
+      { role: "user", content: "Latest Spark firmware?" },
+      { role: "assistant", content: "Version 7 [1](https://example.com)." },
+    ]);
+  });
 });

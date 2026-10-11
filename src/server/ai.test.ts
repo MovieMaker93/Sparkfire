@@ -281,6 +281,14 @@ describe("chat thinking", () => {
     expect(streamDelta({ object: "bookkeeping" })).toEqual({ content: "", reasoning: "" });
     expect(streamDelta(null)).toEqual({ content: "", reasoning: "" });
   });
+
+  it("reads tool-call fragments, which carry the id and name first and the arguments in pieces", () => {
+    expect(streamDelta({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "web_search", arguments: "" } }] } }] }))
+      .toEqual({ content: "", reasoning: "", toolCalls: [{ index: 0, id: "call_1", name: "web_search" }] });
+    expect(streamDelta({ choices: [{ delta: { content: null, tool_calls: [{ index: 1, function: { arguments: '{"q' } }] } }] }))
+      .toEqual({ content: "", reasoning: "", toolCalls: [{ index: 1, arguments: '{"q' }] });
+    expect(streamDelta({ choices: [{ delta: { tool_calls: [] } }] })).toEqual({ content: "", reasoning: "" });
+  });
 });
 
 describe("ASR text cleanup", () => {

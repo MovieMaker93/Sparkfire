@@ -103,6 +103,7 @@ async function withAttachments(chat: ChatRecord, acceptsImages: boolean): Promis
   }
 
   const messages: ModelChatMessage[] = [];
+  // Only what each message says goes back to the model: an answer's searches and pages (`activity`) stay on disk.
   for (const { role, content, attachments } of chat.messages) {
     if (!attachments?.length) {
       messages.push({ role, content });
