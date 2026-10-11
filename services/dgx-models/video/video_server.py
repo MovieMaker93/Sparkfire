@@ -88,7 +88,7 @@ BACKENDS = {
             Variant("sharp", "Sharp", "FastH3 V2, int8: about twice as slow, sharper detail", "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"),
         ),
         sizes=FASTH3_SIZES,
-        durations=(5, 8),
+        durations=(5, 8, 10),
         disclosure="AI-generated with MiniMax H3 (FastH3)",
     ),
 }

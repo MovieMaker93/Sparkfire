@@ -79,7 +79,7 @@ Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024
 
 ### Make videos with sound
 
-Describe a scene, and optionally how it sounds, and FastH3 makes a 5 or 8 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
+Describe a scene, and optionally how it sounds, and FastH3 makes a 5, 8 or 10 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
 
 FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) made by [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, and it runs in [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org. [drowzeys](https://github.com/drowzeys) built [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min), which runs FastH3 on Macs and the DGX Spark; this fork adopted FastH3 after studying the Studio's Spark setup and measurements. Why each video setting is what it is: [Video: choices and trade-offs](#video-choices-and-trade-offs).
 
@@ -176,7 +176,7 @@ The alternatives change single rows:
 | All services idle | about 29 GiB |
 | Busy (two jobs at a time, the app's default) | about 38 GiB at peak |
 | Starting up | about 39 GiB at peak |
-| A video job (on top of the above) | +35 GiB for Fast at 480p, +41–45 GiB for Fast at 720p or 8 s, +44–53 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
+| A video job (on top of the above) | +35–39 GiB for Fast at 480p, +41–48 GiB for Fast at 720p or longer, +44–57 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
 
 These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6
 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack.
@@ -186,7 +186,7 @@ Qwen3.6 LLM and Qwen3-ASR resident, before this fork removed them.
 
 That leaves about 90 GiB for an LLM of your choice (Saluki needs ~13 GiB), a grounding server if you run
 one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp,
-1280 × 736, 8 s) brought the Spark to 102.6 of 121 GiB. Full measurements are in [docs/validation.md](docs/validation.md).
+1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB. Full measurements are in [docs/validation.md](docs/validation.md).
 
 ## Video: choices and trade-offs
 
@@ -200,15 +200,15 @@ against memory. Every number here was measured on the Spark, with Saluki loaded;
 | Model | FastH3, FastVideo's 8-step distill of MiniMax H3, video and sound from one model | Its license excludes the EU, the UK, South Korea and the US | Sound comes with the picture, in 8 steps, beside the rest of the stack. Wan 2.2 makes no sound; MOVA needs about 48 GB of GPU memory plus 67 GB of RAM and 9 s a step on an H100. LTX-2.5 (worldwide license, video with sound) is the candidate for a second backend |
 | Runtime | A pinned ComfyUI behind a small adapter | One service on a runtime the others do not use; moving the pin needs a new measurement | No diffusers or transformers release loads FastH3 yet. keys-TensorFold Studio's native engine is faster per step for the int8 V2 model, but it builds outside a container and its setup held about 70 GB |
 | Fast (default) | FastH3 Trim, NVFP4 (11.9 GB) | Less fine detail than Sharp | 58–69 s for 5 s at 480p, about 34 GiB while loaded. NVFP4 runs natively on the GB10's tensor cores; the fp8, int8 and bf16 Trim files are bigger |
-| Sharp | FastH3 V2 pruned, int8 (22.1 GB) | About twice as slow; about 44 GiB while loaded and up to 53 GiB above idle | Visibly sharper frames on the same seed |
+| Sharp | FastH3 V2 pruned, int8 (22.1 GB) | About twice as slow; about 44 GiB while loaded and up to 57 GiB above idle | Visibly sharper frames on the same seed |
 | Text encoder and decoders | Qwen3-VL-32B in NVFP4-AWQ (15.7 GB), int8 video decoder, fp32 audio decoder, shared by both variants | About 19 GB of the 53 GB download | The encoder is 27 GB in int8 and 51 GB in bf16 |
 | Sizes | 864 × 480, 1280 × 736, 1344 × 768 | Landscape 16:9 only for now | These were measured; sizes are multiples of 32, so 720p is 1280 × 736 |
-| Length | 5 or 8 s at 24 fps (124 or 192 frames) | No clips over 8 s yet, and no chained clips | FastH3 is trained on about 124–362 frames (5–15 s), in steps of 17. These two lengths were measured; 8 s at 720p already takes 4.3–6.5 minutes and needs the most memory, so longer clips wait for their own measurement |
+| Length | 5, 8 or 10 s at 24 fps (124, 192 or 243 frames) | No clips over 10 s yet, and no chained clips | FastH3 is trained on about 124–362 frames (5–15 s), in steps of 17. These three lengths were measured; 10 s takes 2.5 minutes with Fast at 480p and up to 9.5 minutes with Sharp at 768p, and peaks highest, so longer clips wait for their own measurement |
 | Sampling | 8 steps, `res_multistep`, sigma shift 10 for video and 3 for audio, 10 % video sparse attention | No step or guidance controls in the form | Fixed by the distillation; FastVideo's model cards ask to keep the template's settings |
 | Prompt | The form fills the model's own sections: scene, `overall_soundscape`, `non_diegetic_music` | Multi-shot prompts have to be written in that format by hand | FastH3 was trained on sectioned prompts; a prompt already written that way is kept as is |
 | First frame | Scaled to the chosen size with a centre crop | An image of another shape loses its edges | Keeps the size you picked. The prompt should describe the image, so a generated image hands over the prompt that made it |
 | Memory | Weights load on the first job and unload after 10 idle minutes, or before switching variants | A cold job waits about 10 s longer; ComfyUI keeps about 5 GiB after unloading | Holding them would leave the Spark 34–44 GiB heavier between jobs |
-| Concurrency | No extra queue rule; the service renders one video at a time | A second video waits for the first | The largest job (Sharp, 1280 × 736, 8 s) brought the Spark to 102.6 of 121 GiB with Saluki loaded, so other jobs still fit beside it |
+| Concurrency | No extra queue rule; the service renders one video at a time | A second video waits for the first | The largest job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB with Saluki loaded, leaving about 14 GiB for other jobs |
 | Transfer | The MP4 streams to disk as the response body; a request may take up to an hour | A long render keeps one connection open | The video never sits in memory as base64 |
 | Repeats | ComfyUI caches identical requests | The same prompt, seed and settings give back the same video | It returns in about 2 s; change the seed under Advanced for a new take |
 | Default install | Video is built and downloaded unless you pass `--video-backend none` | About 53 GB more disk and a longer first install | Video is part of this fork's stack; the flag covers the excluded territories, and onboarding treats video as optional |

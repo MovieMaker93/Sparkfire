@@ -142,7 +142,7 @@ page and in the Gallery, and can be a workflow node.
   NVFP4 text encoder and the video and audio decoders (about 53 GB in all):
   - **Fast:** FastH3 Trim, NVFP4 (`FastVideo/FastVideo-FastH3-Trim-Comfy`).
   - **Sharp:** FastH3 V2 pruned, int8 (`FastVideo/FastVideo-FastH3-Comfy`): about twice as slow, sharper.
-  - Sizes 864 × 480, 1280 × 736 and 1344 × 768; 5 or 8 seconds at 24 fps; H.264 video with AAC sound.
+  - Sizes 864 × 480, 1280 × 736 and 1344 × 768; 5, 8 or 10 seconds at 24 fps; H.264 video with AAC sound.
   - Optional sound and music fields go into the model's own prompt sections (`overall_soundscape`,
     `non_diegetic_music`).
 - **Service.** `sparklingkit-video-generation` on :8337 runs ComfyUI at a pinned commit on 127.0.0.1:8347,
