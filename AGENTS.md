@@ -130,7 +130,7 @@ Rules for this layer:
   stack ships no LLM (chat and mind maps use a user-configured endpoint; the fork's reference is Saluki in
   `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
   Settings) and idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
-  ten idle minutes; a job adds 35 to 45 GiB with Fast and up to 53 GiB with Sharp while it runs. Do not start extra models, large builds or big downloads while
+  ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Do not start extra models, large builds or big downloads while
   services are loading, and check free memory (`free -g`) before running an LLM next to the stack: one
   that needs most of the Spark does not fit beside it.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
