@@ -33,5 +33,11 @@ scripts/spark-switch.env
 CLAUDE.local.md
 *.local.md
 
+# Coding agents' working files: session plans, scratch scripts, screenshots
+.claude/
+.superpowers/
+.zcode/
+docs/superpowers/
+
 # Demo inputs and raw recordings for the README clips
 scripts/media/work/
