@@ -89,8 +89,8 @@ OpenAI-compatible endpoint configured in Settings (the reference is Saluki 27B i
 `--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
 from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
 grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
-defaults, speech is Parakeet only, and video generation is Sparkfire's own and opt-in; three can be
-switched at deploy time:
+defaults, speech is Parakeet only, and video generation is Sparkfire's own; three can be switched at
+deploy time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
@@ -98,10 +98,10 @@ switched at deploy time:
 | Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) | | |
 | Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
-| Video (:8337) | none | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US) | `--video-backend fasth3` |
+| Video (:8337) | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US) | none | `--video-backend none` |
 
 ```bash
-./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --video-backend fasth3 --accept-model-licenses
+./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
 ```
 
 Sparkfire chooses the OCR request format from the model id. After switching the OCR backend on an
@@ -175,10 +175,10 @@ page and in the Gallery, and can be a workflow node.
   MP4 carries the comment "AI-generated with MiniMax H3 (FastH3)", and the job page and the form show it.
   Commercial products built on it must also display "MiniMax H3".
 - **Territory.** The license grants use only "worldwide, excluding" the European Union, the United Kingdom,
-  South Korea and the United States, so video is opt-in: the stack runs it only with
-  `--video-backend fasth3`, and onboarding verifies a stack without it. LTX-2.5 (Lightricks, LTX-2.x Community License, worldwide) also makes video with sound
+  South Korea and the United States. Deploy with `--video-backend none` there; onboarding then verifies the
+  stack without video. LTX-2.5 (Lightricks, LTX-2.x Community License, worldwide) also makes video with sound
   and has official ComfyUI support, so it is the candidate for a second backend in the adapter's registry.
-- **Updating an existing install.** With `--video-backend fasth3`, the start script builds the service and
+- **Updating an existing install.** The start script builds the service and
   downloads both checkpoint sets at pinned revisions. Saved settings gain the video endpoint automatically when it was empty.
 
 ## Sharing the Spark with another LLM

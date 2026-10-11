@@ -49,8 +49,7 @@ before a major-version upgrade.
 Point an existing checkout at this repository (`git remote set-url origin
 https://github.com/MovieMaker93/Sparkfire.git && git pull`) and run the start script again. The compose
 project, container and image names keep their `sparklingkit` prefix, so the Redis volume, model downloads
-and running containers are reused; `SPARKLINGKIT_*` variables in `.env` still work. Video is opt-in in
-Sparkfire: add `--video-backend fasth3` if you used it.
+and running containers are reused; `SPARKLINGKIT_*` variables in `.env` still work.
 
 ## Backups
 

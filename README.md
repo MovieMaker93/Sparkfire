@@ -115,7 +115,7 @@ Pick a theme in Settings; the whole interface follows, in both themes and on any
 
 You need:
 - an NVIDIA DGX Spark (or another GB10 system) with its stock DGX OS, which includes Docker, the NVIDIA container runtime and CUDA 13;
-- about 135 GB of free disk for the model weights and service images (about 190 GB with video);
+- about 190 GB of free disk for the model weights and service images (about 135 GB without video);
 - internet access for the first run.
 
 ```bash
@@ -126,15 +126,15 @@ cd Sparkfire
 ```
 
 - The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
-- `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). The default models can be used anywhere.
-- Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only) and `--video-backend fasth3` for video with sound (its license does not cover the EU, the UK, South Korea or the US).
+- `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). FastH3, the video model, is not licensed in the EU, the UK, South Korea or the US: add `--video-backend none` there.
+- Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only).
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
-| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or with `--video-backend fasth3` to add video |
+| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or `--video-backend none` to leave video out |
 | Use Unlimited-OCR instead of PaddleOCR-VL | leave out `--ocr-backend` |
 | Update | `git pull`, then run the start script again |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparkfire` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
@@ -142,7 +142,7 @@ cd Sparkfire
 
 **Updating an install that used Qwen3-ASR?** Run the start script again, then choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Saved settings are never rewritten. Until you change it, transcription still works, with minute-long lines instead of sentences.
 
-**Coming from SparklingKit or the MovieMaker93/SparklingKit fork?** Point your checkout at this repository and run the start script again; jobs, settings, models and containers are reused as they are. The old `SPARKLINGKIT_*` variables in `.env` still work. Video is now opt-in, so add `--video-backend fasth3` if you used it.
+**Coming from SparklingKit or the MovieMaker93/SparklingKit fork?** Point your checkout at this repository and run the start script again; jobs, settings, models and containers are reused as they are. The old `SPARKLINGKIT_*` variables in `.env` still work.
 
 ## Memory and containers
 
@@ -214,7 +214,7 @@ against memory. Every number here was measured on the Spark, with Saluki loaded;
 | Concurrency | No extra queue rule; the service renders one video at a time | A second video waits for the first | The largest job (Sharp, 1280 × 736, 8 s) brought the Spark to 102.6 of 121 GiB with Saluki loaded, so other jobs still fit beside it |
 | Transfer | The MP4 streams to disk as the response body; a request may take up to an hour | A long render keeps one connection open | The video never sits in memory as base64 |
 | Repeats | ComfyUI caches identical requests | The same prompt, seed and settings give back the same video | It returns in about 2 s; change the seed under Advanced for a new take |
-| Default install | Video is left out unless you pass `--video-backend fasth3` | One flag to add it | Its license excludes the EU, the UK, South Korea and the US, so a default install stays usable everywhere; the flag adds about 53 GB of downloads, and onboarding treats video as optional |
+| Default install | Video is built and downloaded unless you pass `--video-backend none` | About 53 GB more disk and a longer first install | Video with sound is part of Sparkfire; the flag covers the excluded territories, and onboarding treats video as optional |
 | Disclosure | Every MP4 carries "AI-generated with MiniMax H3 (FastH3)" in its metadata, and the app shows it | Re-encoding the file elsewhere can drop the tag | The license asks that shared outputs say they are machine-generated |
 | Container cap | 56 GiB | It bounds CPU-side memory only | GPU allocations are not charged to a container's limit on the Spark |
 
@@ -222,7 +222,7 @@ Per job, the form sets Fast or Sharp, the size, the length and the seed. For the
 
 | Setting | Default | Where |
 | --- | --- | --- |
-| `--video-backend` | `none` | `scripts/start-dgx-spark.sh`; `fasth3` adds video |
+| `--video-backend` | `fasth3` | `scripts/start-dgx-spark.sh`; `none` leaves video out |
 | `VIDEO_IDLE_UNLOAD_SECONDS` | `600` | Environment of `start-dgx-spark.sh` (compose) |
 | `VIDEO_MEM_LIMIT` | `56g` | Environment of `start-dgx-spark.sh` (compose) |
 
@@ -561,9 +561,9 @@ Sparkfire changes copyright 2026 MovieMaker93.
 
 ### Model licenses
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms. The default models (Unlimited-OCR or PaddleOCR-VL, Parakeet, Hy-MT2 and Z-Image-Turbo) can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
+Model weights are not part of this repository. The start script downloads them after you accept their terms. OCR, speech, translation and Z-Image-Turbo can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
-Two opt-in models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License (non-commercial). FastH3, the video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository.
+Two models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo (opt-in) use the Qwen Research License (non-commercial). FastH3, the default video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository. Start the stack with `--video-backend none` where FastH3's license does not apply.
 
 ## Acknowledgements
 
