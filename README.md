@@ -38,10 +38,10 @@ Every source and every result stays an ordinary file with its history, so one re
 | Area | What you get |
 | --- | --- |
 | **Interface** | Light, dark and system themes; a mint accent; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench |
-| **Gallery** | Every image with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
+| **Gallery** | Every image and generated video with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
 | **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control (Off, Low, Medium, High) with the reasoning shown live |
-| **Models** | Parakeet-TDT-0.6B-v3 for speech; PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; seed and step controls |
+| **Models** | Parakeet-TDT-0.6B-v3 for speech; PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; FastH3 for video with sound; seed and step controls |
 | **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
 | **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
 
@@ -77,6 +77,10 @@ Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024
 
 [![Typing a prompt, the progress view, the finished image, then the Gallery and its compare picker (click for the MP4)](.github/media/image.webp)](.github/media/image.mp4)
 
+### Make videos with sound
+
+Describe a scene, and optionally how it sounds, and FastH3 makes a 5 or 8 second video with its own sound track: Fast or Sharp, at 480p, 720p or 768p. Start from an image by uploading one, or hand a generated image over with **Continue with → Create video**, which keeps its prompt. Videos play on the job page and in the Gallery, and each one is labelled as AI-generated, as the model's license asks.
+
 ### Find things in images
 
 Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint configured in Settings (this fork used LocateAnything-3B).
@@ -107,7 +111,7 @@ Pick a theme in Settings; the whole interface follows, in both themes and on any
 
 You need:
 - an NVIDIA DGX Spark (or another GB10 system) with its stock DGX OS, which includes Docker, the NVIDIA container runtime and CUDA 13;
-- about 130 GB of free disk for the model weights and service images;
+- about 190 GB of free disk for the model weights and service images (about 135 GB without video);
 - internet access for the first run.
 
 ```bash
@@ -118,14 +122,14 @@ cd SparklingKit
 ```
 
 - The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
-- `--accept-model-licenses` confirms you have read the [model licenses](#this-fork); two of the models are for non-commercial use only.
+- `--accept-model-licenses` confirms you have read the [model licenses](#this-fork); Qwen-Image is for non-commercial use only, and FastH3's license does not cover the EU, the UK, South Korea or the US: add `--video-backend none` there.
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
-| Switch a model | run the start script again with another `--image-backend`, `--ocr-backend` or `--asr-backend` |
+| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or `--video-backend none` to leave video out |
 | Use upstream's models instead | leave out `--ocr-backend` and `--image-backend` |
 | Update | `git pull`, then run the start script again |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparklingkit` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
@@ -137,7 +141,7 @@ The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described f
 
 ## Memory and containers
 
-The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **7 Docker containers**, or **8** with PaddleOCR-VL, whose vision model and layout stage run separately. A short-lived downloader container also runs during installation.
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **8 Docker containers**, or **9** with PaddleOCR-VL, whose vision model and layout stage run separately. A short-lived downloader container also runs during installation.
 
 Measured on one Spark with every service loaded and idle. GPU is what the container allocates through CUDA; RAM is the container's own process memory.
 
@@ -151,6 +155,7 @@ Measured on one Spark with every service loaded and idle. GPU is what the contai
 | 6 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
 | 7 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
 | 8 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
+| 9 | `sparklingkit-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
 
 The stack ships no LLM and no grounding service (chat, mind maps and summaries use any
 OpenAI-compatible endpoint, and visual grounding activates when a grounding endpoint is configured —
@@ -169,6 +174,7 @@ The alternatives change single rows:
 | All services idle | about 29 GiB |
 | Busy (two jobs at a time, the app's default) | about 38 GiB at peak |
 | Starting up | about 39 GiB at peak |
+| A video job (on top of the above) | +35 GiB for Fast at 480p, +41–45 GiB for Fast at 720p or 8 s, +44–53 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
 
 These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6
 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack.
@@ -177,7 +183,8 @@ The historical 84–96 GiB figures in [docs/validation.md](docs/validation.md) w
 Qwen3.6 LLM and Qwen3-ASR resident, before this fork removed them.
 
 That leaves about 90 GiB for an LLM of your choice (Saluki needs ~13 GiB), a grounding server if you run
-one, the system, and headroom under load. Full measurements are in [docs/validation.md](docs/validation.md).
+one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp,
+1280 × 736, 8 s) brought the Spark to 102.6 of 121 GiB. Full measurements are in [docs/validation.md](docs/validation.md).
 
 * * *
 
@@ -191,9 +198,9 @@ SparklingKit is built around small, atomic capabilities—OCR, transcription, tr
 
 For workloads involving recorded meetings, private documents, scanned PDFs, and personal images, we strongly recommend running models locally whenever suitable hardware is available. Local inference keeps sensitive material on infrastructure you control, avoids repeatedly uploading large files, and gives you direct ownership of model selection, capacity, availability, and data retention. SparklingKit is designed local-first: source files, generated artifacts, processing history, workflow definitions, and service endpoints remain under your control. It is not local-only, however. Compatible cloud APIs can also be configured as service endpoints, allowing SparklingKit to serve as one consistent interface for local models, cloud-hosted models, or a deliberate combination of both.
 
-## One DGX Spark, four bundled models
+## One DGX Spark, five bundled models
 
-The reference stack deliberately fits four complementary models onto one DGX Spark. The LLM and the grounding service are deliberately **not** bundled: point SparklingKit at any OpenAI-compatible endpoint (local or cloud) for chat, mind maps, summaries, and workflow prompts, and configure a grounding endpoint for visual grounding.
+The reference stack deliberately fits five complementary models onto one DGX Spark. The LLM and the grounding service are deliberately **not** bundled: point SparklingKit at any OpenAI-compatible endpoint (local or cloud) for chat, mind maps, summaries, and workflow prompts, and configure a grounding endpoint for visual grounding.
 
 | Capability | Model | Role in SparklingKit |
 | --- | --- | --- |
@@ -201,6 +208,7 @@ The reference stack deliberately fits four complementary models onto one DGX Spa
 | Speech recognition | [`nvidia/parakeet-tdt-0.6b-v3`](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | Audio/video transcription and subtitles |
 | Translation | [`tencent/Hy-MT2-1.8B-FP8`](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | Dedicated multilingual translation |
 | Image generation | [`Tongyi-MAI/Z-Image-Turbo`](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Fast text-to-image generation |
+| Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) (MiniMax H3, through ComfyUI) | Short videos with sound, from text or an image |
 
 This gives a small team or individual a practical multimodal workspace without sending every file to a hosted provider. SparklingKit supplies the shared UI, file history, artifact routing, workflows, queueing, and progress monitoring; the five model servers stay independently replaceable.
 
@@ -251,7 +259,7 @@ Hosted model-stack installations created with version 0.1.4 or later include `./
 
 ### Run models remotely
 
-Choose this when the model stack runs on another DGX Spark. Run the same model installer on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8332–8336. The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
+Choose this when the model stack runs on another DGX Spark. Run the same model installer on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8332–8337 (video on 8337 is optional). The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
 
 ### Configure endpoints manually
 
@@ -308,6 +316,7 @@ The DGX starter enables the status reporter, which surfaces unified-memory use, 
 | Translation | Pasted text, documents, transcripts | Translated text or document artifacts |
 | Grounding | Images and text queries | Framed image preview and normalized box annotations |
 | Text to image | Prompt or compatible text result | Generated image |
+| Text to video | Prompt or text result, optionally an image as the first frame | Generated video with sound |
 | Mind map | Topic, text result, structured data, or an image with a vision-capable LLM | Interactive JSON map and Markdown outline |
 | Chat | Text, documents, structured data, and optionally images | Referenced conversation |
 
@@ -390,7 +399,7 @@ Environment variables bootstrap a new `settings.json`; saved settings take prece
 
 ## Service configuration
 
-Every provider can be enabled, edited, and tested independently. The DGX Spark reference deployment exposes its five bundled models on adjacent ports (8332–8336); the LLM endpoint is any service you configure:
+Every provider can be enabled, edited, and tested independently. The DGX Spark reference deployment exposes its bundled models on adjacent ports (8332–8337); the LLM endpoint is any service you configure:
 
 | Port | Capability | Reference model/backend |
 | ---: | --- | --- |
@@ -399,6 +408,7 @@ Every provider can be enabled, edited, and tested independently. The DGX Spark r
 | 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 / parakeet.cpp |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 |
 | 8336 | Image generation | Z-Image-Turbo / Diffusers |
+| 8337 | Video generation | FastH3 / ComfyUI |
 
 The system-status service is optional. Leave its URL empty to hide the GPU/memory block without affecting service health indicators.
 
@@ -544,15 +554,16 @@ Copyright 2026 Steven Lei.
 
 This fork is distributed under the same Apache License 2.0 and keeps upstream's [LICENSE](LICENSE) and [NOTICE](NOTICE). Its changes are recorded in the commit history and summarised in [docs/fork.md](docs/fork.md). "SparklingKit" is the upstream project's name; the fork uses it only to say where the code comes from.
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License. Parakeet-TDT-0.6B-v3, the default speech model, is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
+Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License. Parakeet-TDT-0.6B-v3, the default speech model, is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT. FastH3, the video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". Start the stack with `--video-backend none` where it does not apply.
 
 Fork changes copyright 2026 MovieMaker93.
 
 ## Acknowledgements
 
 - [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project this fork builds on.
-- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) and Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)).
+- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)), and MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3)) with FastVideo, whose [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) distill makes the videos.
 - A model evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0).
-- The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
+- The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
 - The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.
 - The README layout takes its cue from [sparkDash](https://github.com/MiaAI-Lab/sparkDash).
+- The idea of bringing FastH3 into this stack came from [keys-TensorFold Studio](https://github.com/drowzeys/keys-TensorFold-Studio-Mac-DGXSpark-64GB-VRam-Min) by drowzeys, which runs it on Macs and the DGX Spark.
