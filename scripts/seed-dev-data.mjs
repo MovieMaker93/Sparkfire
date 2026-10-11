@@ -99,7 +99,7 @@ const jobs = [
       "transcript.srt": transcriptSegments.map((segment, index) => `${index + 1}\n00:00:${String(Math.floor(segment.start)).padStart(2, "0")},000 --> 00:00:${String(Math.floor(segment.end)).padStart(2, "0")},000\n${segment.text}\n`).join("\n"),
     } },
   { id: "dev-03-video", type: "audio", title: "Product demo.mp4", minutesAgo: 80, input: "demo.mp4", mime: "video/mp4",
-    outputs: { "transcript.md": "# Product demo.mp4\n\nThis is the new SparklingKit workbench.\n", "transcript.json": JSON.stringify({ text: "This is the new SparklingKit workbench.", segments: [{ start: 0, end: 6, text: "This is the new SparklingKit workbench." }] }, null, 2) } },
+    outputs: { "transcript.md": "# Product demo.mp4\n\nThis is the new Sparkfire workbench.\n", "transcript.json": JSON.stringify({ text: "This is the new Sparkfire workbench.", segments: [{ start: 0, end: 6, text: "This is the new Sparkfire workbench." }] }, null, 2) } },
   { id: "dev-04-garden", type: "text", moduleId: "text-to-image", workflowId: "text-to-image.default", title: "A quiet reading room at night, warm table lamps, rain on tall windows", minutesAgo: 120, prompt: true,
     copyOutputs: { "generated-image.png": "garden.png" } },
   { id: "dev-05-harbor", type: "text", moduleId: "text-to-image", workflowId: "text-to-image.default", title: "Neon harbor at dawn, long exposure, reflections", minutesAgo: 200, prompt: true,

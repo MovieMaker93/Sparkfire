@@ -2,7 +2,7 @@
 
 ## Purpose
 
-SparklingKit workflows connect existing modules without exposing provider details or internal chunking. A workflow is a portable JSON document, a run remains attached to a normal file-based job, and every meaningful result remains a typed artifact.
+Sparkfire workflows connect existing modules without exposing provider details or internal chunking. A workflow is a portable JSON document, a run remains attached to a normal file-based job, and every meaningful result remains a typed artifact.
 
 The first release is intentionally a directed acyclic graph (DAG): it supports routing and branches, but not loops, arbitrary scripts, timers, or a general automation platform.
 

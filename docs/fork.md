@@ -1,7 +1,22 @@
-# Fork notes
+# What Sparkfire changes
 
-Changes in this fork on top of upstream SparklingKit 0.1.5. The README summarises them; this file has the
-details. Measured results are in [`validation.md`](validation.md).
+Sparkfire began as a fork of [SparklingKit](https://github.com/stevibe/SparklingKit) 0.1.5 by Steven Lei
+(Apache 2.0) and is now its own project: a hard fork that credits upstream and picks up upstream fixes by
+hand when they are useful. This file lists what it changes on top of SparklingKit; the README summarises
+it. Measured results are in [`validation.md`](validation.md).
+
+## Name and compatibility
+
+- **Name.** The product is Sparkfire; Apache 2.0 section 6 does not grant use of the SparklingKit name, which
+  appears only where it says where the code comes from. Upstream's [NOTICE](../NOTICE) is kept below
+  Sparkfire's.
+- **Kept on purpose.** The compose project, container and local image names, the BullMQ queue, browser
+  storage keys and model-download markers keep their `sparklingkit` prefix. Renaming them would orphan the
+  Redis volume, drop saved preferences or download every model again on existing installs.
+- **Environment.** `SPARKFIRE_*` variables are read first, then the `SPARKLINGKIT_*` names of older installs.
+- **Installers.** Upstream's hosted installer (`distribution/`, run.sparklingkit.com) is removed, because it
+  installs upstream. Sparkfire installs from a clone; releases publish `ghcr.io/<owner>/sparkfire` and a
+  DGX stack bundle.
 
 ## Interface
 
@@ -17,9 +32,8 @@ details. Measured results are in [`validation.md`](validation.md).
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
   thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image" (which
   returns once grounding is configured).
-- **Links to the fork.** The footer, the "Update available" check (this repository's GitHub releases, not
-  upstream's manifest) and the onboarding install command point at this fork; upstream's hosted
-  installer is no longer offered there because it installs upstream.
+- **Links.** The footer, the "Update available" check (this repository's GitHub releases, not upstream's
+  manifest) and the onboarding install command point at Sparkfire.
 - **Gallery** (`/gallery`). Every image and generated video across jobs, with source and model filters, a
   lightbox that plays videos, and a pick-two side-by-side compare.
 - **Job viewers.**
@@ -71,12 +85,12 @@ API additions:
 ## Model backends
 
 The DGX stack drops upstream's bundled Qwen3.6 LLM: chat, mind maps and summaries use any
-OpenAI-compatible endpoint configured in Settings (this fork runs Saluki 27B in `llama-server`; an
+OpenAI-compatible endpoint configured in Settings (the reference is Saluki 27B in `llama-server`; an
 `--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
 from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
 grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
-defaults, speech is Parakeet only, and video generation is this fork's own; three can be switched at deploy
-time:
+defaults, speech is Parakeet only, and video generation is Sparkfire's own; three can be switched at
+deploy time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
@@ -90,7 +104,7 @@ time:
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
 ```
 
-SparklingKit chooses the OCR request format from the model id. After switching the OCR backend on an
+Sparkfire chooses the OCR request format from the model id. After switching the OCR backend on an
 existing install, set the OCR model to `PaddleOCR-VL-1.6` in Settings → Services. The adapter also
 accepts chat-style OCR requests, so a stale setting keeps working, but layout blocks
 (`document.layout.json`) need the new model id.
@@ -113,7 +127,7 @@ speaks its API for a user-configured endpoint.
     what the app sends (16 kHz chunks); anything else gets a 400.
   - Both speech backends use :8333, so the start script stops the one you did not choose. It downloads only
     the chosen model, and only the one GGUF file of its repository, at a pinned revision.
-- **Sentences.** SparklingKit picks the speech request from the model id. For Parakeet it asks for word
+- **Sentences.** Sparkfire picks the speech request from the model id. For Parakeet it asks for word
   timestamps and builds the output from them (`src/server/transcript-timing.ts`):
   - One transcript line per sentence, saved as `segments` in `transcript.json` next to the `words`. A
     pause of 1.5 s also ends a line, and the Markdown text starts a new paragraph at a pause of 2 s.
@@ -130,7 +144,7 @@ speaks its API for a user-configured endpoint.
 - **Updating an existing install.** Saved settings are never rewritten. After the start script switches the
   service, choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Until then,
   transcription still works, with minute-long lines.
-- **Split mode.** `scripts/start-sparklingkit.sh` with a model host seeds the Parakeet id, as do the
+- **Split mode.** `scripts/start-sparkfire.sh` with a model host seeds the Parakeet id, as do the
   other bundled model ids.
 - **System monitor.** `services/dgx-status` reads `ASR_MODEL_NAME` (default `Parakeet-TDT-0.6B-v3`) to
   label the engine's GPU process.
@@ -164,17 +178,17 @@ page and in the Gallery, and can be a workflow node.
   South Korea and the United States. Deploy with `--video-backend none` there; onboarding then verifies the
   stack without video. LTX-2.5 (Lightricks, LTX-2.x Community License, worldwide) also makes video with sound
   and has official ComfyUI support, so it is the candidate for a second backend in the adapter's registry.
-- **Updating an existing install.** The start script builds the service and downloads both checkpoint sets
-  at pinned revisions. Saved settings gain the video endpoint automatically when it was empty.
+- **Updating an existing install.** The start script builds the service and
+  downloads both checkpoint sets at pinned revisions. Saved settings gain the video endpoint automatically when it was empty.
 
 ## Sharing the Spark with another LLM
 
-`scripts/spark-switch.sh` swaps between an always-on LLM container and SparklingKit's stack. It checks
+`scripts/spark-switch.sh` swaps between an always-on LLM container and Sparkfire's stack. It checks
 that the LLM is idle, asks for confirmation, waits for memory to free up, and waits for health:
 
 ```bash
 ./scripts/spark-switch.sh status
-./scripts/spark-switch.sh sparklingkit --image-backend qwen-image-2.1
+./scripts/spark-switch.sh sparkfire --image-backend qwen-image-2.1
 ./scripts/spark-switch.sh llm
 ```
 

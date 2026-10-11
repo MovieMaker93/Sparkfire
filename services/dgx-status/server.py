@@ -281,7 +281,7 @@ def status_payload() -> dict[str, Any]:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SparklingKitDGXStatus/1.0"
+    server_version = "SparkfireDGXStatus/1.0"
 
     def log_message(self, message: str, *args: Any) -> None:
         print(f"[http] {self.address_string()} {message % args}", flush=True)

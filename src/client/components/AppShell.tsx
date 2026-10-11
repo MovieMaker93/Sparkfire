@@ -93,8 +93,8 @@ function gibibytes(bytes: number) {
 function ProductFooter({ currentVersion, latest }: { currentVersion?: string; latest?: ReleaseManifest }) {
   const updateAvailable = isNewerVersion(currentVersion, latest?.version);
   return <footer className="product-footer">
-    <div className="product-footer-links"><a href="https://github.com/MovieMaker93/SparklingKit" target="_blank" rel="noreferrer">GitHub</a></div>
-    <div className="product-footer-version" aria-live="polite"><span>{displayVersion(currentVersion)}</span>{updateAvailable && <a href="https://github.com/MovieMaker93/SparklingKit/blob/main/docs/deployment.md#upgrade" target="_blank" rel="noreferrer" title={`${displayVersion(latest?.version)} is available. Open the upgrade guide.`}>Update available</a>}</div>
+    <div className="product-footer-links"><a href="https://github.com/MovieMaker93/Sparkfire" target="_blank" rel="noreferrer">GitHub</a></div>
+    <div className="product-footer-version" aria-live="polite"><span>{displayVersion(currentVersion)}</span>{updateAvailable && <a href="https://github.com/MovieMaker93/Sparkfire/blob/main/docs/deployment.md#upgrade" target="_blank" rel="noreferrer" title={`${displayVersion(latest?.version)} is available. Open the upgrade guide.`}>Update available</a>}</div>
   </footer>;
 }
 
@@ -170,15 +170,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={`app-shell min-h-screen bg-canvas text-ink ${activeChat ? "active-chat-shell" : ""} ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
       <header className="mobile-header">
-        <Link to="/" className="brand-wordmark" aria-label="SparklingKit home">SparklingKit</Link>
+        <Link to="/" className="brand-wordmark" aria-label="Sparkfire home">Sparkfire</Link>
         <Link to="/settings" state={{ backgroundLocation: location }} className="mobile-service-chip" aria-label={`Open settings, ${serviceSummary}`}><i className={enabled.length > 0 && healthy === enabled.length ? "online" : ""} />{serviceSummary}</Link>
       </header>
       <aside className="sidebar" id="app-sidebar">
         <div className="sidebar-brand-row">
-          <Link to="/" className="brand-wordmark" aria-label="SparklingKit home">SparklingKit</Link>
+          <Link to="/" className="brand-wordmark" aria-label="Sparkfire home">Sparkfire</Link>
           <button type="button" className="sidebar-collapse-button" onClick={toggleSidebar} aria-controls="app-sidebar" aria-expanded={!sidebarCollapsed} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>{sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}</button>
         </div>
-        <button type="button" className="sidebar-search-button" onClick={() => openSearch()} title="Search SparklingKit (⌘K)" aria-label="Search SparklingKit"><Search size={18} /><span>Search</span><kbd>⌘K</kbd></button>
+        <button type="button" className="sidebar-search-button" onClick={() => openSearch()} title="Search Sparkfire (⌘K)" aria-label="Search Sparkfire"><Search size={18} /><span>Search</span><kbd>⌘K</kbd></button>
         <p className="nav-label">Workspace</p>
         <nav>
           <NavLink to="/" end title="Workbench" aria-label="Workbench" className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><LayoutGrid size={19} strokeWidth={1.8} /><span>Workbench</span></NavLink>

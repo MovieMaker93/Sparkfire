@@ -1,4 +1,4 @@
-# SparklingKit
+# Sparkfire
 
 A local-first workspace where files go through AI modules and every result stays a typed, linked artifact.
 

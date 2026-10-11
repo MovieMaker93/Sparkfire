@@ -3,7 +3,7 @@ export interface ReleaseManifest {
 }
 
 // The fork's own releases; upstream's manifest would announce versions this fork does not have.
-export const releaseManifestUrl = "https://api.github.com/repos/MovieMaker93/SparklingKit/releases/latest";
+export const releaseManifestUrl = "https://api.github.com/repos/MovieMaker93/Sparkfire/releases/latest";
 
 function versionParts(value: string) {
   const match = value.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
