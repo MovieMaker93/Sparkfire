@@ -26,7 +26,7 @@ Every source and every result stays an ordinary file with its history, so one re
 - [Feature tour](#feature-tour)
 - [Quick start](#quick-start)
 - [Memory and containers](#memory-and-containers)
-- [Why SparklingKit?](#why-sparklingkit) · [One DGX Spark, six AI services](#one-dgx-spark-six-ai-services) · [Choose your deployment](#choose-your-deployment)
+- [Why SparklingKit?](#why-sparklingkit) · [One DGX Spark, five bundled models](#one-dgx-spark-five-bundled-models) · [Choose your deployment](#choose-your-deployment)
 - [Modules](#modules) · [Workbench](#workbench) · [File-based workflows](#file-based-workflows)
 - [Architecture](#architecture) · [API overview](#api-overview) · [Security and privacy](#security-and-privacy)
 - [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
@@ -41,7 +41,7 @@ Every source and every result stays an ordinary file with its history, so one re
 | **Gallery** | Every image with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
 | **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control (Off, Low, Medium, High) with the reasoning shown live |
-| **Models** | Parakeet-TDT-0.6B-v3 for speech (Qwen3-ASR stays an option); PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; seed and step controls |
+| **Models** | Parakeet-TDT-0.6B-v3 for speech; PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; seed and step controls |
 | **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
 | **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
 
@@ -67,7 +67,7 @@ PaddleOCR-VL-1.6 turns PDFs and scans into Markdown, keeping headings, tables an
 
 ### Transcribe recordings
 
-Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. On long files it runs 10 to 16 times faster than Qwen3-ASR did, and it needs 1.7 GiB instead of 16.5 GiB. It covers 25 European languages; for other languages, [keep Qwen3-ASR](#quick-start) (52 languages).
+Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. On long files it runs 10 to 16 times faster than Qwen3-ASR did, and it needs 1.7 GiB instead of 16.5 GiB. It covers 25 European languages.
 
 [![A transcript with one timed line per sentence; clicking a line moves the audio player (click for the MP4)](.github/media/transcript.webp)](.github/media/transcript.mp4)
 
@@ -79,7 +79,7 @@ Describe a picture and Qwen-Image-2.1-Turbo draws it in about 18 seconds at 1024
 
 ### Find things in images
 
-Ask LocateAnything for anything you can name, and it boxes every match. Slide between the original and the result to check them.
+Visual grounding boxes every match for anything you can name, with a slider between the original and the result. It needs a grounding endpoint configured in Settings (this fork used LocateAnything-3B).
 
 [![Wind turbines and a lighthouse boxed in a photo, with the before/after slider moving across (click for the MP4)](.github/media/grounding.webp)](.github/media/grounding.mp4)
 
@@ -126,19 +126,18 @@ cd SparklingKit
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
 | Switch a model | run the start script again with another `--image-backend`, `--ocr-backend` or `--asr-backend` |
-| Keep Qwen3-ASR for speech | add `--asr-backend qwen3-asr`: 52 languages instead of Parakeet's 25, but 16.5 GiB instead of 1.7 GiB |
-| Use upstream's models instead | leave out `--ocr-backend` and `--image-backend`, and add `--asr-backend qwen3-asr` |
+| Use upstream's models instead | leave out `--ocr-backend` and `--image-backend` |
 | Update | `git pull`, then run the start script again |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparklingkit` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
 | Run only the app against models you already host | `cp .env.example .env`, set the endpoint URLs, then `docker compose up -d --build` |
 
-**Updating an install that used Qwen3-ASR?** Run the start script again, then choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Saved settings are never rewritten. Until you change it, transcription still works, with minute-long lines instead of sentences. If you switch an existing install back with `--asr-backend qwen3-asr`, set `Qwen3-ASR-1.7B` there.
+**Updating an install that used Qwen3-ASR?** Run the start script again, then choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Saved settings are never rewritten. Until you change it, transcription still works, with minute-long lines instead of sentences.
 
 The one-line installer and the `ghcr.io/stevibe/sparklingkit` images described further down install **upstream** SparklingKit, not this fork.
 
 ## Memory and containers
 
-The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **9 Docker containers**, or **10** with PaddleOCR-VL, whose vision model and layout stage run separately. A short-lived downloader container also runs during installation.
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **7 Docker containers**, or **8** with PaddleOCR-VL, whose vision model and layout stage run separately. A short-lived downloader container also runs during installation.
 
 Measured on one Spark with every service loaded and idle. GPU is what the container allocates through CUDA; RAM is the container's own process memory.
 
@@ -147,34 +146,38 @@ Measured on one Spark with every service loaded and idle. GPU is what the contai
 | 1 | `sparklingkit-app-1` | Web app, API and job worker | — | 0.1 GiB | 0.1 GiB |
 | 2 | `sparklingkit-redis-1` | Job queue | — | < 0.1 GiB | < 0.1 GiB |
 | 3 | `sparklingkit-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
-| 4 | `sparklingkit-qwen36` | LLM: Qwen3.6-35B-A3B NVFP4 in vLLM, 64k context | ≈ 27 GiB | ≈ 4 GiB | **≈ 31 GiB**, and about 60 GB while it loads |
-| 5 | `sparklingkit-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
-| 6 | `sparklingkit-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
-| 7 | `sparklingkit-locateanything` | LocateAnything-3B grounding | 8.4 GiB | 2.5 GiB | **10.9 GiB** |
-| 8 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
-| 9 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
-| 10 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
+| 4 | `sparklingkit-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
+| 5 | `sparklingkit-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
+| 6 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
+| 7 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
+| 8 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
 
-The LLM row is estimated from its configuration (`--kv-cache-memory-bytes 2G`, `--gpu-memory-utilization 0.25`) and the stack's totals; every other row is measured. Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes.
+The stack ships no LLM and no grounding service (chat, mind maps and summaries use any
+OpenAI-compatible endpoint, and visual grounding activates when a grounding endpoint is configured —
+both in **Settings → Services**; see `docs/fork.md` for the Saluki and LocateAnything reference setups).
+Every row is measured. Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes.
 
 The alternatives change single rows:
 
 | Instead of | You run | Memory |
 | --- | --- | --- |
-| Row 6 | `sparklingkit-qwen3-asr` (Qwen3-ASR-1.7B in vLLM, upstream's default): `--asr-backend qwen3-asr` | 12.6 GiB GPU, 3.9 GiB RAM, 16.5 GiB in total |
-| Rows 8 and 10 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, upstream's default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
-| Row 5's model | Z-Image-Turbo (upstream's default) | Not measured; the container is capped at 26 GiB. |
-| Row 4 | Saluki 27B in `llama-server`, 64k of its 256k context (evaluated, not yet in the stack) | 13.0 GiB GPU, plus 8.5 GiB for its memory-mapped model file, which the system can reclaim |
+| Rows 6 and 8 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, upstream's default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
+| Row 4's model | Z-Image-Turbo (upstream's default) | Not measured; the container is capped at 26 GiB. |
 
-| State | With Parakeet (the default) | With Qwen3-ASR |
-| --- | --- | --- |
-| All services idle | about 70 GiB | about 85 GiB |
-| Busy (two jobs at a time, the app's default) | about 80 GiB at peak | 93.5 GiB at peak |
-| Starting up | about 81 GiB at peak | 95.8 GiB at peak |
+| State | Memory used |
+| --- | --- |
+| All services idle | about 29 GiB |
+| Busy (two jobs at a time, the app's default) | about 38 GiB at peak |
+| Starting up | about 39 GiB at peak |
 
-The idle figure for Parakeet was measured: 14–15 GiB less than with Qwen3-ASR. The two peaks are the Qwen3-ASR peaks minus its 16.5 GiB plus Parakeet's 1.7 GiB (3.3 GiB while it transcribes); they were not measured again.
+These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6
+LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack.
 
-That leaves room for the system, but not for another large model: stop other LLMs first, or use `spark-switch.sh`. Full measurements are in [docs/validation.md](docs/validation.md).
+The historical 84–96 GiB figures in [docs/validation.md](docs/validation.md) were measured with the
+Qwen3.6 LLM and Qwen3-ASR resident, before this fork removed them.
+
+That leaves about 90 GiB for an LLM of your choice (Saluki needs ~13 GiB), a grounding server if you run
+one, the system, and headroom under load. Full measurements are in [docs/validation.md](docs/validation.md).
 
 * * *
 
@@ -188,26 +191,24 @@ SparklingKit is built around small, atomic capabilities—OCR, transcription, tr
 
 For workloads involving recorded meetings, private documents, scanned PDFs, and personal images, we strongly recommend running models locally whenever suitable hardware is available. Local inference keeps sensitive material on infrastructure you control, avoids repeatedly uploading large files, and gives you direct ownership of model selection, capacity, availability, and data retention. SparklingKit is designed local-first: source files, generated artifacts, processing history, workflow definitions, and service endpoints remain under your control. It is not local-only, however. Compatible cloud APIs can also be configured as service endpoints, allowing SparklingKit to serve as one consistent interface for local models, cloud-hosted models, or a deliberate combination of both.
 
-## One DGX Spark, six AI services
+## One DGX Spark, four bundled models
 
-The reference stack deliberately fits six complementary models onto one DGX Spark:
+The reference stack deliberately fits four complementary models onto one DGX Spark. The LLM and the grounding service are deliberately **not** bundled: point SparklingKit at any OpenAI-compatible endpoint (local or cloud) for chat, mind maps, summaries, and workflow prompts, and configure a grounding endpoint for visual grounding.
 
 | Capability | Model | Role in SparklingKit |
 | --- | --- | --- |
-| Multimodal LLM | [`nvidia/Qwen3.6-35B-A3B-NVFP4`](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4) | Chat, vision-aware references, summarization, and workflow prompts |
 | OCR | [`baidu/Unlimited-OCR`](https://huggingface.co/baidu/Unlimited-OCR) | Page and image text extraction |
-| Speech recognition | [`nvidia/parakeet-tdt-0.6b-v3`](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) in this fork; [`Qwen/Qwen3-ASR-1.7B`](https://huggingface.co/Qwen/Qwen3-ASR-1.7B) upstream and with `--asr-backend qwen3-asr` | Audio/video transcription and subtitles |
+| Speech recognition | [`nvidia/parakeet-tdt-0.6b-v3`](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | Audio/video transcription and subtitles |
 | Translation | [`tencent/Hy-MT2-1.8B-FP8`](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | Dedicated multilingual translation |
-| Visual grounding | [`nvidia/LocateAnything-3B`](https://huggingface.co/nvidia/LocateAnything-3B) | Query-driven object and region location |
 | Image generation | [`Tongyi-MAI/Z-Image-Turbo`](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Fast text-to-image generation |
 
-This gives a small team or individual a practical multimodal workspace without sending every file to a hosted provider. SparklingKit supplies the shared UI, file history, artifact routing, workflows, queueing, and progress monitoring; the six model servers stay independently replaceable.
+This gives a small team or individual a practical multimodal workspace without sending every file to a hosted provider. SparklingKit supplies the shared UI, file history, artifact routing, workflows, queueing, and progress monitoring; the five model servers stay independently replaceable.
 
 ## Choose your deployment
 
 SparklingKit has two independently deployable layers:
 
-1. the **AI service layer**—the six reference models and optional DGX system monitor; and
+1. the **AI service layer**—the five reference models, your LLM endpoint, and the optional DGX system monitor; and
 2. the **workspace layer**—the SparklingKit web application, API, Redis queue, and file data.
 
 Keeping that boundary explicit supports three practical setups without maintaining three different products:
@@ -244,13 +245,13 @@ On the first visit, choose one of three tabs:
 
 ### Run models locally
 
-Choose this when SparklingKit and the six models run on the same DGX Spark. Onboarding provides both the hosted, checksum-verified installer and the GitHub-source command, then verifies all six services through Docker's host gateway before applying anything.
+Choose this when SparklingKit and the five models run on the same DGX Spark. Onboarding provides both the hosted, checksum-verified installer and the GitHub-source command, then verifies all five services through Docker's host gateway before applying anything. Configure the LLM endpoint afterwards in **Settings → Services**.
 
 Hosted model-stack installations created with version 0.1.4 or later include `./sparklingkit-dgx update`. It verifies the latest bundle, backs up the installed stack, stops every model service, preserves model and runtime data under `data/`, rebuilds changed adapters, refreshes pulled images, and starts each endpoint sequentially. Failed or interrupted changes restore the previous stack before another update is attempted. Version 0.1.3 and earlier should bootstrap the current updater once by following the [DGX Spark operations guide](docs/dgx-spark.md#operations). Application updates remain independent through `./sparklingkit update` in the workspace installation directory.
 
 ### Run models remotely
 
-Choose this when the model stack runs on another DGX Spark. Run the same model installer on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8331–8336. The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
+Choose this when the model stack runs on another DGX Spark. Run the same model installer on the DGX, enter its trusted-network hostname or IP in onboarding, and verify ports 8332–8336. The optional monitor uses port 8330. Keep these ports behind a firewall, LAN, or VPN.
 
 ### Configure endpoints manually
 
@@ -286,13 +287,15 @@ The default `latest` image follows stable releases. Set `SPARKLINGKIT_IMAGE=ghcr
 
 See [Application deployment and upgrades](docs/deployment.md) for network binding, pinned releases, rollback limits, backups, and release artifacts.
 
+Coming from the six-model DGX stack? Saved settings still point the LLM at port 8331 and grounding at port 8335, which no longer run: repoint or disable them in **Settings → Services** (see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack)).
+
 Set `HF_TOKEN` in the shell when the DGX model download requires authentication or additional download capacity:
 
 ```bash
 HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 ```
 
-Model weights are downloaded from their publishers and are not part of SparklingKit's Apache 2.0 distribution. Review their terms before setup. In particular, the current `nvidia/LocateAnything-3B` license restricts it to non-commercial and research use. The acceptance flag records that you completed this review; it does not alter or override upstream terms.
+Model weights are downloaded from their publishers and are not part of SparklingKit's Apache 2.0 distribution. Review their terms before setup. The acceptance flag records that you completed this review; it does not alter or override upstream terms.
 
 The DGX starter enables the status reporter, which surfaces unified-memory use, CUDA allocations, GPU utilization and temperature, plus model-service health in the sidebar. See the [DGX Spark deployment guide](docs/dgx-spark.md) for hosted and source installation, prerequisites, network layout, storage locations, operational commands, and model-license notes.
 
@@ -387,16 +390,14 @@ Environment variables bootstrap a new `settings.json`; saved settings take prece
 
 ## Service configuration
 
-Every provider can be enabled, edited, and tested independently. The same six-model DGX Spark reference deployment is exposed on adjacent ports so a fresh SparklingKit instance is straightforward to connect:
+Every provider can be enabled, edited, and tested independently. The DGX Spark reference deployment exposes its five bundled models on adjacent ports (8332–8336); the LLM endpoint is any service you configure:
 
 | Port | Capability | Reference model/backend |
 | ---: | --- | --- |
 | 8330 | Optional system status | Lightweight Python API |
-| 8331 | Multimodal LLM | Qwen3.6-35B-A3B NVFP4 / vLLM |
 | 8332 | OCR | Unlimited-OCR |
-| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 / parakeet.cpp (or Qwen3-ASR-1.7B / vLLM with `--asr-backend qwen3-asr`) |
+| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 / parakeet.cpp |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 |
-| 8335 | Grounding | LocateAnything-3B |
 | 8336 | Image generation | Z-Image-Turbo / Diffusers |
 
 The system-status service is optional. Leave its URL empty to hide the GPU/memory block without affecting service health indicators.
@@ -543,14 +544,14 @@ Copyright 2026 Steven Lei.
 
 This fork is distributed under the same Apache License 2.0 and keeps upstream's [LICENSE](LICENSE) and [NOTICE](NOTICE). Its changes are recorded in the commit history and summarised in [docs/fork.md](docs/fork.md). "SparklingKit" is the upstream project's name; the fork uses it only to say where the code comes from.
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License, and nvidia/LocateAnything-3B, upstream's grounding model, is licensed for non-commercial and research use. Parakeet-TDT-0.6B-v3, the default speech model, is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
+Model weights are not part of this repository. The start script downloads them after you accept their terms, and some are not for commercial use: Qwen-Image 2.1 and Qwen-Image-2.1-Turbo use the Qwen Research License. Parakeet-TDT-0.6B-v3, the default speech model, is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
 Fork changes copyright 2026 MovieMaker93.
 
 ## Acknowledgements
 
 - [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project this fork builds on.
-- The model teams whose open weights do the work: Qwen ([Qwen3.6](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4), [Qwen3-ASR](https://huggingface.co/Qwen/Qwen3-ASR-1.7B), [Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([LocateAnything](https://huggingface.co/nvidia/LocateAnything-3B) and [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), the latter under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) and Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)).
+- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) and Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)).
 - A model evaluated for what comes next: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0).
 - The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
 - The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.

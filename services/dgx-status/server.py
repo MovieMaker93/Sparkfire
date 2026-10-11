@@ -22,11 +22,9 @@ PROC_ROOT = Path(os.getenv("PROC_ROOT", "/proc"))
 MIB = 1024 * 1024
 
 SERVICE_SPECS = (
-    ("llm", "LLM", int(os.getenv("LLM_PORT", "8331"))),
     ("ocr", "OCR", int(os.getenv("OCR_PORT", "8332"))),
     ("asr", "ASR", int(os.getenv("ASR_PORT", "8333"))),
     ("translation", "Translation", int(os.getenv("TRANSLATION_PORT", "8334"))),
-    ("grounding", "Grounding", int(os.getenv("GROUNDING_PORT", "8335"))),
     ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336"))),
 )
 SERVICE_BY_PORT = {port: {"id": service_id, "label": label} for service_id, label, port in SERVICE_SPECS}

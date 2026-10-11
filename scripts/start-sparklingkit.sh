@@ -89,16 +89,12 @@ if [[ -n "$MODEL_HOST" ]]; then
     exit 2
   fi
   export SYSTEM_STATUS_BASE_URL="http://$MODEL_HOST:8330"
-  export LLM_BASE_URL="http://$MODEL_HOST:8331/v1"
-  export LLM_MODEL="qwen36-35b-a3b-nvfp4"
   export OCR_BASE_URL="http://$MODEL_HOST:8332/v1"
   export OCR_MODEL="Unlimited-OCR"
   export STT_BASE_URL="http://$MODEL_HOST:8333/v1"
   export STT_MODEL="Parakeet-TDT-0.6B-v3"
   export TRANSLATION_BASE_URL="http://$MODEL_HOST:8334/v1"
   export TRANSLATION_MODEL="Hy-MT2-1.8B-FP8"
-  export GROUNDING_BASE_URL="http://$MODEL_HOST:8335/v1"
-  export GROUNDING_MODEL="nvidia/LocateAnything-3B"
   export IMAGE_GENERATION_BASE_URL="http://$MODEL_HOST:8336/v1"
   export IMAGE_GENERATION_MODEL="Z-Image-Turbo"
   export SPARKLINGKIT_SETUP_COMPLETE="true"

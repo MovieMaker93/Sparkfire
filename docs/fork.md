@@ -9,7 +9,7 @@ details. Measured results are in [`validation.md`](validation.md).
   Settings → General → Appearance switches between Dark, Light and System.
 - **Accent.** Primary actions, focus rings, the active navigation item and progress bars use one mint
   accent (`--sk-accent`).
-- **Sidebar.** One "AI services" chip with a popover replaces the six status rows. The Spark monitor
+- **Sidebar.** One "AI services" chip with a popover replaces the per-service status rows. The Spark monitor
   expands on click.
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
   and thumbnails in Recent.
@@ -53,19 +53,22 @@ API additions:
 
 ## Model backends
 
-The DGX stack keeps upstream's six services. Three of them can be switched at deploy time. OCR and images
-keep upstream's defaults; speech recognition defaults to Parakeet:
+The DGX stack drops upstream's bundled Qwen3.6 LLM: chat, mind maps and summaries use any
+OpenAI-compatible endpoint configured in Settings (this fork runs Saluki 27B in `llama-server`; an
+`--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
+from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
+grounding endpoint is configured in Settings). Of the four bundled services, OCR and images keep
+upstream's defaults and speech is Parakeet only; two can be switched at deploy time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
 | OCR (:8332) | Unlimited-OCR | PaddleOCR-VL-1.6 (layout adapter + vLLM VLM on :8342) | `--ocr-backend paddleocr-vl` |
-| Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) | Qwen3-ASR-1.7B in vLLM (upstream's default; 52 languages) | `--asr-backend qwen3-asr` |
+| Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) | | |
 | Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
 
 ```bash
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
-./scripts/start-dgx-spark.sh --asr-backend qwen3-asr --accept-model-licenses
 ```
 
 SparklingKit chooses the OCR request format from the model id. After switching the OCR backend on an
@@ -77,10 +80,11 @@ accepts chat-style OCR requests, so a stale setting keeps working, but layout bl
 
 Parakeet TDT 0.6B v3 is the default speech model, run by [parakeet.cpp](https://github.com/mudler/parakeet.cpp)
 (MIT) from the f16 GGUF in `mudler/parakeet-cpp-gguf`. The weights are NVIDIA's, under CC BY 4.0, which allows
-commercial use with credit. It needs 1.7 GiB instead of Qwen3-ASR's 16.5 GiB, runs 10 to 16 times faster
-through the app on long files, and is as accurate on short clips (3.6% against 3.7% word error rate in
-English, 3.9% against 4.4% in Italian). Its limit is language: 25 European languages against 52. Use
-`--asr-backend qwen3-asr` for the rest.
+commercial use with credit. It replaced this stack's earlier Qwen3-ASR backend: 1.7 GiB instead of
+16.5 GiB, 10 to 16 times faster through the app on long files, and as accurate on short clips (3.6%
+against 3.7% word error rate in English, 3.9% against 4.4% in Italian). Its limit is language: 25
+European languages against Qwen3-ASR's 52; Qwen3-ASR was removed from the stack, but the app still
+speaks its API for a user-configured endpoint.
 
 - **Service.**
   - `sparklingkit-parakeet` (image `sparklingkit/parakeet:parakeet.cpp-v0.5.0`) builds the engine from
@@ -106,10 +110,9 @@ English, 3.9% against 4.4% in Italian). Its limit is language: 25 European langu
   [`validation.md`](validation.md#known-issues).
 - **Updating an existing install.** Saved settings are never rewritten. After the start script switches the
   service, choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Until then,
-  transcription still works, with minute-long lines. The same applies when you switch back to Qwen3-ASR
-  (`Qwen3-ASR-1.7B`).
-- **Split mode.** `scripts/start-sparklingkit.sh` with a model host assumes the Parakeet id. A Spark started
-  with `--asr-backend qwen3-asr` needs the speech model changed in Settings, as for the OCR and image ids.
+  transcription still works, with minute-long lines.
+- **Split mode.** `scripts/start-sparklingkit.sh` with a model host seeds the Parakeet id, as do the
+  other bundled model ids.
 - **System monitor.** `services/dgx-status` reads `ASR_MODEL_NAME` (default `Parakeet-TDT-0.6B-v3`) to
   label the engine's GPU process.
 
@@ -145,7 +148,7 @@ npm run dev
 
 ## Roadmap
 
-1. **LLM backend switch:** `--llm-backend qwen36|saluki`, with a llama.cpp service built for sm_121.
+1. **LLM backend service:** package Saluki as a llama.cpp service built for sm_121 (the stack itself ships no LLM).
    Saluki 27B takes half the memory and has no loading peak (see `validation.md`).
 2. **Safer LLM restarts:** start the LLM before the other services on every restart, and replace
    `restart: unless-stopped` with a bounded restart, so a crash cannot turn into an out-of-memory loop.
@@ -157,8 +160,6 @@ npm run dev
    - Add a host allowlist and an optional access token.
    - Run the app and service containers as a non-root user (Trivy DS-0002); existing `data/` folders need
      their ownership migrated.
-   - Update the grounding adapter's Pillow (11 → 12) and transformers (4.57 → 5.x), which carry known
-     advisories, after testing LocateAnything on a Spark.
 5. **Correctness and speed:**
    - Add a per-job lock in `updateJob`.
    - Send OCR pages and ASR chunks with bounded concurrency.

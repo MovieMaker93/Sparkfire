@@ -1,6 +1,6 @@
 # DGX Spark reference deployment
 
-SparklingKit treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the six specialized models while SparklingKit runs on another host.
+SparklingKit treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the five specialized models while SparklingKit runs on another host.
 
 ## Deployment paths
 
@@ -44,7 +44,7 @@ less install.sh
 bash install.sh
 ```
 
-Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the seven adjacent reference ports, verifies all six AI services, then stores the endpoint selection in its settings. The model host does not receive the application's job database, chat history, or durable workspace files.
+Open the workspace, select **Run models remotely**, and enter the DGX hostname or trusted-network IP reachable from the application container. SparklingKit configures the six adjacent reference ports, verifies all five bundled AI services, then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
 
 Ports 8330–8336 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
@@ -62,9 +62,9 @@ Run from the repository root:
 
 The script:
 
-1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access, and, only with `--asr-backend qwen3-asr`, the CUDA 13 toolchain that Qwen3-ASR mounts;
+1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds SparklingKit and the thin model API adapters;
-3. downloads six pinned model revisions from their publishers into `data/dgx-models/`;
+3. downloads five pinned model revisions from their publishers into `data/dgx-models/`;
 4. starts the model servers one at a time and waits for each health endpoint;
 5. starts the read-only system monitor; and
 6. for an all-in-one deployment, starts Redis and SparklingKit before reporting the workspace URL.
@@ -80,28 +80,22 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | Port | Service | Model/backend |
 | ---: | --- | --- |
 | 8330 | System status | Lightweight read-only Python API |
-| 8331 | Multimodal LLM | `nvidia/Qwen3.6-35B-A3B-NVFP4` / vLLM 0.24.0 |
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
-| 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 (this fork's default), or `Qwen/Qwen3-ASR-1.7B` / vLLM + Qwen ASR with `--asr-backend qwen3-asr` |
+| 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
-| 8335 | Visual grounding | `nvidia/LocateAnything-3B` / NVIDIA `la_flash` runtime |
 | 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.40.0 |
 | 54321 | SparklingKit | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
 
-### Speech recognition backends
+### Speech recognition backend
 
-Port 8333 serves one of two models; the start script stops the other one's container.
+Port 8333 serves Parakeet; it replaced this fork's earlier Qwen3-ASR backend (16.5 GiB, 52 languages,
+kept only as a user-configurable endpoint the app can still talk to).
 
-| Option | Model | Container | Memory | Languages |
-| --- | --- | --- | --- | --- |
-| `--asr-backend parakeet` (default) | `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
-| `--asr-backend qwen3-asr` | `Qwen/Qwen3-ASR-1.7B` in vLLM | `sparklingkit-qwen3-asr` | 16.5 GiB | 52 |
-
-```bash
-./scripts/start-dgx-spark.sh --asr-backend qwen3-asr --accept-model-licenses
-```
+| Model | Container | Memory | Languages |
+| --- | --- | --- | --- |
+| `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
 
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
 source for the GB10. The adapter accepts WAV only, which is what SparklingKit sends, and serves one request
@@ -185,16 +179,20 @@ Application upgrades are managed separately from model-stack upgrades. In the wo
 ./sparklingkit update
 ```
 
-The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the six model weights again.
+The prebuilt image is pulled and recreated while `./data` remains mounted in place. `./sparklingkit rollback` restores the application image recorded immediately before the last update. Neither operation downloads the model weights again.
 
 ## Model terms
 
 SparklingKit and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
 
-At the time this reference stack was prepared, `nvidia/LocateAnything-3B` was published for non-commercial and research use. Do not assume SparklingKit's Apache 2.0 license grants commercial rights to that model. Recheck the upstream terms when deploying, because model publishers may update them independently.
+The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app and works once a grounding endpoint is configured in Settings; recheck any such model's terms when deploying, because model publishers may update them independently.
 
 ## Using different services
 
 The DGX stack is a recommended reference configuration, not a requirement. SparklingKit can connect to other local endpoints, services hosted elsewhere on a trusted network, compatible cloud APIs, or a mixture of these. For those deployments, use `scripts/start-sparklingkit.sh --configure-later` or use `compose.yaml`, copy `.env.example` to `.env`, and configure providers in onboarding or under **Settings → Services**.
 
 Saved settings are intentionally retained across restarts and upgrades. To move an existing installation between all-in-one, split, and custom layouts, open **Settings → General → Deployment**. The guided setup updates endpoints without deleting jobs, chats, workflows, or files.
+
+### Upgrading from the six-model stack
+
+`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold about 27 GiB. Saved settings are not rewritten, so the LLM still points at port 8331 and grounding at port 8335. Until you repoint or disable those two endpoints in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. A newly configured LLM endpoint accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.
