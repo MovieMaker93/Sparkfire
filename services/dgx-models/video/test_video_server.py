@@ -166,7 +166,7 @@ class AdapterTests(unittest.TestCase):
     def test_capabilities_describe_sizes_durations_variants_and_disclosure(self):
         capabilities = self.client.get("/v1/capabilities").json()
         self.assertEqual([size["value"] for size in capabilities["sizes"]], ["864x480", "1280x736", "1344x768"])
-        self.assertEqual(capabilities["durations"], [5, 8])
+        self.assertEqual(capabilities["durations"], [5, 8, 10])
         self.assertEqual([variant["id"] for variant in capabilities["variants"]], ["fast", "sharp"])
         self.assertEqual(capabilities["defaultVariant"], "fast")
         self.assertEqual(capabilities["disclosure"], "AI-generated with MiniMax H3 (FastH3)")
@@ -222,7 +222,7 @@ class AdapterTests(unittest.TestCase):
     def test_rejects_requests_the_model_cannot_serve(self):
         for body, message in (
             ({"size": "1024x1024"}, "does not offer 1024x1024"),
-            ({"duration": 6}, "Duration must be one of 5 s, 8 s"),
+            ({"duration": 6}, "Duration must be one of 5 s, 8 s, 10 s"),
             ({"variant": "turbo"}, "Unknown variant"),
             ({"first_frame": "not base64!"}, "base64"),
             ({"first_frame": base64.b64encode(b"GIF89a").decode()}, "PNG, JPEG or WebP"),
