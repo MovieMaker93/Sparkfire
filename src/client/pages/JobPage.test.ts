@@ -50,13 +50,21 @@ describe("job output preview", () => {
     const document = htmlDocument("<table><tr><td>Total</td></tr></table>");
     expect(document).toContain("<!doctype html>");
     expect(document).toContain("<table>");
-    expect(document).toContain("sparklingkit-preview-theme");
+    expect(document).toContain("sparkfire-preview-theme");
   });
 
   it("adds the preview theme to complete HTML documents", () => {
     const document = htmlDocument("<!doctype html><html><head><title>Result</title></head><body>Done</body></html>");
     expect(document).toContain("<title>Result</title>");
-    expect(document).toContain("sparklingkit-preview-theme");
+    expect(document).toContain("sparkfire-preview-theme");
+  });
+
+  it("draws the preview in the current theme's colours", () => {
+    const palette = { scheme: "light" as const, background: "#ffffff", text: "#2f2924", link: "#1a1613", underline: "#70665c", border: "#cfc7bf", head: "#f4f1ed", code: "#eeeae5" };
+    const document = htmlDocument("<p>Done</p>", palette);
+    expect(document).toContain("color-scheme:light");
+    expect(document).toContain("background:#ffffff;color:#2f2924");
+    expect(document).toContain("th,td{border-color:#cfc7bf}");
   });
 
   it("hides internal page markers from rendered Markdown", () => {

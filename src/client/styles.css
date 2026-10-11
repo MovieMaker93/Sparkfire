@@ -562,6 +562,8 @@ textarea.input { @apply text-[16px]; resize: vertical; }
 .workflow-processing-view > header p:last-child { @apply mt-1 truncate text-[13px] text-muted; }
 .workflow-processing-view > header p:last-child strong { @apply font-semibold text-[var(--sk-n15)]; }
 .workflow-processing-percent { @apply shrink-0 font-mono text-[24px] font-bold text-ink; }
+/* React Flow runs in its dark mode on every canvas; its own variables take the theme's colours instead. */
+.react-flow { --xy-background-color: var(--sk-n1); --xy-edge-stroke: var(--sk-n10); --xy-edge-stroke-selected: var(--sk-n16); --xy-attribution-background-color: color-mix(in srgb, var(--sk-n1) 70%, transparent); }
 .workflow-status-graph { @apply relative min-h-[450px] min-w-0 flex-1 bg-[var(--sk-n0)]; }
 .workflow-status-gesture { @apply hidden; }
 .workflow-status-graph .react-flow__controls { @apply overflow-hidden rounded-[var(--sk-radius-sm)] border border-[var(--sk-n8)] bg-[var(--sk-n4)]; box-shadow: 0 6px 20px rgb(0 0 0 / calc(.35 * var(--sk-shadow))); }

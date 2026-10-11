@@ -73,8 +73,8 @@ export function layoutMindMap(document: MindMapDocument, collapsed: ReadonlySet<
         source: item.id,
         target: child.id,
         type: "smoothstep",
-        markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "#56616c" },
-        style: { stroke: depth === 0 ? "#77c8b4" : "#56616c", strokeWidth: depth === 0 ? 2.2 : 1.7 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--sk-n10)" },
+        style: { stroke: depth === 0 ? "var(--sk-teal-5)" : "var(--sk-n10)", strokeWidth: depth === 0 ? 2.2 : 1.7 },
       });
       return y;
     });
@@ -120,7 +120,7 @@ export function MindMapViewer({ document }: { document: MindMapDocument }) {
     <header><div><span className="mindmap-viewer-icon"><Network size={20} /></span><span><strong>{document.title}</strong><small>{graph.nodes.length} visible nodes · click a branch to expand or collapse it</small></span></div><button type="button" onClick={() => setCollapsed(hasCollapsedBranches ? new Set() : new Set(branches))}><Maximize2 size={16} />{hasCollapsedBranches ? "Expand all" : "Collapse all"}</button></header>
     <div className="mindmap-canvas">
       <ReactFlow<MindMapCanvasNode, Edge> nodes={graph.nodes} edges={graph.edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.22, minZoom: 0.35, maxZoom: 1 }} minZoom={0.15} maxZoom={1.8} nodesDraggable={false} nodesConnectable={false} deleteKeyCode={null} colorMode="dark">
-        <Background color="#303640" gap={24} size={1} /><Controls showInteractive={false} />
+        <Background color="var(--sk-n8)" gap={24} size={1} /><Controls showInteractive={false} />
       </ReactFlow>
       <span className="mindmap-canvas-hint">Drag to explore · Pinch or scroll to zoom</span>
     </div>
