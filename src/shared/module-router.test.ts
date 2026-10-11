@@ -6,6 +6,10 @@ describe("module artifact router", () => {
     expect(MODULE_CONTRACTS.filter((contract) => contract.hiddenUntilConfigured).map((contract) => contract.id)).toEqual(["grounding"]);
   });
 
+  it("puts video generation, which loads tens of GiB per job, in the heavy GPU lane", () => {
+    expect(MODULE_CONTRACTS.filter((contract) => contract.gpuLane === "heavy").map((contract) => contract.id)).toEqual(["text-to-video"]);
+  });
+
   it("routes generated images into every compatible image workflow", () => {
     expect(compatibleModuleContracts("generated-image", "text-to-image").map((contract) => contract.id)).toEqual(["ocr", "grounding", "text-to-video"]);
     expect(compatibleModuleContracts("generated-image", "text-to-image", ["text", "image"]).map((contract) => contract.id)).toEqual(["ocr", "grounding", "text-to-video", "mindmap", "chat"]);

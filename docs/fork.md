@@ -209,6 +209,10 @@ page and in the Gallery, and can be a workflow node.
   - Nothing loads until the first job. The weights are freed after `VIDEO_IDLE_UNLOAD_SECONDS` (default
     600) without a job, and before a job that needs the other variant, so only one diffusion model is ever
     resident. `POST /v1/unload` frees them at once.
+  - The app runs heavy GPU jobs one at a time (`gpuLane` in the module contract, `src/server/gpu-lane.ts`),
+    on their own queue so they never take the workers that OCR, chat and translation use. A second video
+    waits, shown as "Waiting for the GPU", instead of loading next to the first. The same lane will take
+    music generation, and switching between the two frees the other service's weights first.
   - Identical requests (prompt, seed and settings) return ComfyUI's cached result at once.
 - **Disclosure.** The MiniMax H3 license asks that shared outputs be disclosed as machine-generated. Every
   MP4 carries the comment "AI-generated with MiniMax H3 (FastH3)", and the job page and the form show it.

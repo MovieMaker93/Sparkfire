@@ -566,6 +566,16 @@ export interface GeneratedVideoResult {
   disclosure?: string;
 }
 
+/** Tells an on-demand service to free its weights now rather than after its idle timeout. */
+export async function unloadModel(endpoint: EndpointConfig, signal?: AbortSignal) {
+  const response = await fetch(url(endpoint.baseUrl, "unload"), {
+    method: "POST",
+    headers: headers(endpoint, false),
+    signal: requestSignal(2 * 60_000, signal),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+}
+
 /** Asks the video service for one video and streams the MP4 into `destination`, so it never sits in memory. */
 export async function generateVideo(endpoint: EndpointConfig, request: VideoRequest, destination: string, signal?: AbortSignal): Promise<GeneratedVideoResult> {
   const response = await fetch(url(endpoint.baseUrl, "videos/generations"), {

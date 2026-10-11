@@ -5,6 +5,7 @@ import { processJob, processPreset, processRun } from "./processor.js";
 import { createWorkflowRun, listJobs, readJob, readSettings, updateJob } from "./store.js";
 import { processFlowRun } from "./workflows/engine.js";
 import { listUnfinishedFlowRuns, updateFlowRun } from "./workflows/store.js";
+import { getModuleContract } from "../shared/module-router.js";
 import type { ModuleId } from "./models.js";
 
 export type WorkItem =
@@ -30,16 +31,37 @@ connection.on("error", (error: Error) => {
   }
 });
 
-export const workQueue = new Queue<WorkItem>("sparklingkit", {
+const queueOptions = {
   connection,
   defaultJobOptions: {
     attempts: 1,
     removeOnComplete: { age: 24 * 60 * 60, count: 500 },
     removeOnFail: { age: 7 * 24 * 60 * 60, count: 1000 },
   },
-});
+};
+
+export const workQueue = new Queue<WorkItem>("sparklingkit", queueOptions);
+/**
+ * Runs of heavy GPU modules (video, music) wait here, one worker deep, so a run waiting for the GPU lane
+ * sits in Redis instead of taking one of the general workers that OCR, chat and translation need.
+ */
+export const heavyQueue = new Queue<WorkItem>("sparklingkit-heavy", queueOptions);
+const queues = [workQueue, heavyQueue];
+
+function queueForModule(moduleId: ModuleId | "text-transform" | undefined) {
+  return moduleId && moduleId !== "text-transform" && getModuleContract(moduleId)?.gpuLane === "heavy" ? heavyQueue : workQueue;
+}
+
+async function findQueued(id: string) {
+  for (const queue of queues) {
+    const found = await queue.getJob(id);
+    if (found) return found;
+  }
+  return undefined;
+}
 
 let worker: Worker<WorkItem> | undefined;
+let heavyWorker: Worker<WorkItem> | undefined;
 let workerConnection: Redis | undefined;
 const activeRuns = new Map<string, { jobId: string; runId?: string; controller: AbortController; finished: Promise<void> }>();
 
@@ -63,29 +85,29 @@ export async function startWorker() {
       lastRedisErrorLog = now;
     }
   });
-  worker = new Worker<WorkItem>(
-    "sparklingkit",
-    async (queueJob) => {
-      const { jobId } = queueJob.data;
-      const key = activeKey(queueJob.data);
-      const controller = new AbortController();
-      let finish!: () => void;
-      const finished = new Promise<void>((resolve) => { finish = resolve; });
-      const active = { jobId, runId: queueJob.data.kind === "run" ? queueJob.data.runId : queueJob.data.kind === "flow" ? queueJob.data.flowRunId : undefined, controller, finished };
-      activeRuns.set(key, active);
-      try {
-        if (queueJob.data.kind === "run") return await processRun(jobId, queueJob.data.runId, controller.signal);
-        if (queueJob.data.kind === "flow") return await processFlowRun(jobId, queueJob.data.flowRunId, controller.signal);
-        if (queueJob.data.kind === "preset") return await processPreset(jobId, queueJob.data.slug, controller.signal);
-        return await processJob(jobId, controller.signal);
-      } finally {
-        if (activeRuns.get(key) === active) activeRuns.delete(key);
-        finish();
-      }
-    },
-    { connection: workerConnection, concurrency: settings.queue.workers },
-  );
-  worker.on("failed", (job, error) => console.error(`[worker] ${job?.id || "unknown"}: ${error.message}`));
+  const processItem = async (queueJob: { data: WorkItem }) => {
+    const { jobId } = queueJob.data;
+    const key = activeKey(queueJob.data);
+    const controller = new AbortController();
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => { finish = resolve; });
+    const active = { jobId, runId: queueJob.data.kind === "run" ? queueJob.data.runId : queueJob.data.kind === "flow" ? queueJob.data.flowRunId : undefined, controller, finished };
+    activeRuns.set(key, active);
+    try {
+      if (queueJob.data.kind === "run") return await processRun(jobId, queueJob.data.runId, controller.signal);
+      if (queueJob.data.kind === "flow") return await processFlowRun(jobId, queueJob.data.flowRunId, controller.signal);
+      if (queueJob.data.kind === "preset") return await processPreset(jobId, queueJob.data.slug, controller.signal);
+      return await processJob(jobId, controller.signal);
+    } finally {
+      if (activeRuns.get(key) === active) activeRuns.delete(key);
+      finish();
+    }
+  };
+  worker = new Worker<WorkItem>("sparklingkit", processItem, { connection: workerConnection, concurrency: settings.queue.workers });
+  heavyWorker = new Worker<WorkItem>("sparklingkit-heavy", processItem, { connection: workerConnection, concurrency: 1 });
+  for (const started of [worker, heavyWorker]) {
+    started.on("failed", (job, error) => console.error(`[worker] ${job?.id || "unknown"}: ${error.message}`));
+  }
   try {
     const unfinishedFlows = await listUnfinishedFlowRuns();
     const flowJobIds = new Set(unfinishedFlows.map((flow) => flow.jobId));
@@ -93,11 +115,11 @@ export async function startWorker() {
     for (const job of unfinished) {
       const run = [...job.runs].reverse().find((candidate) => ["queued", "preparing", "processing", "merging"].includes(candidate.status)) || job.runs.at(-1);
       if (!run) continue;
-      const existing = await workQueue.getJob(`run-${job.id}-${run.id}`) || await workQueue.getJob(`job-${job.id}`);
+      const existing = await findQueued(`run-${job.id}-${run.id}`) || await findQueued(`job-${job.id}`);
       if (!existing) await enqueueJob(job.id);
     }
     for (const flow of unfinishedFlows) {
-      const existing = await workQueue.getJob(`flow-${flow.jobId}-${flow.id}`);
+      const existing = await findQueued(`flow-${flow.jobId}-${flow.id}`);
       if (!existing) await enqueueFlowRun(flow.jobId, flow.id);
     }
   } catch (error) {
@@ -113,7 +135,7 @@ export async function enqueueJob(jobId: string) {
   const job = await readJob(jobId);
   const run = job?.runs.at(-1);
   if (!run) throw new Error("The job has no workflow run");
-  await workQueue.add("run", { kind: "run", jobId, runId: run.id }, { jobId: `run-${jobId}-${run.id}` });
+  await queueForModule(run.moduleId).add("run", { kind: "run", jobId, runId: run.id }, { jobId: `run-${jobId}-${run.id}` });
 }
 
 export async function enqueuePreset(jobId: string, slug: string) {
@@ -129,7 +151,7 @@ export async function enqueueWorkflowRun(
 ) {
   const { job, run } = await createWorkflowRun(jobId, moduleId, workflowId, params, inputArtifactIds);
   try {
-    await workQueue.add("run", { kind: "run", jobId, runId: run.id }, { jobId: `run-${jobId}-${run.id}` });
+    await queueForModule(moduleId).add("run", { kind: "run", jobId, runId: run.id }, { jobId: `run-${jobId}-${run.id}` });
   } catch (error) {
     await updateJob(jobId, { status: "failed", stage: "Queue unavailable", error: error instanceof Error ? error.message : String(error) });
     throw error;
@@ -165,12 +187,12 @@ async function stopMatchingWork(jobId: string, runId?: string) {
   };
 
   await abortActive();
-  const groups = await Promise.all([
-    workQueue.getWaiting(),
-    workQueue.getDelayed(),
-    workQueue.getPrioritized(),
-    workQueue.getJobs(["paused"]),
-  ]);
+  const groups = await Promise.all(queues.flatMap((queue) => [
+    queue.getWaiting(),
+    queue.getDelayed(),
+    queue.getPrioritized(),
+    queue.getJobs(["paused"]),
+  ]));
   for (const queued of groups.flat()) {
     const queuedRunId = queued.data.kind === "run" ? queued.data.runId : queued.data.kind === "flow" ? queued.data.flowRunId : undefined;
     if (queued.data.jobId !== jobId || (runId && queuedRunId !== runId)) continue;
@@ -214,7 +236,7 @@ export async function pingRedis() {
 
 export async function closeQueue() {
   await Promise.race([
-    Promise.all([worker?.close(), workQueue.close()]),
+    Promise.all([worker?.close(), heavyWorker?.close(), ...queues.map((queue) => queue.close())]),
     new Promise((resolve) => setTimeout(resolve, 2000)),
   ]).catch(() => undefined);
   connection.disconnect();

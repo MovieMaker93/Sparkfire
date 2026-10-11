@@ -11,6 +11,8 @@ describe("text-to-video executor", () => {
   let root = "";
   let requests: Array<Record<string, unknown>> = [];
   let baseUrl = "";
+  /** When set, the fake service holds every answer until it settles, like a long generation. */
+  let gate: Promise<void> | undefined;
   const previousDataDir = process.env.DATA_DIR;
   const closers: Array<() => Promise<void>> = [];
 
@@ -19,11 +21,13 @@ describe("text-to-video executor", () => {
     process.env.DATA_DIR = root;
     vi.resetModules();
     requests = [];
+    gate = undefined;
     const server = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk) => chunks.push(chunk));
-      request.on("end", () => {
+      request.on("end", async () => {
         requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        await gate;
         response.writeHead(200, { "Content-Type": "video/mp4", "X-Model": "FastH3", "X-Seed": "42", "X-Variant": "fast", "X-Frames": "124", "X-Disclosure": "AI-generated with MiniMax H3 (FastH3)" });
         response.end(MP4);
       });
@@ -86,6 +90,24 @@ describe("text-to-video executor", () => {
     expect(result.outputFiles).toEqual(["generated-image.png", "generated-video.mp4"]);
     const saved = await store.updateJob(created.id, { outputFiles: result.outputFiles });
     expect(saved.artifacts.find((artifact) => artifact.name === "generated-video.mp4")).toMatchObject({ kind: "generated-video", mimeType: "video/mp4", derivedFrom: [image.id] });
+  });
+
+  it("runs a second video only after the first, showing it waits for the GPU", async () => {
+    const { store } = await setup();
+    const { executeWorkflow } = await import("../executors.js");
+    let release!: () => void;
+    gate = new Promise((resolve) => { release = resolve; });
+    const first = await store.createTextToVideoJob("A paper boat", {});
+    const second = await store.createTextToVideoJob("A red kite", {});
+    const firstRun = executeWorkflow("text-to-video.default", first, first.runs[0]);
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    const secondRun = executeWorkflow("text-to-video.default", second, second.runs[0]);
+    await vi.waitFor(async () => expect((await store.readJob(second.id)).stage).toBe("Waiting for the GPU"));
+    expect((await store.readJob(second.id)).detail).toMatch(/^Text to video is running/);
+    expect(requests).toHaveLength(1);
+    release();
+    await Promise.all([firstRun, secondRun]);
+    expect(requests.map((request) => request.prompt)).toEqual(["A paper boat", "A red kite"]);
   });
 
   it("refuses to run without a configured video service", async () => {
