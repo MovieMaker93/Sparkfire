@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { compatibleModuleContracts, getModuleContract, moduleHandoffUrl, moduleWorkflowForArtifact, nextModuleActions } from "./module-router.js";
+import { compatibleModuleContracts, getModuleContract, MODULE_CONTRACTS, moduleHandoffUrl, moduleWorkflowForArtifact, nextModuleActions } from "./module-router.js";
 
 describe("module artifact router", () => {
+  it("marks only grounding, whose service the stack does not ship, as hidden until configured", () => {
+    expect(MODULE_CONTRACTS.filter((contract) => contract.hiddenUntilConfigured).map((contract) => contract.id)).toEqual(["grounding"]);
+  });
+
   it("routes generated images into every compatible image workflow", () => {
     expect(compatibleModuleContracts("generated-image", "text-to-image").map((contract) => contract.id)).toEqual(["ocr", "grounding", "text-to-video"]);
     expect(compatibleModuleContracts("generated-image", "text-to-image", ["text", "image"]).map((contract) => contract.id)).toEqual(["ocr", "grounding", "text-to-video", "mindmap", "chat"]);

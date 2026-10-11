@@ -20,7 +20,8 @@ const services = [
   { kind: "ocr" as const, label: "OCR", fallback: "Document recognition", icon: ScanText },
   { kind: "llm" as const, label: "LLM", fallback: "Language model", icon: BrainCircuit },
   { kind: "translation" as const, label: "Translation", fallback: "Not configured", icon: Languages },
-  { kind: "grounding" as const, label: "Grounding", fallback: "Not configured", icon: ScanSearch },
+  // The stack ships no grounding service, so its row shows only once an endpoint is enabled.
+  { kind: "grounding" as const, label: "Grounding", fallback: "Not configured", icon: ScanSearch, optional: true },
   { kind: "image-generation" as const, label: "Image", fallback: "Not configured", icon: ImageIcon },
   { kind: "video-generation" as const, label: "Video", fallback: "Not configured", icon: Film },
 ];
@@ -41,7 +42,8 @@ function ServicesChip({ health }: { health?: Health }) {
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const location = useLocation();
-  const states = services.map(({ kind }) => serviceState(health, kind));
+  const shown = services.filter((service) => !("optional" in service) || health?.endpoints[service.kind]?.enabled);
+  const states = shown.map(({ kind }) => serviceState(health, kind));
   const enabled = states.filter((state) => state !== "disabled");
   const online = states.filter((state) => state === "online").length;
   const summary = health ? `${online}/${enabled.length} online` : "Checking";
@@ -61,7 +63,7 @@ function ServicesChip({ health }: { health?: Health }) {
 
   return <div className="services-chip-wrap" ref={wrapper}>
     <button type="button" className={`services-chip tone-${tone}`} onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="dialog" aria-label={`AI services, ${summary}`} title={`AI services · ${summary}`}>
-      <span className="services-chip-dots" aria-hidden="true">{states.map((state, index) => <i key={services[index].kind} className={state} />)}</span>
+      <span className="services-chip-dots" aria-hidden="true">{states.map((state, index) => <i key={shown[index].kind} className={state} />)}</span>
       <span className="services-chip-label">AI services</span>
       <span className="services-chip-count">{summary}</span>
       <ChevronUp size={15} className="services-chip-caret" />
@@ -69,7 +71,7 @@ function ServicesChip({ health }: { health?: Health }) {
     {open && <div className="services-popover" role="dialog" aria-label="AI services">
       <div className="services-popover-heading"><strong>AI services</strong><small>{summary}</small></div>
       <div className="service-list">
-        {services.map(({ kind, label, fallback, icon: Icon }, index) => {
+        {shown.map(({ kind, label, fallback, icon: Icon }, index) => {
           const endpoint = health?.endpoints[kind];
           const state = states[index];
           return <div className="service-row" key={kind}>
@@ -183,7 +185,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavLink to="/workflows" title="Workflows" aria-label="Workflows" className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><GitBranch size={19} strokeWidth={1.8} /><span>Workflows</span></NavLink>
           <NavLink to="/gallery" title="Gallery" aria-label="Gallery" className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><Images size={19} strokeWidth={1.8} /><span>Gallery</span></NavLink>
           <p className="nav-label nav-label-tools">Tools</p>
-          <div className="module-nav-list">{modules.map((module) => {
+          <div className="module-nav-list">{modules.filter((module) => !module.hidden).map((module) => {
             const Icon = moduleIcons[module.icon];
             return <NavLink key={module.id} to={module.route} title={module.title} aria-label={module.title} className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><Icon size={19} strokeWidth={1.8} /><span>{module.title}</span>{module.implementation === "planned" && <small>Planned</small>}</NavLink>;
           })}</div>
