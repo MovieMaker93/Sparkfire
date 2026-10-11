@@ -16,6 +16,7 @@ OCR_BACKEND="${SPARKFIRE_OCR_BACKEND:-${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}
 ASR_BACKEND="${SPARKFIRE_ASR_BACKEND:-${SPARKLINGKIT_ASR_BACKEND:-parakeet}}"
 IMAGE_BACKEND="${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}"
 VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}}"
+SEARCH_BACKEND="${SPARKFIRE_SEARCH_BACKEND:-none}"
 
 usage() {
   cat <<'EOF'
@@ -37,6 +38,8 @@ Options:
   --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
   --video-backend NAME     fasth3 (default) or none; FastH3's license does not cover the EU, the UK,
                            South Korea or the US
+  --search-backend NAME    none (default) or searxng: web search for chat through a local SearXNG;
+                           each conversation still turns it on, and the model needs tool calling
   -h, --help               Show this help
 
 Examples:
@@ -74,12 +77,13 @@ while (($#)); do
     --models-only)
       DEPLOY_APP=false
       ;;
-    --ocr-backend|--asr-backend|--image-backend|--video-backend)
+    --ocr-backend|--asr-backend|--image-backend|--video-backend|--search-backend)
       if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
       case "$1" in
         --ocr-backend) OCR_BACKEND="$2" ;;
         --asr-backend) ASR_BACKEND="$2" ;;
         --video-backend) VIDEO_BACKEND="$2" ;;
+        --search-backend) SEARCH_BACKEND="$2" ;;
         *) IMAGE_BACKEND="$2" ;;
       esac
       shift
@@ -124,7 +128,24 @@ case "$VIDEO_BACKEND" in
   none) export SPARKFIRE_VIDEO_BASE_URL="" SPARKFIRE_VIDEO_PORT="" ;;
   *) printf 'Unknown video backend: %s (use fasth3 or none)\n' "$VIDEO_BACKEND" >&2; exit 2 ;;
 esac
-export SPARKFIRE_OCR_BACKEND="$OCR_BACKEND" SPARKFIRE_ASR_BACKEND="$ASR_BACKEND" SPARKFIRE_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKFIRE_VIDEO_BACKEND="$VIDEO_BACKEND"
+# Web search is opt-in: without it the app's search URL stays empty and Settings shows web search as off.
+case "$SEARCH_BACKEND" in
+  searxng) export SPARKFIRE_SEARCH_BASE_URL="http://searxng:8080" ;;
+  none) export SPARKFIRE_SEARCH_BASE_URL="" ;;
+  *) printf 'Unknown search backend: %s (use none or searxng)\n' "$SEARCH_BACKEND" >&2; exit 2 ;;
+esac
+export SPARKFIRE_OCR_BACKEND="$OCR_BACKEND" SPARKFIRE_ASR_BACKEND="$ASR_BACKEND" SPARKFIRE_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKFIRE_VIDEO_BACKEND="$VIDEO_BACKEND" SPARKFIRE_SEARCH_BACKEND="$SEARCH_BACKEND"
+
+# SearXNG signs its tokens with a secret that stays on this machine (data/ is never committed).
+SEARXNG_SECRET_FILE="data/searxng/secret"
+if [[ "$SEARCH_BACKEND" == "searxng" && ! -s "$SEARXNG_SECRET_FILE" ]]; then
+  mkdir -p "$(dirname "$SEARXNG_SECRET_FILE")"
+  (umask 077 && head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' >"$SEARXNG_SECRET_FILE")
+fi
+if [[ -s "$SEARXNG_SECRET_FILE" ]]; then
+  SEARXNG_SECRET="$(cat "$SEARXNG_SECRET_FILE")"
+  export SEARXNG_SECRET
+fi
 
 # The project, container and image names keep the SparklingKit-era "sparklingkit" prefix: renaming them would
 # orphan the redis-data volume of existing installs and break the switch script's container checks.
@@ -134,6 +155,7 @@ COMPOSE=(
   --file compose.yaml
   --file compose.spark.yaml
   --file compose.dgx.yaml
+  --file compose.search.yaml
 )
 
 require_command() {
@@ -181,7 +203,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'Sparkfire and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation dgx-status
+    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation searxng dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -207,6 +229,9 @@ show_status() {
   endpoint_status "Image generation" "http://127.0.0.1:8336/health"
   if [[ "$VIDEO_BACKEND" != "none" ]]; then
     endpoint_status "Video generation" "http://127.0.0.1:8337/health"
+  fi
+  if [[ "$SEARCH_BACKEND" == "searxng" ]]; then
+    endpoint_status "Web search" "http://127.0.0.1:8338/healthz"
   fi
   if [[ "$DEPLOY_APP" == "true" ]]; then
     endpoint_status "Sparkfire" "http://127.0.0.1:54321/api/health"
@@ -275,6 +300,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
   pull_targets=()
   if [[ "$OCR_BACKEND" == "unlimited-ocr" ]]; then pull_targets+=(unlimited-ocr); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then pull_targets+=(redis); fi
+  if [[ "$SEARCH_BACKEND" == "searxng" ]]; then pull_targets+=(searxng); fi
   if [[ "$SKIP_PULL" != "true" ]]; then "${COMPOSE[@]}" pull "${pull_targets[@]}"; fi
 fi
 
@@ -430,6 +456,12 @@ if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
   start_service video-generation "Video generation (FastH3)" "http://127.0.0.1:8337/health" 600
 else
   "${COMPOSE[@]}" stop video-generation
+fi
+# SearXNG holds no model (about 200 MB), so it starts after the models without changing their memory order.
+if [[ "$SEARCH_BACKEND" == "searxng" ]]; then
+  start_service searxng "Web search (SearXNG)" "http://127.0.0.1:8338/healthz" 120
+else
+  "${COMPOSE[@]}" stop searxng
 fi
 start_service dgx-status "System status" "http://127.0.0.1:8330/health" 120
 
