@@ -1,9 +1,8 @@
-name: Release (fork)
+name: Release
 
 # release-please reads Conventional Commits on main and keeps a release pull request open with the next
 # version and CHANGELOG.md. Merging that pull request tags the release; this workflow then publishes the app
 # image to this repository's GitHub Container Registry and attaches the DGX stack bundle.
-# (Upstream's release.yml and publish-run-site.yml only run in stevibe/SparklingKit.)
 
 on:
   push:
@@ -66,7 +65,7 @@ jobs:
 
       # Registry names must be lower case.
       - name: Name the image
-        run: printf 'IMAGE_NAME=ghcr.io/%s/sparklingkit\n' "${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+        run: printf 'IMAGE_NAME=ghcr.io/%s/sparkfire\n' "${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -86,7 +85,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
             type=raw,value=latest
           labels: |
-            org.opencontainers.image.title=SparklingKit (fork)
+            org.opencontainers.image.title=Sparkfire
             org.opencontainers.image.description=Local-first, file-oriented AI workspace
             org.opencontainers.image.licenses=Apache-2.0
 
@@ -116,7 +115,7 @@ jobs:
       - name: Bundle the DGX stack
         run: |
           set -euo pipefail
-          bundle="sparklingkit-dgx-stack-${VERSION}"
+          bundle="sparkfire-dgx-stack-${VERSION}"
           mkdir -p "release-assets" "${bundle}/scripts" "${bundle}/services"
           # The app is built from source on the Spark, so the bundle carries what its Dockerfile copies.
           cp -R src package.json package-lock.json tsconfig.json tsconfig.server.json vite.config.ts Dockerfile .dockerignore "${bundle}/"

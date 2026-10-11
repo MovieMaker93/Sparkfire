@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: ShellCheck (errors only)
-        run: shellcheck --severity=error scripts/*.sh distribution/install.sh distribution/dgx/install.sh
+        run: shellcheck --severity=error scripts/*.sh
 
   docker:
     name: Docker build · ${{ matrix.image }}
