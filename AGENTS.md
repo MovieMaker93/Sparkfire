@@ -120,7 +120,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
-| 8337 | Video generation | none (off by default) | FastH3 (Fast and Sharp variants, through ComfyUI): `--video-backend fasth3` |
+| 8337 | Video generation | FastH3 (Fast and Sharp variants, through ComfyUI) | none: `--video-backend none` |
 
 Rules for this layer:
 
@@ -140,7 +140,7 @@ Rules for this layer:
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
   `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. FastH3 is under the
   MiniMax H3 Community License, which excludes the EU, the UK, South Korea and the US and asks that shared
-  outputs say they are machine-generated: keep the disclosure tag and keep video opt-in. Never commit
+  outputs say they are machine-generated: keep the disclosure tag and `--video-backend none`. Never commit
   weights.
 - Validation results and known issues are in `docs/validation.md`.
 

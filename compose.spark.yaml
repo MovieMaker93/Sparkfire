@@ -25,7 +25,7 @@ services:
       GROUNDING_PORT: "8335"
       IMAGE_GENERATION_PORT: "8336"
       OCR_VLM_PORT: "8342"
-      # Empty unless start-dgx-spark.sh runs with --video-backend fasth3, so the monitor does not expect the service.
+      # Empty with start-dgx-spark.sh --video-backend none, so the monitor does not expect the service.
       VIDEO_GENERATION_PORT: ${SPARKFIRE_VIDEO_PORT-${SPARKLINGKIT_VIDEO_PORT-8337}}
       VIDEO_COMFY_PORT: "8347"
       IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
