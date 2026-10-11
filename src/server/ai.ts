@@ -351,7 +351,7 @@ export interface ImageCapabilities {
   sizes: ImageSizeOption[];
   defaultSteps?: number;
   maxSteps?: number;
-  /** False when the endpoint does not describe itself and these are SparklingKit's defaults. */
+  /** False when the endpoint does not describe itself and these are Sparkfire's defaults. */
   reported: boolean;
 }
 
@@ -371,7 +371,7 @@ function sizeOptions(sizes: unknown): ImageSizeOption[] {
   });
 }
 
-/** Reads the SparklingKit image adapter's /v1/capabilities; other OpenAI-compatible servers get the defaults. */
+/** Reads the Sparkfire image adapter's /v1/capabilities; other OpenAI-compatible servers get the defaults. */
 export async function imageCapabilities(endpoint: EndpointConfig, signal?: AbortSignal): Promise<ImageCapabilities> {
   const fallback: ImageCapabilities = { sizes: DEFAULT_IMAGE_SIZES, reported: false };
   try {
@@ -462,7 +462,7 @@ export interface VideoCapabilities {
   firstFrame: boolean;
   /** The line the model's license asks shared videos to carry. */
   disclosure?: string;
-  /** False when the endpoint does not describe itself and these are SparklingKit's defaults. */
+  /** False when the endpoint does not describe itself and these are Sparkfire's defaults. */
   reported: boolean;
 }
 
@@ -474,7 +474,7 @@ export const DEFAULT_VIDEO_CAPABILITIES: VideoCapabilities = {
   reported: false,
 };
 
-/** Reads the SparklingKit video adapter's /v1/capabilities; other servers get one conservative option. */
+/** Reads the Sparkfire video adapter's /v1/capabilities; other servers get one conservative option. */
 export async function videoCapabilities(endpoint: EndpointConfig, signal?: AbortSignal): Promise<VideoCapabilities> {
   try {
     const response = await fetch(url(endpoint.baseUrl, "capabilities"), { headers: headers(endpoint, false), signal: requestSignal(5000, signal) });

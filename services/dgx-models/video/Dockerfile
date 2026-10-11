@@ -1,5 +1,5 @@
 # Video generation: FastH3 (MiniMax H3, video with sound) through a pinned ComfyUI, behind a small Python
-# adapter that gives it the endpoints SparklingKit speaks. It uses the PyTorch base image the other GPU
+# adapter that gives it the endpoints Sparkfire speaks. It uses the PyTorch base image the other GPU
 # services use, which is also the torch build the FastH3 bake-off ran on.
 ARG PYTORCH_IMAGE=nvcr.io/nvidia/pytorch:25.11-py3@sha256:4a85d8cf6fb3a943280960b8948cf4e9b6eca77b4414c68c9b2c7bb863f79b70
 

@@ -1,8 +1,8 @@
-"""Video generation adapter for SparklingKit: FastH3 (MiniMax H3, video with sound) through ComfyUI.
+"""Video generation adapter for Sparkfire: FastH3 (MiniMax H3, video with sound) through ComfyUI.
 
 No diffusers or transformers release can load the FastH3 checkpoints yet (docs/validation.md), while a pinned
 ComfyUI runs them inside the Spark's memory budget. The adapter starts that ComfyUI on a private port and
-drives it headlessly over its HTTP API, behind the surface SparklingKit speaks:
+drives it headlessly over its HTTP API, behind the surface Sparkfire speaks:
 
   GET  /health                 200 once ComfyUI answers, 503 until then
   GET  /v1/models              the configured model name

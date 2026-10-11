@@ -114,7 +114,7 @@ function GlobalSearchDialog({ request, onClose }: { request: SearchOpenOptions; 
     }
   }
 
-  const title = request.title || (scope === "work" ? "Search work" : scope === "chats" ? "Search conversations" : scope === "tools" ? "Search tools" : "Search SparklingKit");
+  const title = request.title || (scope === "work" ? "Search work" : scope === "chats" ? "Search conversations" : scope === "tools" ? "Search tools" : "Search Sparkfire");
   return <div className="global-search-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title">
       <header className="global-search-header">
