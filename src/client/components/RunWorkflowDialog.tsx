@@ -68,7 +68,7 @@ export function RunWorkflowDialog({ definition, onClose }: { definition: Workflo
         {textAccepted && <textarea className="input" rows={7} value={text} onChange={(event) => { setText(event.target.value); if (event.target.value) setFiles([]); }} placeholder="Paste text for the workflow…" />}
         {!filesAccepted && !textAccepted && <div className="workflow-existing-input-note"><FileStack size={25} /><div><strong>Continue from existing work</strong><p>This workflow accepts {workflowInputSummary(definition)}. Open a completed job and choose this workflow under Continue with.</p></div></div>}
         {error && <div className="error-card">{error}</div>}
-        {running && <div className="progress-track"><span className="progress-fill" style={{ width: `${progress}%` }} /></div>}
+        {running && <div className="progress-track"><span className="progress-fill progress-active" style={{ width: `${progress}%` }} /></div>}
       </div>
       <footer><button className="button-secondary" onClick={onClose}>Cancel</button>{(filesAccepted || textAccepted) && <button className="button-primary" onClick={() => void run()} disabled={running || (!files.length && !text.trim())}>{running ? `Starting ${progress}%` : <><Play size={17} />Run workflow</>}</button>}</footer>
     </section>

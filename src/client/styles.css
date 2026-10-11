@@ -73,6 +73,7 @@
   --sk-accent-hover: #ff935f;
   --sk-accent-ink: #200b00;
   --sk-accent-soft: rgba(255, 122, 61, .14);
+  --sk-accent-tip: #ffb35c;
   /* Corner radii, the same in both themes. */
   --sk-radius-sm: 6px;
   --sk-radius-md: 9px;
@@ -136,6 +137,7 @@
   --sk-accent-hover: #a3360a;
   --sk-accent-ink: #ffffff;
   --sk-accent-soft: rgba(194, 65, 12, .10);
+  --sk-accent-tip: #e07a1f;
 }
 
 
@@ -157,7 +159,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .mobile-tabbar { @apply fixed right-0 bottom-0 left-0 z-40 hidden h-[calc(4.5rem+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-[var(--sk-n1)]/96 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden; }
 .mobile-tabbar a, .mobile-tabbar > button { @apply flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--sk-radius-md)] border-0 bg-transparent text-[14px] font-semibold text-muted; }
 .mobile-tabbar a.active { @apply text-ink; }
-.mobile-tabbar a.active svg { @apply rounded-[var(--sk-radius-sm)] bg-[var(--sk-n7)] p-1; width: 30px; height: 30px; }
+.mobile-tabbar a.active svg { @apply rounded-[var(--sk-radius-sm)] bg-[var(--sk-accent-soft)] p-1 text-[var(--sk-accent)]; width: 30px; height: 30px; }
 .brand-wordmark { @apply inline-flex items-center gap-[.15em] font-display text-[26px] leading-none font-extrabold tracking-[-.06em] text-ink; }
 /* Sized in em so the mark follows the wordmark wherever it is enlarged. */
 .brand-mark { @apply h-[1.15em] w-[1.15em] shrink-0 text-[var(--sk-accent)]; }
@@ -966,7 +968,8 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .nav-label, .eyebrow { color: var(--sk-n12); }
 .nav-link { color: var(--sk-n13); }
 .nav-link:hover { background: var(--sk-n4); color: var(--sk-n16); }
-.nav-link-active { background: var(--sk-n7); color: var(--sk-n16); box-shadow: inset 0 0 0 1px rgb(var(--sk-overlay) / .07); }
+.nav-link-active { position: relative; background: var(--sk-accent-soft); color: var(--sk-n17); box-shadow: none; }
+.nav-link-active::after { content: ""; position: absolute; top: 11px; bottom: 11px; left: 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--sk-accent); pointer-events: none; }
 .nav-link-active svg { color: var(--sk-accent); }
 .sidebar-collapse-button:hover { background: var(--sk-n6); color: var(--sk-n16); }
 .status-card { border-color: var(--sk-n8); background: var(--sk-n3); box-shadow: 0 4px 14px rgb(0 0 0 / calc(.28 * var(--sk-shadow))), inset 0 1px rgb(var(--sk-overlay) / .025); }
@@ -982,7 +985,8 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .icon-button:hover { border-color: var(--sk-n10); background: var(--sk-n6); color: var(--sk-n17); }
 /* One accent marks the primary action on every surface. */
 .button-primary, .send-button { border-color: var(--sk-accent); background: var(--sk-accent); color: var(--sk-accent-ink); box-shadow: 0 3px 9px rgb(0 0 0 / calc(.42 * var(--sk-shadow))), inset 0 1px rgba(255, 255, 255, .28); }
-.button-primary:hover, .send-button:hover { border-color: var(--sk-accent-hover); background: var(--sk-accent-hover); }
+.button-primary:hover, .send-button:hover { border-color: var(--sk-accent-hover); background: var(--sk-accent-hover); box-shadow: 0 4px 16px color-mix(in srgb, var(--sk-accent) 32%, transparent), inset 0 1px rgba(255, 255, 255, .28); }
+.button-primary:disabled:hover, .send-button:disabled:hover { border-color: var(--sk-accent); background: var(--sk-accent); box-shadow: none; }
 .button-secondary { border-color: var(--sk-n9); background: var(--sk-n4); color: var(--sk-n15); box-shadow: 0 2px 6px rgb(0 0 0 / calc(.3 * var(--sk-shadow))), inset 0 1px rgb(var(--sk-overlay) / .035); }
 .button-secondary:hover { background: var(--sk-n6); }
 .button-danger { border-color: var(--sk-red-3); background: var(--sk-red-2); color: var(--sk-red-6); box-shadow: 0 3px 9px rgb(0 0 0 / calc(.4 * var(--sk-shadow))), inset 0 1px rgb(var(--sk-overlay) / .04); }
@@ -995,7 +999,11 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .input::placeholder, .chat-composer textarea::placeholder { color: var(--sk-n12); }
 .input:focus { border-color: var(--sk-n15); }
 .progress-track { background: var(--sk-n7); }
-.progress-fill { background: var(--sk-accent); }
+.progress-fill, .spark-memory-track i { background: linear-gradient(90deg, var(--sk-accent), var(--sk-accent-tip)); }
+.progress-fill.progress-active { background: linear-gradient(90deg, transparent, rgb(255 255 255 / .32), transparent) no-repeat, linear-gradient(90deg, var(--sk-accent), var(--sk-accent-tip)); background-size: 40% 100%, 100% 100%; animation: progress-shimmer 1.8s ease-in-out infinite; }
+.progress-fill.progress-failed { background: var(--sk-red-4); }
+@keyframes progress-shimmer { from { background-position: -70% 0, 0 0; } to { background-position: 170% 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .progress-fill.progress-active { animation: none; } }
 .status-queued, .status-idle { background: var(--sk-n6); color: var(--sk-n14); }
 .status-preparing, .status-processing, .status-merging { background: var(--sk-n7); color: var(--sk-n15); }
 .status-done { background: var(--sk-green-1); color: var(--sk-green-6); }
