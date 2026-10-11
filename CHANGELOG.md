@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.1.0...v0.1.0) (2026-10-11)
+
+
+### Features
+
+* **ui:** give Sparkfire a warm palette and an ember accent ([5d3a758](https://github.com/MovieMaker93/Sparkfire/commit/5d3a7582bfad725efc9bb9328bb87df1aad9458e))
+* **ui:** give Sparkfire its own ember look ([a5c5894](https://github.com/MovieMaker93/Sparkfire/commit/a5c5894042fe0970d20a8095397002e6676987ab))
+* **ui:** mark the active page and running work in ember ([972bf08](https://github.com/MovieMaker93/Sparkfire/commit/972bf085e57f8a0a4e846db16e93ca0573e5f522))
+* **ui:** switch to Geist and Bricolage Grotesque ([d0ae715](https://github.com/MovieMaker93/Sparkfire/commit/d0ae715f33c38cc22a71221f0a4d30640a61cca4))
+* **ui:** tighten corners and drop pill buttons ([e549e8e](https://github.com/MovieMaker93/Sparkfire/commit/e549e8ec2f365b361c5bfa071bb7cf08b2fd654b))
+
+
+### Bug fixes
+
+* **store:** serialize changes to a job's manifest ([894bcee](https://github.com/MovieMaker93/Sparkfire/commit/894bcee907524fb858e2358aa4dc3e88245b87f8))
+* **ui:** take graph and preview colours from the theme ([1b7fbea](https://github.com/MovieMaker93/Sparkfire/commit/1b7fbea18904522d752b7f668ec6498e83f4caa0))
+
+
+### Documentation
+
+* describe the ember interface ([98ae42c](https://github.com/MovieMaker93/Sparkfire/commit/98ae42cd59ed951d948d393944b2fef6ff8eb2af))
+* **media:** record the tour and clips with the ember interface ([a6689ab](https://github.com/MovieMaker93/Sparkfire/commit/a6689abc1103334877c90178c9dc92a44a6cf204))
+
 ## [0.1.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.1.5...v0.1.0) (2026-10-11)
 
 
