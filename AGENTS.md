@@ -45,7 +45,6 @@ model backends, interface work and chat features; see `docs/fork.md`.
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
 | `scripts/spark-switch.sh` | Swaps the Spark between SparklingKit and another always-on LLM container |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
-| `distribution/` | Upstream's release installers (they install upstream SparklingKit, not this fork) |
 | `docs/` | Architecture, deployment, DGX operations, workflows, fork notes, validation results |
 
 ## Setup and commands
@@ -71,9 +70,6 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `video`, `services/dgx-status`) |
 | Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--image-backend …] [--video-backend fasth3\|none]` |
 | Stack status / stop | `./scripts/start-dgx-spark.sh status`, `./scripts/start-dgx-spark.sh stop` |
-
-On Windows, 8 tests in `src/server/dgx-update.test.ts` fail before any change because GNU tar reads `C:`
-as a host name; they pass on Linux and in CI.
 
 ## How the system works
 
@@ -179,8 +175,7 @@ All of it lives in `.github/`:
 | `ci.yml` | pushes to `main`, pull requests | Type check, unit tests, production build; Python adapter tests; ShellCheck; Docker builds of the app and the small service images |
 | `security.yml` | pushes, pull requests, weekly | CodeQL (TypeScript, Python, workflows); `npm audit` on production dependencies; dependency review on PRs; gitleaks secret scan; Trivy on lockfiles, requirements and Dockerfiles; hadolint |
 | `pr-title.yml` | pull requests | Checks the title is a Conventional Commit |
-| `fork-release.yml` | pushes to `main` | release-please keeps a release PR with the next version and `CHANGELOG.md`; merging it tags the release, publishes `ghcr.io/<owner>/sparklingkit` (amd64 and arm64, with SBOM and provenance) and attaches the DGX stack bundle |
-| `release.yml`, `publish-run-site.yml` | upstream only | Upstream's own release and install site; skipped outside `stevibe/SparklingKit` |
+| `fork-release.yml` | pushes to `main` | release-please keeps a release PR with the next version and `CHANGELOG.md`; merging it tags the release, publishes `ghcr.io/<owner>/sparkfire` (amd64 and arm64, with SBOM and provenance) and attaches the DGX stack bundle |
 
 Dependabot (`.github/dependabot.yml`) opens weekly update PRs for npm, pip, Dockerfiles, Compose images and
 GitHub Actions. Updates to model services change GPU code paths: merge them only after the stack has run
@@ -212,7 +207,7 @@ The DGX Spark is often shared with other workloads. Before starting or stopping 
 
 ## Definition of done
 
-1. `npm run typecheck` and `npm test` pass (apart from the known Windows-only failures above), adapter
+1. `npm run typecheck` and `npm test` pass, adapter
    tests pass if you touched `services/`, and the CI and Security workflows are green.
 2. New behaviour has tests; UI changes were checked in both themes at both widths.
 3. Docs are updated: `docs/fork.md` for fork features, the README for anything a user installs or sees,
