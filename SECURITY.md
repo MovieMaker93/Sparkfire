@@ -18,10 +18,12 @@ are most useful for:
 - reading or writing files outside the data folder (path traversal);
 - running script from uploaded or attached files in the browser;
 - leaking endpoint credentials or other settings;
+- making the server reach private or local network addresses through chat's page reads (SSRF);
 - vulnerable dependencies in the app image or the model-service images.
 
 ## How the code is checked
 
-Every pull request and push to `main` runs CodeQL, `npm audit` on production dependencies, dependency
-review, a secret scan, Trivy (dependencies and Docker configuration) and hadolint. The scans also run weekly,
+Every pull request and push to `main` runs CodeQL, `npm audit` on production dependencies, a secret scan,
+Trivy (dependencies and Docker configuration) and hadolint. Dependency review also runs on pull requests
+once the repository belongs to an organization; GitHub serves its API only there. The scans also run weekly,
 and Dependabot opens update pull requests for npm, pip, Docker images and GitHub Actions.
