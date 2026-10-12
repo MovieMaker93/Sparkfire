@@ -27,7 +27,7 @@ The visual workflow layer composes these same modules and artifacts as a version
 
 ### Module
 
-A user-facing capability such as OCR, Transcription, Translation, Grounding, Text to image, Mind map, or Chat. A module declares accepted and produced artifact kinds, actions, provider requirements, route metadata, and implementation availability.
+A user-facing capability such as OCR, Transcription, Translation, Grounding, Text to image, Text to video, Mind map, or Chat. A module declares accepted and produced artifact kinds, actions, provider requirements, route metadata, and implementation availability.
 
 The authoritative cross-layer catalog is `src/shared/module-router.ts`; `src/server/modules/registry.ts` projects it against configured providers and exposes it through `GET /api/modules`.
 
@@ -56,8 +56,9 @@ Structured canonical artifacts are required where positional provenance matters:
 - OCR: pages, blocks, and normalized bounding boxes.
 - Transcription: segments and time ranges.
 - Grounding: versioned image annotations with pixel-coordinate boxes, query labels, and source lineage. Future provider types may add text spans, PDF page boxes, or time ranges.
-- Redaction: a derivative plus an audit report; originals are immutable.
+- Redaction (planned, not built): a derivative plus an audit report; originals are immutable.
 - Text to image: the written prompt is a source artifact and each generated bitmap is a derived image artifact.
+- Text to video: the prompt is a source artifact, an optional image artifact is the first frame, and the result is a `generated-video` artifact with its own sound track.
 - Mind map: a versioned JSON tree is the interactive canonical artifact; a generated Markdown outline keeps the same information portable for text-oriented tools.
 
 ## Durable layout
@@ -77,11 +78,14 @@ data/
 │   ├── input/
 │   ├── work/
 │   └── output/
-├── chats/<chat-id>/chat.json
-└── logs/
+├── chats/<chat-id>/
+│   ├── chat.json
+│   └── attachments/
+├── tmp/                         # uploads before they are filed into a job
+└── dgx-models/                  # model weights, with the DGX stack
 ```
 
-`job.json` schema version 2 contains the artifact catalog and workflow runs. `input/` is source material, `work/` is disposable checkpoint data, and `output/` contains user-facing files.
+`job.json` schema version 2 contains the artifact catalog and workflow runs. The worker and the API change the same `job.json`, so every change goes through `updateJob`, which holds a per-job lock; the lock is in process memory, which works because the worker runs inside the API process. `input/` is source material, `work/` is disposable checkpoint data, and `output/` contains user-facing files.
 
 Module history is a filtered projection of jobs and their workflow runs, not a separate data store. Saved quick-text and direct text-file translations therefore create the same durable job/run/artifact records as other file-based work. Debounced live Translation previews in the Workbench and Translation module call the shared Translation service adapter without writing a job; choosing **Save** enters the normal durable workflow. These preview surfaces do not own a second result store.
 
@@ -98,7 +102,7 @@ Module history is a filtered projection of jobs and their workflow runs, not a s
 
 ## Module addition checklist
 
-1. Add the module descriptor to the registry.
+1. Add the module's contract to `MODULE_CONTRACTS` in `src/shared/module-router.ts`, with `gpuLane: "heavy"` if it loads tens of GiB only while it works and `hiddenUntilConfigured` if the reference stack does not ship its service.
 2. Define a typed provider request and result contract.
 3. Implement a workflow executor and register its workflow ID.
 4. Declare accepted and produced artifact kinds.
@@ -112,7 +116,7 @@ Module history is a filtered projection of jobs and their workflow runs, not a s
 
 Grounding cannot be represented as plain generated prose. The current image workflow stores normalized pixel-coordinate boxes in `grounding.annotations.json` and creates a non-destructive SVG overlay for immediate visual review. The original image remains unchanged.
 
-Redaction is a two-stage workflow:
+Redaction is not built yet. When it is, it is a two-stage workflow:
 
 1. Detect and preview sensitive regions.
 2. Confirm and render a derivative in which the underlying content is actually removed.

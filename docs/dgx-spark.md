@@ -35,7 +35,8 @@ cd Sparkfire
 
 Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
 
-Ports 8330–8337 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
+Ports 8330, 8332–8334, 8336 and 8337 bind on the DGX host for this mode; the internal engines (8342, 8343,
+8347) and SearXNG (8338) listen on 127.0.0.1 only. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
 ### Sparkfire with other providers
 
@@ -53,10 +54,12 @@ The script:
 
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds Sparkfire and the thin model API adapters;
-3. downloads five pinned model revisions from their publishers into `data/dgx-models/`;
-4. starts the model servers one at a time and waits for each health endpoint;
-5. starts the read-only system monitor; and
-6. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
+3. downloads the chosen models at pinned revisions from their publishers into `data/dgx-models/`;
+4. removes the containers of retired services (the Qwen3.6 LLM, Qwen3-ASR, LocateAnything);
+5. starts the model servers one at a time and waits for each health endpoint, stopping the OCR backend
+   and the optional services you did not choose;
+6. starts SearXNG with `--search-backend searxng`, then the read-only system monitor; and
+7. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
 
 The first run downloads a substantial amount of model data and builds several ARM64 CUDA images. Later runs reuse both the model files and Docker cache. Set `HF_TOKEN` in the command environment if Hugging Face authentication is required:
 
@@ -69,11 +72,12 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | Port | Service | Model/backend |
 | ---: | --- | --- |
 | 8330 | System status | Lightweight read-only Python API |
-| 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
+| 8332 | OCR | `baidu/Unlimited-OCR` / vLLM, or with `--ocr-backend paddleocr-vl` `PaddlePaddle/PaddleOCR-VL-1.6`: layout adapter, with its vLLM on 127.0.0.1:8342 |
 | 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
-| 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.41.0 |
+| 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.41.0, or `Qwen/Qwen-Image-2.1-Turbo` / `Qwen/Qwen-Image-2.1` with `--image-backend` |
 | 8337 | Video generation | FastH3 (`FastVideo/FastVideo-FastH3-Trim-Comfy`, `FastVideo/FastVideo-FastH3-Comfy`) / ComfyUI 0df64eb |
+| 8338 | Web search for chat (127.0.0.1 only) | SearXNG, with `--search-backend searxng` |
 | 54321 | Sparkfire | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
@@ -94,7 +98,7 @@ Sparkfire builds one transcript line per sentence and subtitle-sized cues; Qwen3
 chunk.
 
 Saved Sparkfire settings are never rewritten. After switching the speech service on an existing install,
-choose `Parakeet-TDT-0.6B-v3` (or `Qwen3-ASR-1.7B`) under **Settings → Services → Speech to text**. Until then,
+choose `Parakeet-TDT-0.6B-v3` under **Settings → Services → Speech to text**. Until then,
 transcription still works, with minute-long lines. The same holds in split mode, where
 `scripts/start-sparkfire.sh` assumes the Parakeet id.
 
@@ -104,7 +108,9 @@ Port 8337 serves FastH3, FastVideo's distill of MiniMax H3, which makes video wi
 FastAPI adapter starts a pinned ComfyUI on 127.0.0.1:8347 and drives it over its HTTP API. Nothing loads at
 start: the first job loads the weights, and they are freed after ten idle minutes
 (`VIDEO_IDLE_UNLOAD_SECONDS`) or before a job that needs the other variant. Both variants, Fast and Sharp,
-and their shared text encoder and decoders download at pinned revisions, about 53 GB in all.
+and their shared text encoder and decoders download at pinned revisions, about 53 GB in all. Videos take
+turns in the app's GPU lane, so a second video waits for the first instead of loading beside it (see the
+README's [Heavy jobs take turns](../README.md#heavy-jobs-take-turns)).
 
 The MiniMax H3 Community License covers use "worldwide, excluding" the European Union, the United Kingdom,
 South Korea and the United States, and asks that shared outputs be disclosed as machine-generated; every MP4
@@ -115,15 +121,17 @@ endpoint off.
 ## Operations
 
 Update the checkout rather than replacing tracked files, then run the start script again with the options you
-installed with:
+installed with. The script does not remember them: without `--ocr-backend`, `--image-backend`,
+`--video-backend` and `--search-backend` it starts the defaults (Unlimited-OCR, Z-Image-Turbo, FastH3, no
+web search) and stops the others.
 
 ```bash
 git pull
 
 # Start and reuse existing models and image layers
-./scripts/start-dgx-spark.sh
+./scripts/start-dgx-spark.sh --accept-model-licenses [the options you installed with]
 
-# Inspect containers and all service endpoints
+# Inspect containers and all service endpoints (repeat --video-backend and --search-backend)
 ./scripts/start-dgx-spark.sh status
 
 # Stop containers without deleting models, jobs, or Redis data
@@ -142,20 +150,24 @@ Advanced options:
 ```bash
 ./scripts/start-dgx-spark.sh --skip-download
 ./scripts/start-dgx-spark.sh --skip-build
+./scripts/start-dgx-spark.sh --skip-pull
 ./scripts/start-dgx-spark.sh --refresh-images
+./scripts/start-dgx-spark.sh --force-recreate
 ```
 
 Persistent files stay beneath `data/`:
 
 - `data/dgx-models/` — pinned publisher model snapshots;
 - `data/dgx-runtime/` — model runtime caches;
-- `data/dgx-outputs/` — native service outputs; and
+- `data/dgx-outputs/` — native service outputs;
+- `data/searxng/secret` — SearXNG's secret, generated on the first start with `--search-backend searxng`; and
 - the existing Sparkfire data directories — jobs, chats, workflows, uploads, settings, and generated artifacts.
 
 Docker volumes retain Redis queue state. The stop command does not remove any persistent data.
 
 In a split deployment, upgrade the workspace on its own server with `git pull` and
-`./scripts/start-sparkfire.sh`. Neither script downloads the model weights again.
+`./scripts/start-sparkfire.sh --model-host DGX-HOSTNAME` (or `--configure-later`; the script needs one of the
+two, and keeps saved settings either way). Neither script downloads the model weights again.
 
 ## Model terms
 
@@ -171,4 +183,6 @@ Saved settings are intentionally retained across restarts and upgrades. To move 
 
 ### Upgrading from the six-model stack
 
-`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold about 27 GiB. Saved settings are not rewritten, so the LLM still points at port 8331 and grounding at port 8335. Until you repoint or disable those two endpoints in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. A newly configured LLM endpoint accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.
+`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold their memory (31 GiB for the LLM, 16.5 GiB for Qwen3-ASR and
+10.9 GiB for LocateAnything, as measured). Their images and downloaded weights stay on disk until you delete
+them. Saved settings are not rewritten, so the LLM still points at port 8331 and grounding at port 8335. Until you repoint or disable those two endpoints in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. A newly configured LLM endpoint accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.

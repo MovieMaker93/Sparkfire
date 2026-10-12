@@ -40,7 +40,8 @@ it. Measured results are in [`validation.md`](validation.md).
 - **Optional tools.** Grounding, whose service the stack does not ship, stays out of the sidebar, the Tools
   page, search, Continue with actions, the Workbench filters and tiles, the workflow palette and the services chip
   until a grounding endpoint is enabled. Settings → Services always lists it.
-- **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
+- **Workbench.** A "Running now" strip that also says why a queued job waits, readable titles for UUID-named
+  uploads, filter tabs on one row,
   thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image" (which
   returns once grounding is configured).
 - **Links.** The footer, the "Update available" check (this repository's GitHub releases, not upstream's
@@ -128,8 +129,8 @@ OpenAI-compatible endpoint configured in Settings (the reference is Saluki 27B i
 `--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
 from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
 grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
-defaults, speech is Parakeet only, and video generation is Sparkfire's own; three can be switched at
-deploy time:
+defaults, speech is Parakeet only, and video generation and web search are Sparkfire's own; these can be
+switched at deploy time:
 
 | Service | Default | Alternative | Option |
 |---|---|---|---|
@@ -138,6 +139,7 @@ deploy time:
 | Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
 | Video (:8337) | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US) | none | `--video-backend none` |
+| Web search (127.0.0.1:8338) | off | SearXNG (AGPL-3.0, no model, about 200 MB) | `--search-backend searxng` |
 
 ```bash
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
@@ -164,8 +166,7 @@ speaks its API for a user-configured endpoint.
     The adapter starts the engine on 127.0.0.1:8343 and exits if it dies, so Docker restarts the container.
   - The engine serves one request at a time, and the adapter queues them. It accepts WAV only, which is
     what the app sends (16 kHz chunks); anything else gets a 400.
-  - Both speech backends use :8333, so the start script stops the one you did not choose. It downloads only
-    the chosen model, and only the one GGUF file of its repository, at a pinned revision.
+  - The start script downloads only the one GGUF file of its repository, at a pinned revision.
 - **Sentences.** Sparkfire picks the speech request from the model id. For Parakeet it asks for word
   timestamps and builds the output from them (`src/server/transcript-timing.ts`):
   - One transcript line per sentence, saved as `segments` in `transcript.json` next to the `words`. A
@@ -210,8 +211,10 @@ page and in the Gallery, and can be a workflow node.
     600) without a job, and before a job that needs the other variant, so only one diffusion model is ever
     resident. `POST /v1/unload` frees them at once.
   - The app runs heavy GPU jobs one at a time (`gpuLane` in the module contract, `src/server/gpu-lane.ts`),
-    on their own queue so they never take the workers that OCR, chat and translation use. A second video
-    waits, shown as "Waiting for the GPU", instead of loading next to the first. The same lane will take
+    on their own queue so they never take the workers that OCR, transcription, translation and images use
+    (chat does not use the queue). A second video waits, shown as "Waiting for the GPU", instead of loading
+    next to the first. A video node in a workflow waits in the same lane, but inside its workflow run's
+    general worker ([ADR 0003](adr/0003-heavy-gpu-lane.md)). The same lane will take
     music generation, and switching between the two frees the other service's weights first.
   - Identical requests (prompt, seed and settings) return ComfyUI's cached result at once.
 - **Disclosure.** The MiniMax H3 license asks that shared outputs be disclosed as machine-generated. Every
@@ -251,25 +254,32 @@ npm run dev
   - the image, PaddleOCR, Parakeet and video adapters, without a GPU
   - OCR and speech profiles, sentence and cue building, thumbnails, the gallery and the viewer helpers
   - chat thinking options, stream parsing, attachments, and answers that continue without the page
+  - web search and page reads, the GPU lane, and the per-job lock on job manifests
 - **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Parakeet TDT 0.6B v3, Qwen-Image 2.1 and its Turbo
   version, FastH3 video through the service, and the memory of the full stack. Results and known issues are in [`validation.md`](validation.md).
 
 ## Roadmap
 
 1. **LLM backend service:** package Saluki as a llama.cpp service built for sm_121 (the stack itself ships no LLM).
-   Saluki 27B takes half the memory and has no loading peak (see `validation.md`).
-2. **Safer LLM restarts:** start the LLM before the other services on every restart, and replace
-   `restart: unless-stopped` with a bounded restart, so a crash cannot turn into an out-of-memory loop.
-3. **Image defaults:** make Qwen-Image-2.1-Turbo the default Qwen backend, and its 2K sizes the default for
+   Saluki 27B takes half the memory and has no loading peak (see `validation.md`). Start it before the other
+   services on every restart, with a bounded restart instead of `restart: unless-stopped`, so a crash cannot
+   turn into an out-of-memory loop.
+2. **Mind maps with thinking off:** have the mind-map executor turn thinking off for a llama.cpp backend, so
+   Saluki's reasoning cannot use up the map's budget and leave it empty (see `validation.md`).
+3. **Music generation:** a YuE2 module that makes songs from lyrics and a style, as a second heavy module in
+   the GPU lane (measured in `validation.md`).
+4. **A second video backend:** LTX-2.5 (LTX-2.x Community License, worldwide), which also makes video with
+   sound and has official ComfyUI support, in the video adapter's registry.
+5. **Image defaults:** make Qwen-Image-2.1-Turbo the default Qwen backend, and its 2K sizes the default for
    prompts with text.
-4. **Security:**
+6. **Security:**
    - Remove the open `cors()`.
    - Redact API keys in `GET /api/settings`.
    - Add a host allowlist and an optional access token.
    - Run the app and service containers as a non-root user (Trivy DS-0002); existing `data/` folders need
      their ownership migrated.
-5. **Speed:** send OCR pages and ASR chunks with bounded concurrency.
-6. **Long documents:**
+7. **Speed:** send OCR pages and ASR chunks with bounded concurrency.
+8. **Long documents:**
    - Give chat and mind maps a token budget, then retrieval.
    - Add full-text search.
-7. **Image editing** with Qwen-Image 2.1: reference images, masks, and grounding → edit.
+9. **Image editing** with Qwen-Image 2.1: reference images, masks, and grounding → edit.

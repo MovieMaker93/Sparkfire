@@ -16,7 +16,10 @@ cd Sparkfire
 
 The script builds the app image, starts Redis and the app, and waits until `/api/health` answers. An
 existing `data/config/settings.json` is kept as it is. Without the script, `cp .env.example .env`, edit the
-endpoints and run `docker compose up -d --build`.
+endpoints and run `docker compose up -d --build`; for chat web search, set `SEARXNG_SECRET` in `.env` and add
+`-f compose.yaml -f compose.search.yaml`. The scripts run Compose as the project `sparklingkit`, while a plain
+`docker compose up` takes its project name from the folder, so pick one way per machine: two projects would
+each get their own Redis volume and clash on port 54321.
 
 Each release also publishes a multi-platform image (`linux/amd64`, `linux/arm64`) with an SBOM and
 provenance, `ghcr.io/moviemaker93/sparkfire:<version>`, for people who keep their own Compose file.
@@ -33,8 +36,8 @@ proxy and never expose port 54321 to the public internet. Change the host port w
 ```bash
 git pull
 ./scripts/start-dgx-spark.sh --accept-model-licenses [the options you installed with]
-# or, for the workspace only:
-./scripts/start-sparkfire.sh
+# or, for the workspace only (saved settings are kept either way):
+./scripts/start-sparkfire.sh --configure-later   # or --model-host <spark-host>, as you installed it
 ```
 
 The start scripts rebuild what changed and recreate the containers; `data/` and the Redis volume are left
@@ -48,8 +51,9 @@ before a major-version upgrade.
 
 Point an existing checkout at this repository (`git remote set-url origin
 https://github.com/MovieMaker93/Sparkfire.git && git pull`) and run the start script again. The compose
-project, container and image names keep their `sparklingkit` prefix, so the Redis volume, model downloads
-and running containers are reused; `SPARKLINGKIT_*` variables in `.env` still work.
+project, container and locally built image names keep their `sparklingkit` prefix, so the Redis volume, model
+downloads and running containers are reused; `SPARKLINGKIT_*` variables in `.env` still work. The published
+image moved from `ghcr.io/<owner>/sparklingkit` to `ghcr.io/<owner>/sparkfire`.
 
 ## Backups
 
@@ -60,6 +64,9 @@ docker compose --project-name sparklingkit stop app
 tar -czf sparkfire-data-backup.tar.gz data
 docker compose --project-name sparklingkit start app
 ```
+
+The project name is the one the start scripts use; for an install started with a plain `docker compose up`,
+leave out `--project-name` and run the commands from the clone.
 
 To restore, stop the app, replace `./data` with the backup, and start the same or a newer Sparkfire version.
 

@@ -150,8 +150,9 @@ Service nodes use the current module contracts and provider settings:
 | OCR | Images and PDFs | Documents and structured data | Selects image or PDF workflow automatically. |
 | Transcription | Audio and video | Transcript, subtitle, and structured data | Chunking remains internal. |
 | Translation | Text-based artifacts | Translation | Language parameters belong to the node. |
-| Grounding | Images | Grounded image and annotations | Queries belong to the node. |
+| Grounding | Images | Grounded image and annotations | Queries belong to the node. Hidden from the palette until a grounding service is enabled. |
 | Text to image | Text-based artifacts or a prompt parameter | Generated image | Canvas options belong to the node. |
+| Text to video | Text-based artifacts as the prompt, or an image as the first frame | Generated video | Prompt, size, length and quality (Fast or Sharp) belong to the node. Waits for the GPU lane. |
 | Mind map | Text, structured data, and optionally images | Interactive mind map and Markdown outline | Depth, breadth, and optional focus belong to the node. |
 | LLM prompt | Text, structured data, and optionally images | Text or document | Image input is enabled only when the configured LLM declares vision support. |
 | Create chat | Router-compatible references | Linked conversation | A terminal handoff because a human conversation is interactive. |
@@ -259,6 +260,8 @@ A flow run is an orchestrator over existing module workflow runs, not a replacem
 8. Outputs from service nodes with `storeResult: false` are removed after downstream nodes finish; durable descendant lineage is rewired to the original sources.
 
 The coordinator never enqueues a child and waits for another worker on the same queue. It executes the registered module run directly, checkpoints the durable flow state, and advances to the next ready node. This works with worker concurrency of one and avoids nested-queue deadlocks. Independent branches execute deterministically in v1; parallel scheduling can be added later without changing the JSON contract.
+
+Flow runs go on the general queue. A heavy node, such as Text to video, waits for the GPU lane like any heavy run, but it waits inside the flow's worker, so the flow keeps one general worker until its turn comes ([ADR 0003](adr/0003-heavy-gpu-lane.md)).
 
 Cancellation marks the flow cancelled, cancels queued node runs, aborts the active provider request through the existing cancellation signal, and leaves completed artifacts intact. Retry restarts the failed node and downstream path, not earlier successful nodes, unless the user explicitly chooses a full rerun.
 

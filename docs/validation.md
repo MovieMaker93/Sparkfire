@@ -120,7 +120,7 @@ is one chunk either way.
 (7.9 GB) with an optional vision add-on. It ran in stock `llama-server` (CUDA) with `--jinja -ngl 99 -fa on
 -c 65536 --parallel 1`, on the LLM port, so the app used it unchanged.
 
-| | Saluki 27B | Qwen3.6-35B-A3B NVFP4 (current) |
+| | Saluki 27B | Qwen3.6-35B-A3B NVFP4 (the stack's LLM then, since removed) |
 | --- | --- | --- |
 | GPU memory | 13.0 GiB, loads in about 5 s with no peak | about 28 GiB, about 60 GB peak while loading |
 | Decode | 22–23 tok/s | 20–54 tok/s |
@@ -149,7 +149,7 @@ through the app.
 
 The `video-generation` service (ComfyUI 0df64eb behind the adapter) on 2026-10-11, next to the four-service
 stack (PaddleOCR-VL, Parakeet, Hy-MT2, Qwen-Image-2.1-Turbo) and Saluki 27B in `llama-server`, plus a few
-small containers that are not SparklingKit's. Requests went straight to the service, one at a time, with
+small containers that are not Sparkfire's. Requests went straight to the service, one at a time, with
 the same prompt and a sound description; host memory is MemTotal − MemAvailable, sampled every 0.5 s.
 
 Before any video work the Spark used about 50 GiB. Starting the service added nothing measurable: ComfyUI
@@ -203,7 +203,8 @@ limit for offering 10 s at every size, so the service offers 5, 8 and 10 s.
 The decision gate of the plan was a peak of +40 GiB above idle. Fast stays under it at 480p and passes it
 by 1–8 GiB at 720p, 768p and longer clips; Sharp passes it by up to 17 GiB. With Saluki loaded the worst
 case, Sharp at 1344x768 for 10 s, used 106.6 of 121 GiB, so the stack still has about 14 GiB for a second
-job and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
+job and the system. The app runs two jobs at a time besides video, which takes turns in its own GPU lane,
+and no job type besides video adds more than a few GiB.
 
 ## Music generation: YuE2-3B (evaluated, not integrated)
 
@@ -301,14 +302,15 @@ measured with every service loaded and idle.
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
 transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
 LLM (started by hand) and the mind map requested directly with thinking off, so its figures describe the
-Saluki configuration, not the default Qwen3.6 LLM; the busy peak of Qwen3.6 plus Parakeet remains the
-README's estimate. The 92.4 GiB peak belongs to the pass that ran before Hy-MT2's wedge was found (see
+Saluki configuration, not the Qwen3.6 LLM the stack shipped then; the busy peak of Qwen3.6 plus Parakeet
+was only ever estimated, and the stack no longer ships an LLM. The 92.4 GiB peak belongs to the pass that ran before Hy-MT2's wedge was found (see
 Known issues): the LLM spent its whole 8192-token budget on a reasoning trace while every translation
 request hung.
 
 ## Known issues
 
-- **The stock LLM can crash on long generations.**
+- **The stock LLM could crash on long generations** (historical: the stack no longer ships an LLM, and the
+  start script removes this container on upgrade).
   - vLLM 0.24 serving Qwen3.6-35B-A3B NVFP4 with MTP speculative decoding and `--async-scheduling` failed
     with `CUDA error: an illegal memory access` about 6,100 tokens into a long answer.
   - Docker then restarted it while the other services were resident. Its loading peak (about 42 GB of GPU
@@ -316,8 +318,8 @@ request hung.
     host processes with it, in a restart loop.
   - **Workaround:** stop the LLM service, then start it again before the other services, or with the image
     service stopped.
-  - **Fixes under consideration:** a bounded restart policy, testing without `--async-scheduling`, or a
-    llama.cpp LLM backend such as Saluki, which has no loading peak.
+  - **What followed:** the LLM left the stack; a llama.cpp backend such as Saluki, which has no loading
+    peak, and a bounded restart policy are on the roadmap ([fork.md](fork.md#roadmap)).
 - **Parakeet occasionally skips a stretch of speech.** parakeet.cpp sometimes emits nothing for several
   seconds of clear speech, always in the same place for the same audio window, at every chunk length tested.
   - With 60 s chunks it skipped two sentences of about 7 s each in the English long file built with exact
@@ -353,8 +355,8 @@ request hung.
 
 One GPU window with the whole stack resident (Parakeet ASR, PaddleOCR-VL, Qwen-Image-2.1-Turbo,
 LocateAnything, Hy-MT2; idle about 71 GiB of 121). The bench scripts and raw logs stay on the Spark,
-outside the repository. Decides the runtime and checkpoints for the planned `text-to-video` module, whose
-design lands with it.
+outside the repository. Decided the runtime and checkpoints of the `text-to-video` module, which was
+planned then and has shipped since.
 
 **Runtime bake-off.**
 
