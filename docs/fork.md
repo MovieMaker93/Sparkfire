@@ -68,7 +68,8 @@ API additions:
 
 - **Thinking control.** Off, Low, Medium and High under the composer, remembered per browser. It is sent
   as `chat_template_kwargs`: `enable_thinking`, plus `reasoning_effort` (low, medium) for Qwen3.8-based
-  models; High keeps the model's own default. Models without a thinking mode ignore it.
+  models; High keeps the model's own default. Models without a thinking mode ignore it. Mind maps always
+  ask with thinking off, so a reasoning model cannot spend their whole token budget thinking and return no map.
 - **Reasoning.** It streams into a foldable block while the model thinks and is saved with the answer. It
   is not sent back to the model on later turns.
 - **Attachments.** A + button, paste, or drag and drop add up to 8 files per message.

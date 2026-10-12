@@ -344,6 +344,38 @@ describe("v2 workflow architecture", () => {
     const mindmap = JSON.parse(await fs.readFile(store.safeOutputPath(created.id, "mindmap.json"), "utf8"));
     expect(mindmap).toMatchObject({ version: 1, title: "Local AI workspace", root: { id: "node-1", label: "Sparkfire" } });
     expect(await fs.readFile(store.safeOutputPath(created.id, "mindmap-outline.md"), "utf8")).toContain("**OCR**");
-    expect(JSON.parse(requestBody)).toMatchObject({ model: "mind-map-model", response_format: { type: "json_object" } });
+    expect(JSON.parse(requestBody)).toMatchObject({ model: "mind-map-model", response_format: { type: "json_object" }, chat_template_kwargs: { enable_thinking: false } });
+  });
+
+  it("asks for the mind map without thinking, also when it repairs the structure", async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk) => chunks.push(chunk));
+      request.on("end", () => {
+        requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        // Prose first, so the executor has to ask for a repair.
+        const content = requests.length === 1
+          ? "Here is the map: Sparkfire, with Tools and Workflows."
+          : JSON.stringify({ title: "Workspace", root: { label: "Sparkfire", children: [{ label: "Tools", children: [] }] } });
+        response.setHeader("Content-Type", "application/json");
+        response.end(JSON.stringify({ choices: [{ message: { content } }] }));
+      });
+    });
+    await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Test server did not start");
+
+    const store = await import("./store.js");
+    await store.initializeData();
+    const settings = await store.readSettings();
+    await store.writeSettings({ ...settings, endpoints: { ...settings.endpoints, llm: { enabled: true, baseUrl: `http://127.0.0.1:${address.port}/v1`, model: "saluki-27b", apiKey: "", capabilities: ["text"] } } });
+    const created = await store.createMindMapJob("Explain the Sparkfire workspace", { depth: 3, breadth: 4 });
+    const processor = await import("./processor.js");
+    await processor.processRun(created.id, created.runs[0].id);
+
+    expect((await store.readJob(created.id)).status).toBe("done");
+    expect(requests).toHaveLength(2);
+    for (const body of requests) expect(body).toMatchObject({ response_format: { type: "json_object" }, chat_template_kwargs: { enable_thinking: false } });
   });
 });

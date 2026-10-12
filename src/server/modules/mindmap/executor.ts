@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { chatCompletion } from "../../ai.js";
+import { chatCompletion, thinkingOptions } from "../../ai.js";
 import { publishJob } from "../../events.js";
 import type { JobManifest, WorkflowRun } from "../../models.js";
 import { readSettings, safeArtifactPath, safeOutputPath, updateJob } from "../../store.js";
@@ -126,11 +126,14 @@ export async function processMindMap(job: JobManifest, run: WorkflowRun, signal?
     }
   }
   const system = `You create useful, factual mind maps. Return one JSON object only, with no Markdown or commentary. Use this exact shape: {"title":"Map title","root":{"label":"Root topic","note":"Optional short context","children":[{"label":"Branch","note":"Optional useful detail","children":[]}]}}. Keep labels concise, put supporting context in notes, remove repetition, preserve the source language, and never exceed the requested depth or breadth.`;
+  // Thinking off: a reasoning model such as Saluki otherwise spends the whole token budget thinking and returns
+  // no map at all (docs/validation.md). Structuring JSON does not need it.
+  const extraBody = { response_format: { type: "json_object" }, ...thinkingOptions("off") };
   await report(job.id, { status: "processing", progress: 15, stage: "Structuring mind map", startedAt: run.startedAt || new Date().toISOString() });
   let response = await chatCompletion(endpoint, [{ role: "system", content: system }, { role: "user", content }], {
     temperature: 0.15,
     maxTokens: boundedInteger(run.params.maxTokens, 8192, 1024, 32768),
-    extraBody: { response_format: { type: "json_object" } },
+    extraBody,
   }, signal);
   let raw: Record<string, unknown>;
   try {
@@ -140,7 +143,7 @@ export async function processMindMap(job: JobManifest, run: WorkflowRun, signal?
     response = await chatCompletion(endpoint, [
       { role: "system", content: system },
       { role: "user", content: `Repair this response into the required JSON object. Preserve its useful content and return JSON only:\n\n${response.slice(0, 40_000)}` },
-    ], { temperature: 0, maxTokens: 8192, extraBody: { response_format: { type: "json_object" } } }, signal);
+    ], { temperature: 0, maxTokens: 8192, extraBody }, signal);
     raw = jsonObject(response);
   }
   const normalized = normalizeMindMap(raw, { depth, breadth });

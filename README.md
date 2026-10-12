@@ -153,7 +153,7 @@ llama-server -m Underdog-Saluki-27B-1.0-IQ2-mix.gguf --mmproj mmproj-Underdog-Sa
   --jinja -ngl 99 -fa on -c 65536 --parallel 1 --host 0.0.0.0 --port 8331 --alias saluki-27b
 ```
 
-In Settings, set the URL to `http://host.docker.internal:8331/v1` and the model to `saluki-27b`, and tick **Images** and **Tool calling**. With Saluki's thinking on, a mind map can come back empty ([known issue](docs/validation.md#llm-underdog-saluki-27b-evaluated-not-integrated)); chat lets you choose the thinking level per message.
+In Settings, set the URL to `http://host.docker.internal:8331/v1` and the model to `saluki-27b`, and tick **Images** and **Tool calling**. Mind maps ask the model to answer without thinking, so Saluki's reasoning cannot use up their token budget; chat lets you choose the thinking level per message.
 
 ### Other ways to run it
 

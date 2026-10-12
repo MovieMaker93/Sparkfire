@@ -142,8 +142,8 @@ through the app.
   "The endpoint returned no content": Saluki's default-on reasoning consumed the module's whole
   8192-token completion budget and the answer came back empty. The same request with
   `chat_template_kwargs: {"enable_thinking": false}` returned valid JSON (four branches) in 32 s and
-  529 tokens. Chat already exposes the thinking control; the mind-map executor should turn thinking off
-  for a llama.cpp backend.
+  529 tokens. Chat already exposes the thinking control; the mind-map executor now sends that same
+  `enable_thinking: false` with every mind-map request, including the repair request.
 
 ## Video generation: FastH3 through the service
 
