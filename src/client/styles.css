@@ -2078,7 +2078,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 
 /* Music generation: the style above the lyrics, which keep their line breaks */
 .music-generation-form > .field-label + .field-label { @apply mt-5 block; }
-.music-style-input { @apply min-h-0 resize-y text-[15px] leading-6; }
+.music-style-input { @apply min-h-24 resize-y text-[15px] leading-6 sm:min-h-0; }
 .music-lyrics-input { @apply min-h-64 whitespace-pre-wrap; font-variant-ligatures: none; }
 .music-lyrics-hint, .music-score-note { @apply mt-2 text-[13px] leading-5 text-muted; }
 .music-generation-form .image-advanced { @apply mt-5; }
