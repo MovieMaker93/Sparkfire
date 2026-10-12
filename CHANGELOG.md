@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.2.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.1.0...v0.2.0) (2026-10-12)
+
+
+### Features
+
+* **dgx:** start the music service with --music-backend yue2 ([6e12783](https://github.com/MovieMaker93/Sparkfire/commit/6e1278325d421ad59c6ac04b81452914e5239f99))
+* **music:** add a YuE2 music generation service ([16e96b0](https://github.com/MovieMaker93/Sparkfire/commit/16e96b07d19b18dc429c355a666f5601712203b4))
+* **music:** make songs from lyrics and a style ([b8c01c6](https://github.com/MovieMaker93/Sparkfire/commit/b8c01c6fd20cc42f0fc82d0ab02d55c44146fdfc))
+* **queue:** run heavy GPU jobs one at a time through a shared lane ([15da951](https://github.com/MovieMaker93/Sparkfire/commit/15da95166161abb9746cbabdb558a9b8eed3c40c))
+* **ui:** give Sparkfire a warm palette and an ember accent ([5d3a758](https://github.com/MovieMaker93/Sparkfire/commit/5d3a7582bfad725efc9bb9328bb87df1aad9458e))
+* **ui:** give Sparkfire its own ember look ([a5c5894](https://github.com/MovieMaker93/Sparkfire/commit/a5c5894042fe0970d20a8095397002e6676987ab))
+* **ui:** mark the active page and running work in ember ([972bf08](https://github.com/MovieMaker93/Sparkfire/commit/972bf085e57f8a0a4e846db16e93ca0573e5f522))
+* **ui:** switch to Geist and Bricolage Grotesque ([d0ae715](https://github.com/MovieMaker93/Sparkfire/commit/d0ae715f33c38cc22a71221f0a4d30640a61cca4))
+* **ui:** tighten corners and drop pill buttons ([e549e8e](https://github.com/MovieMaker93/Sparkfire/commit/e549e8ec2f365b361c5bfa071bb7cf08b2fd654b))
+
+
+### Bug fixes
+
+* **queue:** let waiting heavy runs reach the lane ([09189ad](https://github.com/MovieMaker93/Sparkfire/commit/09189ad587300044f91cba8c33542e84b199a703))
+* **store:** serialize changes to a job's manifest ([894bcee](https://github.com/MovieMaker93/Sparkfire/commit/894bcee907524fb858e2358aa4dc3e88245b87f8))
+* **ui:** give the song style field three lines on phones ([db11c03](https://github.com/MovieMaker93/Sparkfire/commit/db11c0398b88a573106e377a3936d0c30636cdb2))
+* **ui:** show why a queued job waits in Running now ([51cd81d](https://github.com/MovieMaker93/Sparkfire/commit/51cd81d25c201b39f202ff0c19bbe470d0aaf149))
+* **ui:** take graph and preview colours from the theme ([1b7fbea](https://github.com/MovieMaker93/Sparkfire/commit/1b7fbea18904522d752b7f668ec6498e83f4caa0))
+
+
+### Documentation
+
+* describe the ember interface ([98ae42c](https://github.com/MovieMaker93/Sparkfire/commit/98ae42cd59ed951d948d393944b2fef6ff8eb2af))
+* document music generation with YuE2 ([5ca2103](https://github.com/MovieMaker93/Sparkfire/commit/5ca21037907fed35c94d6c55f138033f697df6ce))
+* **media:** record a second video waiting for the GPU ([7f31b2a](https://github.com/MovieMaker93/Sparkfire/commit/7f31b2a1337daedbb54f49644b1818bb6fa74140))
+* **media:** record the tour and clips with the ember interface ([a6689ab](https://github.com/MovieMaker93/Sparkfire/commit/a6689abc1103334877c90178c9dc92a44a6cf204))
+* **readme:** explain that heavy jobs take turns ([27ba622](https://github.com/MovieMaker93/Sparkfire/commit/27ba62286c18e3c6d77fed885c39e6b6b4b56af9))
+* **validation:** measure what each service costs a song and the reverse ([23ac59f](https://github.com/MovieMaker93/Sparkfire/commit/23ac59fa27c6b0035674fdbc8b8cfc4cc0f608da))
+
 ## [0.1.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.1.0...v0.1.0) (2026-10-12)
 
 
