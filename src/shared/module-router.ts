@@ -12,6 +12,11 @@ export interface ModuleContract extends Omit<ModuleDescriptor, "actions" | "conf
   allowSelfHandoff?: boolean;
   /** For modules whose service the reference stack does not ship: shown only once an endpoint is configured. */
   hiddenUntilConfigured?: boolean;
+  /**
+   * Modules whose service loads tens of GiB only while it works. On one Spark two of them do not fit side by
+   * side, so they take turns through one lane and each frees the other's weights (`POST /v1/unload`) first.
+   */
+  gpuLane?: "heavy";
 }
 
 const textResults: ArtifactKind[] = ["document", "transcript", "translation", "redacted-document", "text"];
@@ -121,6 +126,7 @@ export const MODULE_CONTRACTS: readonly ModuleContract[] = [
     actionLabel: "Create video",
     actionDescription: "Use this as the prompt or the first frame of a video",
     implementation: "ready",
+    gpuLane: "heavy",
   },
   {
     id: "mindmap",

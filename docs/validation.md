@@ -205,6 +205,65 @@ by 1–8 GiB at 720p, 768p and longer clips; Sharp passes it by up to 17 GiB. Wi
 case, Sharp at 1344x768 for 10 s, used 106.6 of 121 GiB, so the stack still has about 14 GiB for a second
 job and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
 
+## Music generation: YuE2-3B (evaluated, not integrated)
+
+[YuE2](https://github.com/multimodal-art-projection/YuE) (MAP, code Apache 2.0, weights CC BY-NC 4.0 with a
+creator permission) turns lyrics and a style into a song: it writes an editable ABC score, then sings it as
+48 kHz stereo FLAC. Measured on 2026-10-11 with release `yue2-v0.1.6`, `m-a-p/YuE2-3B@8f24312f1877` and
+`m-a-p/YuE2-Vae@152733a19ad4`, through the repository's own CLI in a container on
+`nvcr.io/nvidia/pytorch:26.07-py3` (PyTorch 2.13 NGC build, not the pinned 2.10; the GB10 is compute
+capability 12.1). Autoregressive decoding ran on CUDA graphs with FlashAttention.
+
+| Song (BF16) | Audio | Total | Score | Audio tokens | Decoder |
+| --- | --- | --- | --- | --- | --- |
+| English pop (first, warm-up) | 57.6 s | 164 s | 12 s | 36 s | 61 s |
+| Italian ballad | 46.8 s | 96 s | 13 s | 30 s | 47 s |
+| Mandarin pop | 51.0 s | 93 s | 12 s | 32 s | 42 s |
+| English jazz | 69.8 s | 119 s | 23 s | 44 s | 42 s |
+| English pop rock, full lyrics | 229.6 s | 362 s | 50 s | 153 s | 66 s |
+| Italian song, full lyrics | 177.3 s | 232 s | 29 s | 115 s | 56 s |
+
+- **Speed:** about 40 tok/s, 1.3–1.9 s of compute per second of audio. About 38 s of each "Decoder" figure
+  is the CLI loading the audio decoder again for every song; decoding itself takes about 2 s. A service
+  that keeps the decoder loaded saves that.
+- **Memory:** about 20 GiB more in use on the whole system while a song runs, short or long. In one process:
+  8.1 GiB of GPU memory (peak reserved) and 8.9 GiB of RAM.
+- **FP8** (`--quantization fp8`) decodes at about 46 tok/s, 5–15 s faster per song, but saves no memory on
+  the Spark: 8.7 GiB of GPU memory and 9.5 GiB of RAM, because YuE2 keeps the BF16 originals in CPU memory
+  and the Spark's CPU and GPU share it. It also changes the song a seed produces.
+- **Next to a busy stack.** With image, OCR, speech, translation and Saluki requests running back to back
+  for the whole song, memory went from 61.4 to 82.4 GiB (39 GiB still available) and no request failed, but
+  the GPU is shared: the full-lyrics Italian song took 898 s instead of 232 s (9 tok/s), and the other
+  services slowed by 3.6× (image, OCR) to 79× (translation, 2.7 s to 214 s).
+- **Which service costs what** (2026-10-12). The short Italian song, each time in a fresh process (so with
+  its warm-up: 151 s alone), next to one service sending requests back to back, then next to all five with
+  a 20 s pause after each request, then that same load without the song:
+
+  | Next to the song | Song | Slower | The service, median | Slower than idle |
+  | --- | --- | --- | --- | --- |
+  | nothing | 151 s (40 tok/s) | | | |
+  | OCR | 169 s | ×1.1 | 4.2 s a page | ×1.3 |
+  | transcription | 186 s | ×1.2 | 0.2 s for 47 s of audio | ×1.1 |
+  | translation | 188 s | ×1.2 | 3.0 s | ×1.1 |
+  | Saluki chat, 600 tokens | 244 s | ×1.6 | 33 s | ×1.3 |
+  | image, 1024², 8 steps | 300 s | ×2.0 | 23 s | ×1.2 |
+  | all five, 20 s pauses | 288 s (14 tok/s) | ×1.9 | | |
+
+  | All five, 20 s pauses | Transcription | OCR | Image | Chat | Translation |
+  | --- | --- | --- | --- | --- | --- |
+  | without the song | 2.5 s (×14) | 7.5 s (×2.3) | 34 s (×1.8) | 54 s (×2.1) | 53 s (×20) |
+  | with the song | 4.5 s (×25) | 9.5 s (×2.9) | 45 s (×2.4) | 73 s (×2.9) | 113 s (×43) |
+
+  One service at a time barely notices the song (×1.1–1.3); the song pays instead, most beside image
+  generation and the LLM, the other two large GPU users. Under mixed load the services already slow each
+  other without the song, translation by far the most (Hy-MT2 runs in plain transformers, one request at a
+  time), and the song adds a further ×1.3–2.1. Memory: 65.7 GiB at most under the mixed load alone, 83.0 GiB
+  with the song.
+- **Not next to a video job.** 82 GiB plus a video job's 35–57 GiB is more than the Spark's 121 GiB, which
+  is why heavy modules take turns through one lane (`src/server/gpu-lane.ts`).
+- Quality was judged by ear on the four short BF16 songs (English, Italian, Mandarin): very good. The long
+  songs and the FP8 versions have not been rated yet.
+
 ## Memory
 
 Per container, with every service loaded and idle (`nvidia-smi` per process for GPU memory, `docker stats` for

@@ -1,3 +1,4 @@
+import { getModuleContract } from "../../shared/module-router.js";
 import type { JobManifest, WorkflowRun } from "../models.js";
 
 export interface WorkflowExecutionResult {
@@ -39,7 +40,23 @@ export function registerWorkflowExecutor(workflowId: string, executor: WorkflowE
 export async function executeWorkflow(workflowId: string, job: JobManifest, run: WorkflowRun, signal?: AbortSignal) {
   const executor = executors[workflowId];
   if (!executor) throw new Error(`No executor is registered for workflow ${workflowId}`);
-  return executor(job, run, signal);
+  const contract = run.moduleId === "text-transform" ? undefined : getModuleContract(run.moduleId);
+  if (contract?.gpuLane !== "heavy") return executor(job, run, signal);
+  // Every heavy run passes here, from the queue and from workflow nodes alike, so this is the one place to serialise them.
+  const { heavyGpuLane } = await import("../gpu-lane.js");
+  return heavyGpuLane.run(contract.id, () => executor(job, run, signal), {
+    signal,
+    onWait: async (holder) => {
+      const { updateJob } = await import("../store.js");
+      const { publishJob } = await import("../events.js");
+      const waiting = await updateJob(job.id, {
+        status: "queued",
+        stage: "Waiting for the GPU",
+        detail: `${getModuleContract(holder)?.title || holder} is running; this starts when it finishes`,
+      });
+      publishJob(job.id, waiting);
+    },
+  });
 }
 
 export function registeredWorkflowIds() {

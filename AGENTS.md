@@ -86,7 +86,9 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   Which artifact kinds each accepts is decided in one place, `src/shared/module-router.ts`; do not
   duplicate those rules in UI code.
 - **Queue and progress.** Jobs run on a BullMQ worker inside the API process. Progress reaches the browser
-  through server-sent events at `/api/jobs/:id/events`.
+  through server-sent events at `/api/jobs/:id/events`. Modules marked `gpuLane: "heavy"` (video) take
+  turns through `src/server/gpu-lane.ts` on their own queue, and free each other's weights when
+  the work switches module.
 - **Optional modules.** A module whose service the reference stack does not ship sets
   `hiddenUntilConfigured` in its contract (today only grounding). The API then marks it `hidden` while its
   endpoint is off, and every UI list of tools and actions leaves it out; Settings still shows the endpoint.

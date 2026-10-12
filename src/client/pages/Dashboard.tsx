@@ -379,6 +379,12 @@ function CompactLanguageSelect({ label, value, allowAuto = false, onChange }: { 
 const activeStatuses = new Set(["queued", "preparing", "processing", "merging"]);
 
 /** Live view of work in progress; the Workbench already refreshes jobs every few seconds. */
+/** A queued job shows only its stage: "Waiting for a worker", or "Waiting for the GPU" behind a video. */
+export function runningLine(job: Pick<Job, "status" | "stage" | "detail">) {
+  if (job.status === "queued") return job.stage || "Waiting for a worker";
+  return job.detail ? `${job.stage} · ${job.detail}` : job.stage;
+}
+
 function RunningNow({ jobs }: { jobs: Job[] }) {
   const active = jobs.filter((job) => activeStatuses.has(job.status));
   if (!active.length) return null;
@@ -386,7 +392,7 @@ function RunningNow({ jobs }: { jobs: Job[] }) {
     <header><span className="running-now-pulse" aria-hidden="true" /><h2>Running now</h2><small>{active.length} active</small></header>
     <div className="running-now-grid">{active.slice(0, 4).map((job) => <Link to={`/jobs/${job.id}`} className="running-card" key={job.id}>
       <JobThumb job={job} />
-      <span className="running-card-copy"><strong title={job.title}>{displayTitle(job)}</strong><small>{job.status === "queued" ? "Waiting for a worker" : job.detail ? `${job.stage} · ${job.detail}` : job.stage}</small></span>
+      <span className="running-card-copy"><strong title={job.title}>{displayTitle(job)}</strong><small>{runningLine(job)}</small></span>
       <span className="running-card-percent">{job.status === "queued" ? "Queued" : `${job.progress}%`}</span>
       <Progress job={job} />
     </Link>)}</div>
