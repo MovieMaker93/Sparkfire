@@ -27,6 +27,7 @@ data/
 
 # Python bytecode from adapter tests
 __pycache__/
+# Left by the removed spark-switch.sh; it may hold a local container name, so it stays out of git.
 scripts/spark-switch.env
 
 # Personal, machine-specific notes for agents and maintainers (never committed)

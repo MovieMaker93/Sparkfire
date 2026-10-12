@@ -120,7 +120,7 @@ jobs:
           # The app is built from source on the Spark, so the bundle carries what its Dockerfile copies.
           cp -R src package.json package-lock.json tsconfig.json tsconfig.server.json vite.config.ts Dockerfile .dockerignore "${bundle}/"
           cp compose.yaml compose.spark.yaml compose.dgx.yaml compose.search.yaml .env.example LICENSE NOTICE README.md "${bundle}/"
-          cp scripts/*.sh scripts/spark-switch.env.example "${bundle}/scripts/"
+          cp scripts/*.sh "${bundle}/scripts/"
           cp -R services/dgx-models services/dgx-status services/searxng "${bundle}/services/"
           tar -czf "release-assets/${bundle}.tar.gz" "${bundle}"
           (cd release-assets && sha256sum ./*.tar.gz > SHA256SUMS)
