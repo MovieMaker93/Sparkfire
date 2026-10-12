@@ -17,11 +17,12 @@ export const APP_VERSION = brandEnv("VERSION") || "development";
 
 export const BUNDLED_SERVICE_CATALOG = REFERENCE_SERVICE_CATALOG;
 
-function environmentEndpoint(baseUrl: string | undefined, model: string | undefined, fallbackModel: string, capabilities?: Settings["endpoints"]["llm"]["capabilities"]) {
+// The environment says only where a service runs; its model is the stack's, whatever else is set.
+function stackEndpoint(baseUrl: string | undefined, model: string, capabilities?: Settings["endpoints"]["llm"]["capabilities"]) {
   const normalizedBaseUrl = baseUrl?.trim() || "";
   return {
     baseUrl: normalizedBaseUrl,
-    model: model?.trim() || fallbackModel,
+    model,
     apiKey: "",
     enabled: Boolean(normalizedBaseUrl),
     ...(capabilities ? { capabilities } : {}),
@@ -33,10 +34,7 @@ const configuredMode = DEPLOYMENT_MODES.includes(environmentMode as (typeof DEPL
   ? environmentMode as Settings["setup"]["mode"]
   : "custom";
 const explicitlyComplete = brandEnv("SETUP_COMPLETE");
-// Saluki's image input and tool calling are known; another model starts as text only until Settings says more.
-const llmModel = process.env.LLM_MODEL?.trim() || BUNDLED_SERVICE_CATALOG.llm.model;
-const llmCapabilities = llmModel === BUNDLED_SERVICE_CATALOG.llm.model ? [...REFERENCE_LLM_CAPABILITIES] : ["text" as const];
-const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL, process.env.MUSIC_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
+const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL, process.env.MUSIC_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
 
 export const defaultSettings: Settings = {
   schemaVersion: 2,
@@ -49,25 +47,22 @@ export const defaultSettings: Settings = {
   systemStatus: {
     baseUrl: process.env.SYSTEM_STATUS_BASE_URL?.trim() || "",
   },
-  // Off until configured: searching sends what the conversation is about to the search engines behind the service.
+  // The stack's SearXNG, where the start script sets it. Searching sends what a conversation is about to the engines behind it.
   webSearch: {
     enabled: Boolean(process.env.WEB_SEARCH_BASE_URL?.trim()),
     provider: "searxng",
     baseUrl: process.env.WEB_SEARCH_BASE_URL?.trim() || "",
   },
   endpoints: {
-    // The stack does not start the LLM, but its reference is Saluki 27B in llama-server (README, "Connect an LLM").
-    // Any other OpenAI-compatible endpoint set here (env or Settings) is used as configured.
-    llm: { ...environmentEndpoint(process.env.LLM_BASE_URL, process.env.LLM_MODEL, BUNDLED_SERVICE_CATALOG.llm.model, llmCapabilities), apiKey: process.env.LLM_API_KEY || "" },
-    ocr: { ...environmentEndpoint(process.env.OCR_BASE_URL, process.env.OCR_MODEL, BUNDLED_SERVICE_CATALOG.ocr.model), apiKey: process.env.OCR_API_KEY || "" },
-    stt: { ...environmentEndpoint(process.env.STT_BASE_URL, process.env.STT_MODEL, BUNDLED_SERVICE_CATALOG.stt.model), apiKey: process.env.STT_API_KEY || "" },
-    translation: { ...environmentEndpoint(process.env.TRANSLATION_BASE_URL, process.env.TRANSLATION_MODEL, BUNDLED_SERVICE_CATALOG.translation.model), apiKey: process.env.TRANSLATION_API_KEY || "" },
-    // Like the LLM, grounding has no bundled service; any configured endpoint is used as-is.
-    grounding: { ...environmentEndpoint(process.env.GROUNDING_BASE_URL, process.env.GROUNDING_MODEL, ""), apiKey: process.env.GROUNDING_API_KEY || "" },
-    "image-generation": { ...environmentEndpoint(process.env.IMAGE_GENERATION_BASE_URL, process.env.IMAGE_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.imageGeneration.model), apiKey: process.env.IMAGE_GENERATION_API_KEY || "" },
-    "video-generation": { ...environmentEndpoint(process.env.VIDEO_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.videoGeneration.model), apiKey: process.env.VIDEO_GENERATION_API_KEY || "" },
-    // Opt-in (start-dgx-spark.sh --music-backend yue2), so it stays off unless its URL is set.
-    "music-generation": { ...environmentEndpoint(process.env.MUSIC_GENERATION_BASE_URL, process.env.MUSIC_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.musicGeneration.model), apiKey: process.env.MUSIC_GENERATION_API_KEY || "" },
+    llm: stackEndpoint(process.env.LLM_BASE_URL, BUNDLED_SERVICE_CATALOG.llm.model, [...REFERENCE_LLM_CAPABILITIES]),
+    ocr: stackEndpoint(process.env.OCR_BASE_URL, BUNDLED_SERVICE_CATALOG.ocr.model),
+    stt: stackEndpoint(process.env.STT_BASE_URL, BUNDLED_SERVICE_CATALOG.stt.model),
+    translation: stackEndpoint(process.env.TRANSLATION_BASE_URL, BUNDLED_SERVICE_CATALOG.translation.model),
+    // The stack has no grounding service.
+    grounding: stackEndpoint(undefined, ""),
+    "image-generation": stackEndpoint(process.env.IMAGE_GENERATION_BASE_URL, BUNDLED_SERVICE_CATALOG.imageGeneration.model),
+    "video-generation": stackEndpoint(process.env.VIDEO_GENERATION_BASE_URL, BUNDLED_SERVICE_CATALOG.videoGeneration.model),
+    "music-generation": stackEndpoint(process.env.MUSIC_GENERATION_BASE_URL, BUNDLED_SERVICE_CATALOG.musicGeneration.model),
   },
   audio: {
     chunkTargetSec: 60,

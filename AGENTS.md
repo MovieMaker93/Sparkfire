@@ -41,12 +41,12 @@ comes from.
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
-| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, video generation (ComfyUI), music generation (YuE2), PaddleOCR-VL, Parakeet ASR, translation, downloader |
+| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): llama-server for Saluki, image generation, video generation (ComfyUI), music generation (YuE2), PaddleOCR-VL, Parakeet ASR, translation, downloader |
 | `services/dgx-status/` | The DGX system monitor service |
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
 | `compose.dgx.yaml` | The model services of the reference stack |
-| `compose.search.yaml`, `services/searxng/` | Optional SearXNG for chat web search |
+| `compose.search.yaml`, `services/searxng/` | SearXNG for chat web search |
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
 | `scripts/spark-switch.sh` | Swaps the Spark between Sparkfire and another always-on LLM container |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
@@ -66,6 +66,8 @@ npm run dev                                                 # API on :54321, Vit
 ```
 
 Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are while working on the UI.
+Without a Spark, give the API a stack address so it skips setup (the services then show as offline):
+`SPARKFIRE_DEPLOYMENT_MODE=split OCR_BASE_URL=http://127.0.0.1:8332/v1 npm run dev`.
 
 | Task | Command |
 | --- | --- |
@@ -73,7 +75,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | Unit tests | `npm test` (or `npx vitest run path/to/file.test.ts`) |
 | Production build | `npm run build` |
 | Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `video`, `music`, `services/dgx-status`) |
-| Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--image-backend …] [--video-backend fasth3\|none]` |
+| Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--video-backend fasth3\|none]` |
 | Stack status / stop | `./scripts/start-dgx-spark.sh status`, `./scripts/start-dgx-spark.sh stop` |
 
 ## How the system works
@@ -89,17 +91,22 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   through server-sent events at `/api/jobs/:id/events`. Modules marked `gpuLane: "heavy"` (video, music) take
   turns through `src/server/gpu-lane.ts` on their own queue, and free each other's weights when
   the work switches module.
-- **Optional modules.** A module whose service the reference stack does not ship sets
-  `hiddenUntilConfigured` in its contract (grounding, and opt-in music). The API then marks it `hidden` while its
-  endpoint is off, and every UI list of tools and actions leaves it out; Settings still shows the endpoint.
-- **Settings.** `data/config/settings.json`. Environment variables only seed a new file; saved settings win
-  on later starts, so upgrades never overwrite a user's endpoints. The one exception is a one-time upgrade,
-  recorded in `data/config/upgrades.json` so it runs once: Saluki replaced every install's LLM.
+- **Optional modules.** A module whose service may be missing sets `hiddenUntilConfigured` in its contract
+  (grounding, which the stack does not run, and music). The API then marks it `hidden` while its endpoint is
+  off, and every UI list of tools and actions leaves it out.
+- **The stack is fixed.** Every service has one model (`REFERENCE_SERVICE_CATALOG` in
+  `src/shared/reference-stack.ts`); users do not pick models, URLs or keys. Every start applies the stack
+  (`referenceSettingsForHost`) wherever it runs: the environment from the start scripts first, then what setup
+  saved (`stackDeployment`). `PUT /api/settings` keeps the stack's fields (`saveUserSettings`), and setup in the
+  browser only sends the host (`POST /api/setup/stack`). An install not on the stack goes through setup again.
+- **Settings.** `data/config/settings.json` holds the rest: appearance, time zone, processing limits. Saved
+  values win on later starts, so upgrades never overwrite them.
 - **Model calls** live in `src/server/ai.ts`. Every request carries its own `AbortSignal` timeout. A global
   undici dispatcher (`src/server/http-dispatcher.ts`) disables Node's 300-second fetch timeouts, which
   would otherwise cut off long generations.
-- **OCR** picks its request format from the model id (`ocrProfile`): Unlimited-OCR uses chat completions,
-  PaddleOCR-VL uses the adapter's `/v1/ocr` and also returns layout blocks (`document.layout.json`).
+- **OCR** picks its request format from the model id (`ocrProfile`): PaddleOCR-VL, the stack's, uses the
+  adapter's `/v1/ocr` and also returns layout blocks (`document.layout.json`); Unlimited-OCR's chat-completions
+  profile remains for its id.
 - **Speech** picks its request from the model id (`asrProfile`): with a Parakeet id the app asks for word
   timestamps and `src/server/transcript-timing.ts` builds one transcript line per sentence and subtitle cues
   (at most 7 s and 84 characters) from them, and the chunk target is capped at 30 s. Any other id keeps
@@ -120,47 +127,49 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   model, and reattaches through `/api/chats/:id/stream`. One answer per chat at a time.
 - **Web search** in chat is a tool-call loop in `chat-generation.ts`: `web_search` (SearXNG) and
   `fetch_page` (`page-fetch.ts`, which refuses private addresses on the connection itself), at most 6
-  rounds. It runs only when the chat turned it on, `settings.webSearch` is configured and the LLM declares
-  the `tools` capability. The searches and sources are saved as the answer's `activity` and never sent back
+  rounds. It runs only when the chat turned it on (new chats start on), `settings.webSearch` is configured (the
+  stack's SearXNG, all-in-one only) and the LLM declares the `tools` capability (Saluki does). The searches and sources are saved as the answer's `activity` and never sent back
   to the model.
 
-## Model services (DGX Spark reference stack)
+## Model services (the DGX Spark stack)
 
-| Port | Service | Default model | Alternatives |
-| --- | --- | --- | --- |
-| 54321 | Sparkfire app | | |
-| 8330 | System monitor | | |
-| 8331 | Language model (started by hand) | Saluki 27B (`saluki-27b`, llama-server) | any OpenAI-compatible endpoint in Settings |
-| 8332 | OCR | Unlimited-OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342): `--ocr-backend paddleocr-vl` |
-| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
-| 8334 | Translation | Hy-MT2-1.8B-FP8 | |
-| 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
-| 8337 | Video generation | FastH3 (Fast and Sharp variants, through ComfyUI) | none: `--video-backend none` |
-| 8338 | Web search (127.0.0.1 only) | none (off by default) | SearXNG: `--search-backend searxng` |
-| 8339 | Music generation | none (off by default) | YuE2-3B: `--music-backend yue2` |
+The models are fixed, chosen and measured to share the Spark's memory. Only video can be left out.
+
+| Port | Service | Model |
+| --- | --- | --- |
+| 54321 | Sparkfire app | |
+| 8330 | System monitor | |
+| 8331 | Language model | Saluki 27B (`saluki-27b`) in llama.cpp's llama-server (`services/dgx-models/llama-server`) |
+| 8332 | OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342) |
+| 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 |
+| 8334 | Translation | Hy-MT2-1.8B-FP8 |
+| 8336 | Image generation | Qwen-Image-2.1-Turbo |
+| 8337 | Video generation | FastH3 (Fast and Sharp variants, through ComfyUI); `--video-backend none` leaves it out |
+| 8338 | Web search (127.0.0.1 only) | SearXNG |
+| 8339 | Music generation | YuE2-3B |
 
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
-  stack does not start the LLM (the app defaults to Saluki 27B in `llama-server` on 8331, ~13 GiB, run by
-  hand; any endpoint can replace it in Settings) and ships no grounding (LocateAnything was removed; the
-  module stays, endpoint in Settings). It idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
-  ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Music,
-  when on, does the same with about 20 GiB a song. Do not start extra models, large builds or big downloads while
+  stack idles around 29 GiB plus Saluki's 13 GiB, which starts first and has no loading peak. There is no
+  grounding service. Video generation loads nothing until a job and frees its weights after
+  ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Music
+  does the same with about 20 GiB a song. Do not start extra models, large builds or big downloads while
   services are loading, and check free memory (`free -g`) before running an LLM next to the stack: one
   that needs most of the Spark does not fit beside it.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
-  container images use exact tags or digests; Python requirements are pinned.
-- **Adding a model backend:** add it to the adapter's registry (for images, the `BACKENDS` dict in
-  `services/dgx-models/image-generation/server.py`), add the option and its pinned download to
-  `scripts/start-dgx-spark.sh`, note it in `compose.dgx.yaml`, write adapter unit tests, and document it in
-  `docs/fork.md` and the README. Sparkfire's defaults are the ones in the table above.
+  container images use exact tags or digests; Python requirements are pinned. Saluki's download is the one
+  exception for now (`main`): pin its commit when Hugging Face can be reached.
+- **Changing a model** is a decision for the stack as a whole, after measuring its memory next to the others:
+  change it in `REFERENCE_SERVICE_CATALOG`, its pinned download and start order in `scripts/start-dgx-spark.sh`,
+  `compose.dgx.yaml`, the adapter's registry where it has one (for images, `BACKENDS` in
+  `services/dgx-models/image-generation/server.py`) with unit tests, and document it in `docs/fork.md`,
+  `docs/validation.md` and the README. Do not add options that let users pick models.
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
-  `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. FastH3 is under the
+  `--accept-model-licenses`. Qwen-Image-2.1-Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. FastH3 is under the
   MiniMax H3 Community License, which excludes the EU, the UK, South Korea and the US and asks that shared
   outputs say they are machine-generated: keep the disclosure tag and `--video-backend none`. YuE2's weights
-  are CC BY-NC 4.0 with a creator permission, so music stays opt-in (`--music-backend yue2`) and each song
-  shows the license line. Never commit weights.
+  are CC BY-NC 4.0 with a creator permission, so each song shows the license line. Never commit weights.
 - Validation results and known issues are in `docs/validation.md`.
 
 ## Coding conventions

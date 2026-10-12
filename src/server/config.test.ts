@@ -26,12 +26,16 @@ describe("bundled service catalog", () => {
     expect(defaultSettings.endpoints.llm).toMatchObject({ baseUrl: "", model: "saluki-27b", enabled: false, capabilities: ["text", "image", "tools"] });
   });
 
-  it("starts another model named in LLM_MODEL as text only", async () => {
+  it("takes only addresses from the environment, never models or keys", async () => {
+    vi.stubEnv("LLM_BASE_URL", "http://host.docker.internal:8331/v1");
     vi.stubEnv("LLM_MODEL", "my-model");
+    vi.stubEnv("LLM_API_KEY", "sk-cloud");
+    vi.stubEnv("OCR_MODEL", "Unlimited-OCR");
     vi.resetModules();
     try {
       const seeded = (await import("./config.js")).defaultSettings;
-      expect(seeded.endpoints.llm).toMatchObject({ model: "my-model", capabilities: ["text"] });
+      expect(seeded.endpoints.llm).toEqual({ baseUrl: "http://host.docker.internal:8331/v1", model: "saluki-27b", apiKey: "", enabled: true, capabilities: ["text", "image", "tools"] });
+      expect(seeded.endpoints.ocr.model).toBe("PaddleOCR-VL-1.6");
     } finally {
       vi.unstubAllEnvs();
       vi.resetModules();

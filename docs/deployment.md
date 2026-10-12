@@ -11,12 +11,13 @@ stack together (see [DGX Spark](dgx-spark.md)).
 git clone https://github.com/MovieMaker93/Sparkfire.git
 cd Sparkfire
 ./scripts/start-sparkfire.sh --model-host dgx-spark.local   # models on another machine
-./scripts/start-sparkfire.sh --configure-later              # or set endpoints in the browser
+./scripts/start-sparkfire.sh --configure-later              # or say where the stack runs in the browser
 ```
 
-The script builds the app image, starts Redis and the app, and waits until `/api/health` answers. An
-existing `data/config/settings.json` is kept as it is. Without the script, `cp .env.example .env`, edit the
-endpoints and run `docker compose up -d --build`.
+The script builds the app image, starts Redis and the app, and waits until `/api/health` answers. The
+services always run Sparkfire's fixed models: every start points them at the stack, wherever it runs, and
+keeps the rest of `data/config/settings.json`. Without the script, `cp .env.example .env`, set the stack's
+addresses or leave them empty for setup in the browser, and run `docker compose up -d --build`.
 
 Each release also publishes a multi-platform image (`linux/amd64`, `linux/arm64`) with an SBOM and
 provenance, `ghcr.io/moviemaker93/sparkfire:<version>`, for people who keep their own Compose file.
@@ -32,13 +33,13 @@ proxy and never expose port 54321 to the public internet. Change the host port w
 
 ```bash
 git pull
-./scripts/start-dgx-spark.sh --accept-model-licenses [the options you installed with]
+./scripts/start-dgx-spark.sh --accept-model-licenses [--video-backend none if you installed with it]
 # or, for the workspace only:
 ./scripts/start-sparkfire.sh
 ```
 
 The start scripts rebuild what changed and recreate the containers; `data/` and the Redis volume are left
-alone, and saved settings win over environment variables. To stay on a release, check out its tag
+alone. The services follow the stack on every start; the other saved settings are kept. To stay on a release, check out its tag
 (`git checkout v0.1.0`) before running the script.
 
 Persisted schema changes are additive and are not undone by checking out an older tag, so back up `data/`

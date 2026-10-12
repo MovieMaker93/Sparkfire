@@ -37,12 +37,15 @@ it. Measured results are in [`validation.md`](validation.md).
   the home-screen icon and the GitHub social preview (`.github/media/social-preview.png`).
 - **Sidebar.** One "AI services" chip with a popover replaces the per-service status rows. The Spark monitor
   expands on click.
-- **Optional tools.** Grounding, whose service the stack does not ship, stays out of the sidebar, the Tools
-  page, search, Continue with actions, the Workbench filters and tiles, the workflow palette and the services chip
-  until a grounding endpoint is enabled. Settings → Services always lists it.
+- **Optional tools.** Grounding, whose service the stack does not run, stays out of the sidebar, the Tools
+  page, search, Continue with actions, the Workbench filters and tiles, the workflow palette and the services
+  chip. Video does the same on a stack started with `--video-backend none`.
+- **Fixed models.** Settings → Services shows each service of the stack, its model and where it runs, with a
+  connection test, but nothing there can be edited, and onboarding has no **Configure manually**: it only asks
+  whether the stack runs on this machine or another one.
 - **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
-  thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image" (which
-  returns once grounding is configured).
+  thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image", which needs
+  a grounding service the stack does not run.
 - **Links.** The footer, the "Update available" check (this repository's GitHub releases, not upstream's
   manifest) and the onboarding install command point at Sparkfire.
 - **Gallery** (`/gallery`). Every image and generated video across jobs, with source and model filters, a
@@ -85,10 +88,10 @@ API additions:
   end the answer and keeps what was written so far. A chat takes one answer at a time; a second message
   while one is running is refused.
 - **Web search.** A **Web** switch under the composer lets the model search the web and read pages while it
-  answers. It is off in every conversation until turned on there, and the choice is saved with the chat.
-  - **What it needs.** A SearXNG instance (Settings → Services → Web search; `--search-backend searxng` runs
-    one on the Spark) and a model that declares **Tool calling** under Language model. `llama-server` must
-    run with `--jinja` for tool calls. Without both, the switch stays hidden.
+  answers. New conversations start with it on, and the choice is saved with the chat.
+  - **What it needs.** The stack's SearXNG, which the app reaches on the Spark's compose network, and a model
+    that declares tool calling: Saluki does, with `llama-server --jinja`. A workspace on another machine has
+    no SearXNG, so the switch stays hidden there.
   - **How it works.** The model gets two tools, `web_search` (five results: title, URL, snippet) and
     `fetch_page` (the page's main text through Readability, at most 24,000 characters). The server runs the
     calls and sends the results back, for at most 6 rounds per answer; then the model is asked once more
@@ -126,35 +129,35 @@ API additions:
 
 ## Model backends
 
-The DGX stack drops upstream's bundled Qwen3.6 LLM. Chat, mind maps and summaries default to Saluki 27B
-(`saluki-27b`) in `llama-server` on port 8331, which is started by hand (an `--llm-backend` service is
-planned). New installs and the guided setup point there, with image input and tool calling declared (the
-guided setup switches it on once Saluki answers). An existing install switches its LLM to Saluki once, on its
-first start after the upgrade, whatever it used before, and drops that LLM's key; `data/config/upgrades.json`
-records the switch, so another OpenAI-compatible endpoint chosen in Settings afterwards stays. An install with
-no Saluki address, in its environment or from the reference preset, keeps its LLM. The grounding service is dropped too
-(LocateAnything-3B was removed from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself
-stays and works once a grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
-defaults, speech is Parakeet only, and video generation is Sparkfire's own; three can be switched at
-deploy time:
+Sparkfire's models are fixed: one per service, chosen and measured to share the Spark's memory
+(`validation.md`). Users do not pick models, URLs or keys, and there are no start options that switch them;
+only video can be left out, where its license does not apply.
 
-| Service | Default | Alternative | Option |
-|---|---|---|---|
-| OCR (:8332) | Unlimited-OCR | PaddleOCR-VL-1.6 (layout adapter + vLLM VLM on :8342) | `--ocr-backend paddleocr-vl` |
-| Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) | | |
-| Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
-| | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
-| Video (:8337) | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US) | none | `--video-backend none` |
-| Music (:8339) | none (opt-in) | YuE2-3B (CC BY-NC 4.0 weights with a creator permission) | `--music-backend yue2` |
+| Service | Model |
+|---|---|
+| LLM (:8331) | Underdog Saluki 27B (`saluki-27b`), a 2-bit GGUF of Qwen3.8-27B with its vision add-on, in llama.cpp's `llama-server` |
+| OCR (:8332) | PaddleOCR-VL-1.6 (layout adapter + vLLM VLM on :8342) |
+| Speech (:8333) | Parakeet-TDT-0.6B-v3 (parakeet.cpp; CC BY 4.0; 25 European languages) |
+| Translation (:8334) | Hy-MT2-1.8B-FP8 |
+| Image (:8336) | Qwen-Image-2.1-Turbo (float8 weights, 8 fixed steps, 2K sizes; Qwen Research License) |
+| Video (:8337) | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US): `--video-backend none` leaves it out |
+| Music (:8339) | YuE2-3B (CC BY-NC 4.0 weights with a creator permission) |
+| Web search (:8338) | SearXNG |
 
-```bash
-./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
-```
-
-Sparkfire chooses the OCR request format from the model id. After switching the OCR backend on an
-existing install, set the OCR model to `PaddleOCR-VL-1.6` in Settings → Services. The adapter also
-accepts chat-style OCR requests, so a stale setting keeps working, but layout blocks
-(`document.layout.json`) need the new model id.
+- **Saluki.** `services/dgx-models/llama-server` builds `llama-server` from llama.cpp `b11576` (pinned commit)
+  for the GB10 (sm_121), on the same PyTorch base image as Parakeet. The start script downloads the GGUF and
+  its vision add-on and starts Saluki first, with the flags its memory was measured with: `--jinja -ngl 99
+  -fa on -c 65536 --parallel 1 --alias saluki-27b`. Its download takes the current revision (`main`) until
+  its commit is pinned. It replaces upstream's bundled Qwen3.6 LLM, at half the memory and with no loading peak.
+- **Every start applies the stack.** The app takes each model from `REFERENCE_SERVICE_CATALOG` and only the
+  address from where the stack runs: the start scripts' environment first, then the host chosen in setup.
+  Saved services, models and keys are replaced, and a save from Settings cannot change them. An install set up
+  by hand goes through setup in the browser again. Upgraded installs therefore move to PaddleOCR-VL,
+  Qwen-Image-2.1-Turbo and Saluki by themselves.
+- **Retired.** Unlimited-OCR, Z-Image-Turbo and Qwen-Image 2.1 (40 steps) are no longer part of the stack;
+  the start script removes the Unlimited-OCR container, and earlier model files stay in `data/dgx-models`
+  until deleted. The adapters keep their profiles for those model ids. LocateAnything-3B, the grounding
+  model, was removed with its 10.9 GiB and 7.3 GB; the grounding module stays in the code but has no service.
 
 ## Speech recognition: Parakeet
 
@@ -234,8 +237,8 @@ page and in the Gallery, and can be a workflow node.
 
 ## Music generation: YuE2
 
-The Text to music module sings a song from lyrics and a style. It is opt-in: it appears only once its endpoint
-is on, which `--music-backend yue2` does, because YuE2's weights are non-commercial.
+The Text to music module sings a song from lyrics and a style. It is part of the stack, and each song shows
+the license line, because YuE2's weights are non-commercial.
 
 - **Model.** [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B) from m-a-p (release `yue2-v0.1.6`) with its
   audio decoder `m-a-p/YuE2-Vae`, about 7.8 GB at pinned revisions. It writes the song as an ABC score
@@ -269,7 +272,7 @@ that the LLM is idle, asks for confirmation, waits for memory to free up, and wa
 
 ```bash
 ./scripts/spark-switch.sh status
-./scripts/spark-switch.sh sparkfire --image-backend qwen-image-2.1
+./scripts/spark-switch.sh sparkfire
 ./scripts/spark-switch.sh llm
 ```
 
@@ -294,12 +297,11 @@ npm run dev
 
 ## Roadmap
 
-1. **LLM backend service:** package Saluki as a llama.cpp service built for sm_121 (the stack itself ships no LLM).
-   Saluki 27B takes half the memory and has no loading peak (see `validation.md`).
-2. **Safer LLM restarts:** start the LLM before the other services on every restart, and replace
-   `restart: unless-stopped` with a bounded restart, so a crash cannot turn into an out-of-memory loop.
-3. **Image defaults:** make Qwen-Image-2.1-Turbo the default Qwen backend, and its 2K sizes the default for
-   prompts with text.
+1. **Pin Saluki:** pin its Hugging Face commit in `scripts/start-dgx-spark.sh`, and measure the
+   `llama-server` image on the Spark.
+2. **Safer LLM restarts:** the start script starts Saluki first; replace `restart: unless-stopped` with a
+   bounded restart too, so a crash cannot turn into an out-of-memory loop.
+3. **Image sizes:** make Qwen-Image-2.1-Turbo's 2K sizes the default for prompts with text.
 4. **Security:**
    - Remove the open `cors()`.
    - Redact API keys in `GET /api/settings`.

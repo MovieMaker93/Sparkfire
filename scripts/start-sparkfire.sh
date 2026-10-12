@@ -88,20 +88,15 @@ if [[ -n "$MODEL_HOST" ]]; then
     printf 'Use a hostname or IPv4 address without a scheme, port, or path.\n' >&2
     exit 2
   fi
+  # Where the stack runs; its models are fixed by the app.
   export SYSTEM_STATUS_BASE_URL="http://$MODEL_HOST:8330"
-  # Saluki in llama-server, which the model host runs by hand (README, "Connect an LLM").
   export LLM_BASE_URL="http://$MODEL_HOST:8331/v1"
-  export LLM_MODEL="saluki-27b"
   export OCR_BASE_URL="http://$MODEL_HOST:8332/v1"
-  export OCR_MODEL="Unlimited-OCR"
   export STT_BASE_URL="http://$MODEL_HOST:8333/v1"
-  export STT_MODEL="Parakeet-TDT-0.6B-v3"
   export TRANSLATION_BASE_URL="http://$MODEL_HOST:8334/v1"
-  export TRANSLATION_MODEL="Hy-MT2-1.8B-FP8"
   export IMAGE_GENERATION_BASE_URL="http://$MODEL_HOST:8336/v1"
-  export IMAGE_GENERATION_MODEL="Z-Image-Turbo"
   export VIDEO_GENERATION_BASE_URL="http://$MODEL_HOST:8337/v1"
-  export VIDEO_GENERATION_MODEL="FastH3"
+  export MUSIC_GENERATION_BASE_URL="http://$MODEL_HOST:8339/v1"
   export SPARKFIRE_SETUP_COMPLETE="true"
   export SPARKFIRE_DEPLOYMENT_MODE="split"
 else
@@ -110,9 +105,9 @@ else
   export OCR_BASE_URL=""
   export STT_BASE_URL=""
   export TRANSLATION_BASE_URL=""
-  export GROUNDING_BASE_URL=""
   export IMAGE_GENERATION_BASE_URL=""
   export VIDEO_GENERATION_BASE_URL=""
+  export MUSIC_GENERATION_BASE_URL=""
   export SPARKFIRE_SETUP_COMPLETE="false"
   export SPARKFIRE_DEPLOYMENT_MODE="custom"
 fi
