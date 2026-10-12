@@ -205,7 +205,7 @@ by 1–8 GiB at 720p, 768p and longer clips; Sharp passes it by up to 17 GiB. Wi
 case, Sharp at 1344x768 for 10 s, used 106.6 of 121 GiB, so the stack still has about 14 GiB for a second
 job and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
 
-## Music generation: YuE2-3B (evaluated, not integrated)
+## Music generation: YuE2-3B
 
 [YuE2](https://github.com/multimodal-art-projection/YuE) (MAP, code Apache 2.0, weights CC BY-NC 4.0 with a
 creator permission) turns lyrics and a style into a song: it writes an editable ABC score, then sings it as
@@ -271,6 +271,12 @@ capability 12.1). Autoregressive decoding ran on CUDA graphs with FlashAttention
   is why heavy modules take turns through one lane (`src/server/gpu-lane.ts`).
 - Quality was judged by ear on the four short BF16 songs (English, Italian, Mandarin): very good. The long
   songs and the FP8 versions have not been rated yet.
+- **Through the app** (2026-10-12): an app built from the `text-to-music` branch, pointed at the music
+  service on :8339, made the Italian ballad from the Music tool in 51.7 s for 46.8 s of audio, with
+  `song.flac` (`generated-audio`) and `score.abc` (`score`) both derived from `Lyrics.txt`. Its score, handed
+  back through Continue with → Make a song with a jazz style and the same seed, came back as a 50.0 s song
+  in 40.6 s, derived from that score. The job page played the FLAC, showed the score as text and the license
+  under the song; the form and the job page had no horizontal scroll at 1440 and 375 px in either theme.
 
 ## Memory
 

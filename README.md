@@ -9,7 +9,7 @@
 [![Express](https://img.shields.io/badge/Express-5-444444?style=flat-square)](https://expressjs.com)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-**Sparkfire turns files into reusable AI work. It reads documents, transcribes recordings, translates, generates images and videos with sound, maps ideas, and lets you chat about all of it, with web search when you turn it on. The models run on your own DGX Spark.**
+**Sparkfire turns files into reusable AI work. It reads documents, transcribes recordings, translates, generates images and videos with sound, sings songs from your lyrics, maps ideas, and lets you chat about all of it, with web search and music when you turn them on. The models run on your own DGX Spark.**
 
 Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a translation, a mind map or a conversation; a generated image becomes the first frame of a video. Five specialised models share one Spark behind one interface, next to the LLM of your choice, and your files stay on your network.
 
@@ -72,6 +72,12 @@ FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/Mi
 
 [![Typing a scene and its sound, the progress view, then the finished clip playing on the job page (click for the MP4)](.github/media/video.webp)](.github/media/video.mp4)
 
+### Make songs (optional)
+
+Write lyrics, mark the parts with `[Verse]`, `[Chorus]` and `[Bridge]`, describe the style (genre, voice, instruments, tempo), and YuE2 sings it as a song with its own accompaniment: 48 kHz stereo, in English, Italian, Mandarin and other languages. It writes the song as an editable score first (melody and chords in ABC notation), and the score stays with the song. Hand the score back with **Continue with → Make a song** to sing the same melody in another style, or after editing a note. The lyrics can come from any text result too: a transcript, an OCR page, a translation. Once the model is loaded a song takes about as long as it plays, so a three-minute song takes three to four minutes; songs take turns with videos ([Heavy jobs take turns](#heavy-jobs-take-turns)).
+
+Music is off unless you start the stack with `--music-backend yue2`, because YuE2's weights are non-commercial: you may publish and sell the songs you make, but a company needs a license from the authors ([model licenses](#model-licenses)). [YuE2](https://github.com/multimodal-art-projection/YuE) is made by the Multimodal Art Projection team (m-a-p).
+
 ### Chat with your files
 
 Attach images, PDFs or text files with the + button, choose how hard the model should think (Off, Low, Medium, High), and watch its reasoning before the answer. Any finished job can also be opened in a chat. Answers run on the server, so leaving the page, switching chats or reloading does not stop them: come back and the answer is still being written, or already saved.
@@ -126,13 +132,14 @@ cd Sparkfire
 - `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). FastH3, the video model, is not licensed in the EU, the UK, South Korea or the US: add `--video-backend none` there.
 - Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only).
 - Add `--search-backend searxng` to let chat search the web through a local SearXNG (about 200 MB, no model).
+- Add `--music-backend yue2` to make songs from lyrics with YuE2 (about 8 GB more; non-commercial weights, see [Make songs](#make-songs-optional)).
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
-| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, or `--video-backend none` to leave video out |
+| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, `--video-backend none` to leave video out, or `--music-backend yue2` to add music |
 | Use Unlimited-OCR instead of PaddleOCR-VL | leave out `--ocr-backend` |
 | Update | `git pull`, then run the start script again with the same options |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparkfire` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
@@ -202,7 +209,7 @@ Set `HF_TOKEN` in the shell when a model download needs authentication or more d
 
 ### The reference stack
 
-Five models share the Spark, each in its own container behind an OpenAI-compatible API, so any of them can be replaced by an endpoint you configure.
+Five models share the Spark, six with music, each in its own container behind an OpenAI-compatible API, so any of them can be replaced by an endpoint you configure.
 
 | Capability | Default | Alternatives | Port |
 | --- | --- | --- | --- |
@@ -211,6 +218,7 @@ Five models share the Spark, each in its own container behind an OpenAI-compatib
 | Translation | [Hy-MT2-1.8B-FP8](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | | 8334 |
 | Image generation | [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) in diffusers | [Qwen-Image-2.1-Turbo](https://huggingface.co/Qwen/Qwen-Image-2.1) or Qwen-Image 2.1, non-commercial: `--image-backend qwen-image-2.1-turbo` | 8336 |
 | Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy), Fast and Sharp, in ComfyUI | none: `--video-backend none` | 8337 |
+| Music generation | off | [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B), non-commercial: `--music-backend yue2` | 8339 |
 | Web search for chat | off | SearXNG: `--search-backend searxng` (bound to 127.0.0.1) | 8338 |
 | System monitor | memory, GPU and service health in the sidebar | | 8330 |
 | Language model | not shipped: any OpenAI-compatible endpoint ([Saluki 27B](#connect-an-llm) in the reference) | | yours |
@@ -236,6 +244,7 @@ Measured on one Spark with every service loaded and idle. GPU is what the contai
 | 8 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
 | 9 | `sparklingkit-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
 | — | `sparklingkit-searxng` | SearXNG, only with `--search-backend searxng` | — | capped at 0.5 GiB | not measured |
+| — | `sparklingkit-music-generation` | YuE2-3B, only with `--music-backend yue2`; nothing loaded until a song | — | — | about 0 idle |
 
 Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes. The alternatives change single rows:
 
@@ -250,6 +259,7 @@ Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it 
 | Busy (two jobs at a time, the app's default) | about 38 GiB at peak |
 | Starting up | about 39 GiB at peak |
 | A video job (on top of the above) | +35–39 GiB for Fast at 480p, +41–48 GiB for Fast at 720p or longer, +44–57 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
+| A song (on top of the above) | about +20 GiB at its peak, short or long; about 15 GiB stays loaded until 10 minutes without a song |
 
 These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack. The older 84–96 GiB figures in that file were measured with the Qwen3.6 LLM and Qwen3-ASR resident, before Sparkfire removed them.
 
@@ -259,14 +269,14 @@ That leaves about 90 GiB for an LLM of your choice (Saluki needs about 13 GiB), 
 
 ### Heavy jobs take turns
 
-Some jobs load tens of GiB only while they work. Today that is video (35–57 GiB per job). Two of them side by side do not fit on a Spark next to the rest of the stack, so Sparkfire runs them **one at a time**:
+Some jobs load tens of GiB only while they work: video (35–57 GiB per job) and music (about 20 GiB per song). Two of them side by side do not fit on a Spark next to the rest of the stack, so Sparkfire runs them **one at a time**:
 
 - **One heavy job at a time, in order.** Ask for a second video while one renders and it shows *Waiting for the GPU* with what is running, then starts by itself. You can stop it while it waits.
 - **Everything else keeps going.** Heavy jobs wait on their own queue, so OCR, transcription, translation, images, mind maps and chat never queue behind a video. They run more slowly while it renders, because they share the GPU.
-- **Workflows too.** A video node in a workflow waits for the same lane as a video started from its page.
-- **Switching frees memory first.** A heavy service keeps its weights for a while after a job (video: 10 minutes), so the next video starts warm. When the next heavy job belongs to a different module, Sparkfire first tells the previous service to free its weights, instead of loading on top of them.
+- **Workflows too.** A video or music node in a workflow waits for the same lane as one started from its page.
+- **Switching frees memory first.** A heavy service keeps its weights for a while after a job (10 minutes for both), so the next video or song starts warm. When the next heavy job belongs to the other module, a song after a video for example, Sparkfire first tells the previous service to free its weights, instead of loading on top of them. The music service also refuses to load while less than 22 GiB is free, in case something outside Sparkfire took the memory.
 
-Music generation is being evaluated for the same lane: a YuE2 song adds about 20 GiB, which fits beside the busy stack but not beside a video job ([docs/validation.md](docs/validation.md)).
+A song next to a busy stack (images, OCR, speech, translation and chat all working) fits with 39 GiB to spare, but takes about twice as long and slows the others; the measurements are in [docs/validation.md](docs/validation.md).
 
 ## Video: choices and trade-offs
 
@@ -427,14 +437,16 @@ Sparkfire changes copyright 2026 MovieMaker93.
 
 Model weights are not part of this repository. The start script downloads them after you accept their terms; the acceptance flag records that you reviewed them and does not change them. OCR, speech, translation and Z-Image-Turbo can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
-Two models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo (opt-in) use the Qwen Research License (non-commercial). FastH3, the default video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository. Start the stack with `--video-backend none` where FastH3's license does not apply.
+Three models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo (opt-in) use the Qwen Research License (non-commercial). FastH3, the default video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository. Start the stack with `--video-backend none` where FastH3's license does not apply.
+
+YuE2 (opt-in, `--music-backend yue2`) has its code under Apache 2.0 and its weights under [CC BY-NC 4.0 with a creator permission](https://github.com/multimodal-art-projection/YuE/blob/main/MODEL_LICENSE): personal users and creators may publish and monetize the songs they make, academic use is non-commercial, and companies need a commercial license from m-a-p. Each song in Sparkfire shows that line.
 
 [SearXNG](https://github.com/searxng/searxng), which runs web search, is AGPL-3.0. Like ComfyUI, it runs from its own pinned image as a separate service and is not part of this repository.
 
 ## Acknowledgements
 
 - [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project Sparkfire is built on.
-- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)), MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3), whose text encoder uses Qwen's Qwen3-VL-32B weights), and [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, whose [FastH3 Trim](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) and [FastH3 V2](https://huggingface.co/FastVideo/FastVideo-FastH3-Comfy) distills and workflow templates make the videos.
+- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)), MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3), whose text encoder uses Qwen's Qwen3-VL-32B weights), the Multimodal Art Projection team ([YuE2](https://github.com/multimodal-art-projection/YuE), which writes and sings the songs), and [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, whose [FastH3 Trim](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) and [FastH3 V2](https://huggingface.co/FastVideo/FastVideo-FastH3-Comfy) distills and workflow templates make the videos.
 - The reference LLM, run next to the stack: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) by ConwayResearch.
 - The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org (GPL-3.0), which runs FastH3 with Comfy-Org's [comfy-kitchen](https://pypi.org/project/comfy-kitchen/) kernels, [PyAV](https://github.com/PyAV-Org/PyAV), which writes the disclosure into each video, [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
 - Web search: [SearXNG](https://github.com/searxng/searxng) (AGPL-3.0), which queries the search engines, and Mozilla's [Readability](https://github.com/mozilla/readability) with [linkedom](https://github.com/WebReflection/linkedom) by Andrea Giammarchi (WebReflection), which pull the main text out of the pages chat reads.
