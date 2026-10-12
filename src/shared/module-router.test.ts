@@ -2,12 +2,19 @@ import { describe, expect, it } from "vitest";
 import { compatibleModuleContracts, getModuleContract, MODULE_CONTRACTS, moduleHandoffUrl, moduleWorkflowForArtifact, nextModuleActions } from "./module-router.js";
 
 describe("module artifact router", () => {
-  it("marks only grounding, whose service the stack does not ship, as hidden until configured", () => {
-    expect(MODULE_CONTRACTS.filter((contract) => contract.hiddenUntilConfigured).map((contract) => contract.id)).toEqual(["grounding"]);
+  it("hides grounding, which the stack does not ship, and opt-in music until they are configured", () => {
+    expect(MODULE_CONTRACTS.filter((contract) => contract.hiddenUntilConfigured).map((contract) => contract.id)).toEqual(["grounding", "text-to-music"]);
   });
 
-  it("puts video generation, which loads tens of GiB per job, in the heavy GPU lane", () => {
-    expect(MODULE_CONTRACTS.filter((contract) => contract.gpuLane === "heavy").map((contract) => contract.id)).toEqual(["text-to-video"]);
+  it("puts video and music generation, which load tens of GiB per job, in the heavy GPU lane", () => {
+    expect(MODULE_CONTRACTS.filter((contract) => contract.gpuLane === "heavy").map((contract) => contract.id)).toEqual(["text-to-video", "text-to-music"]);
+  });
+
+  it("sings text as lyrics and a score as written, and offers a score to nothing else", () => {
+    expect(moduleWorkflowForArtifact("text-to-music", "translation")).toBe("text-to-music.default");
+    expect(moduleWorkflowForArtifact("text-to-music", "score")).toBe("text-to-music.default");
+    expect(compatibleModuleContracts("score", "text-to-music").map((contract) => contract.id)).toEqual(["text-to-music"]);
+    expect(compatibleModuleContracts("generated-audio", "text-to-music").map((contract) => contract.id)).toEqual([]);
   });
 
   it("routes generated images into every compatible image workflow", () => {
@@ -18,7 +25,7 @@ describe("module artifact router", () => {
   });
 
   it("routes text results into translation, image generation, mind maps, and chat", () => {
-    expect(compatibleModuleContracts("document", "ocr").map((contract) => contract.id)).toEqual(["translation", "text-to-image", "text-to-video", "mindmap", "chat"]);
+    expect(compatibleModuleContracts("document", "ocr").map((contract) => contract.id)).toEqual(["translation", "text-to-image", "text-to-video", "text-to-music", "mindmap", "chat"]);
     expect(moduleWorkflowForArtifact("translation", "document")).toBe("translation.default");
     expect(moduleWorkflowForArtifact("text-to-image", "document")).toBe("text-to-image.default");
     expect(moduleWorkflowForArtifact("mindmap", "document")).toBe("mindmap.default");
@@ -26,7 +33,7 @@ describe("module artifact router", () => {
 
   it("derives outgoing actions and handoff URLs from the same contract", () => {
     const ocr = getModuleContract("ocr")!;
-    expect(nextModuleActions(ocr).map((action) => action.id)).toEqual(["translation", "text-to-image", "text-to-video", "mindmap", "chat"]);
+    expect(nextModuleActions(ocr).map((action) => action.id)).toEqual(["translation", "text-to-image", "text-to-video", "text-to-music", "mindmap", "chat"]);
     const imageGenerator = getModuleContract("text-to-image")!;
     expect(nextModuleActions(imageGenerator, ["text", "image"]).map((action) => action.id)).toEqual(["ocr", "grounding", "text-to-video", "mindmap", "chat"]);
     expect(moduleHandoffUrl("grounding", "job 1", "artifact/1")).toBe("/tools/grounding?job=job+1&artifact=artifact%2F1");

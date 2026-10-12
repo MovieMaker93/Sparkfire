@@ -15,32 +15,7 @@ import {
   type NodeProps,
   type ReactFlowInstance,
 } from "@xyflow/react";
-import {
-  AudioLines,
-  Bot,
-  Braces,
-  Check,
-  ChevronRight,
-  CircleStop,
-  Combine,
-  FileInput,
-  FileText,
-  Film,
-  GitBranch,
-  Image as ImageIcon,
-  Languages,
-  Merge,
-  MessageCircle,
-  Network,
-  Play,
-  Plus,
-  Save,
-  ScanSearch,
-  ScanText,
-  Split,
-  Trash2,
-  X,
-} from "lucide-react";
+import { AudioLines, Bot, Braces, Check, ChevronRight, CircleStop, Combine, FileInput, FileText, Film, GitBranch, Image as ImageIcon, Languages, Merge, MessageCircle, Music, Network, Play, Plus, Save, ScanSearch, ScanText, Split, Trash2, X } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { cn, timeAgo } from "../components/ui";
@@ -75,6 +50,7 @@ const serviceIcons: Record<WorkflowServiceId, typeof ScanText> = {
   grounding: ScanSearch,
   "text-to-image": ImageIcon,
   "text-to-video": Film,
+  "text-to-music": Music,
   mindmap: Network,
   "llm-prompt": Bot,
   chat: MessageCircle,
@@ -259,6 +235,7 @@ export function WorkflowEditorPage() {
         : serviceId === "grounding" ? { queries: ["object to find"] }
           : serviceId === "text-to-image" ? { prompt: "", size: "1024x1024" }
           : serviceId === "text-to-video" ? { prompt: "", size: "864x480", duration: 5 }
+          : serviceId === "text-to-music" ? { style: "" }
             : serviceId === "mindmap" ? { instructions: "", depth: 4, breadth: 5 }
               : serviceId === "llm-prompt" ? { prompt: "Summarize the supplied material into clear Markdown.", temperature: 0.2, maxTokens: 8192 }
               : {};
@@ -390,9 +367,10 @@ function NodeInspector({ node, definition, onChange, onDelete, onDeleteWorkflow 
       {serviceId === "grounding" && <label>Queries<textarea className="input" rows={6} value={Array.isArray(params.queries) ? params.queries.join("\n") : ""} onChange={(event) => updateParams({ queries: event.target.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean).slice(0, 12) })} placeholder="One thing per line" /></label>}
       {serviceId === "text-to-image" && <><label>Prompt<textarea className="input" rows={5} value={String(params.prompt || "")} onChange={(event) => updateParams({ prompt: event.target.value })} placeholder="Leave blank to use incoming text" /></label><label>Canvas<SearchSelect className="workflow-inspector-select" value={String(params.size || "1024x1024")} onChange={(size) => updateParams({ size })} options={[{ value: "1024x1024", label: "Square" }, { value: "1536x1024", label: "Landscape" }, { value: "1024x1536", label: "Portrait" }]} searchPlaceholder="Search canvas sizes" ariaLabel="Canvas size" /></label></>}
       {serviceId === "text-to-video" && <VideoNodeFields params={params} updateParams={updateParams} />}
+      {serviceId === "text-to-music" && <label>Style<textarea className="input" rows={3} value={String(params.style || "")} onChange={(event) => updateParams({ style: event.target.value })} placeholder="Genre, voice and instruments. Incoming text becomes the lyrics; an incoming score keeps the style of the song that wrote it" /></label>}
       {serviceId === "mindmap" && <><label>Focus<textarea className="input" rows={5} value={String(params.instructions || "")} onChange={(event) => updateParams({ instructions: event.target.value })} placeholder="Optional guidance for organizing the map" /></label><label>Levels<SearchSelect className="workflow-inspector-select" value={String(params.depth || 4)} onChange={(depth) => updateParams({ depth: Number(depth) })} options={[3, 4, 5, 6].map((value) => ({ value: String(value), label: `${value} levels` }))} searchPlaceholder="Search depth" ariaLabel="Mind map levels" /></label><label>Branches<SearchSelect className="workflow-inspector-select" value={String(params.breadth || 5)} onChange={(breadth) => updateParams({ breadth: Number(breadth) })} options={[3, 5, 7].map((value) => ({ value: String(value), label: `Up to ${value} per node` }))} searchPlaceholder="Search breadth" ariaLabel="Mind map branches" /></label></>}
       {serviceId === "llm-prompt" && <><label>Instruction<textarea className="input" rows={6} value={String(params.prompt || "")} onChange={(event) => updateParams({ prompt: event.target.value })} /></label><label>System instruction<textarea className="input" rows={4} value={String(params.systemPrompt || "")} onChange={(event) => updateParams({ systemPrompt: event.target.value })} placeholder="Optional" /></label><label>Temperature<input className="input" type="number" min={0} max={2} step={0.1} value={Number(params.temperature ?? 0.2)} onChange={(event) => updateParams({ temperature: Number(event.target.value) })} /></label></>}
-      {!["translation", "grounding", "text-to-image", "text-to-video", "mindmap", "llm-prompt"].includes(serviceId || "") && <p className="workflow-inspector-note">This node uses the service defaults from Settings.</p>}
+      {!["translation", "grounding", "text-to-image", "text-to-video", "text-to-music", "mindmap", "llm-prompt"].includes(serviceId || "") && <p className="workflow-inspector-note">This node uses the service defaults from Settings.</p>}
     </InspectorSection>}
     {node.type === "module" && serviceId !== "chat" && <InspectorSection title="Result">
       <label className="workflow-check-row"><input type="checkbox" checked={config.storeResult !== false} onChange={(event) => updateConfig({ storeResult: event.target.checked })} />Store the result</label>

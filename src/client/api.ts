@@ -1,6 +1,7 @@
 import type { ChatEffort, ChatToolActivity } from "../shared/contracts";
 import type { ImageCapabilities } from "./image-capabilities";
 import type { VideoCapabilities } from "./video-capabilities";
+import type { MusicCapabilities } from "./music-capabilities";
 import type { Chat, ChatAttachment, EndpointConfig, GalleryItem, EndpointHealth, EndpointKind, FlowRun, Health, Job, ModuleDescriptor, ModuleId, PromptPreset, SearchResponse, SearchScope, Settings, SparkStatus, WorkflowDefinition, WorkflowRun, WorkflowValidationResult } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -69,6 +70,8 @@ export const api = {
   imageCapabilities: () => request<ImageCapabilities>("/api/modules/text-to-image/capabilities"),
   createImageJob: (prompt: string, size: string, options: { steps?: number; seed?: number } = {}) => request<Job>("/api/modules/text-to-image/jobs", { method: "POST", body: JSON.stringify({ prompt, size, ...options }) }),
   videoCapabilities: () => request<VideoCapabilities>("/api/modules/text-to-video/capabilities"),
+  musicCapabilities: () => request<MusicCapabilities>("/api/modules/text-to-music/capabilities"),
+  createMusicJob: (lyrics: string, style: string, options: { seed?: number } = {}) => request<Job>("/api/modules/text-to-music/jobs", { method: "POST", body: JSON.stringify({ lyrics, style, ...options }) }),
   createMindMapJob: (subject: string, options: { instructions?: string; depth: number; breadth: number }) => request<Job>("/api/modules/mindmap/jobs", { method: "POST", body: JSON.stringify({ subject, ...options }) }),
   jobs: () => request<{ jobs: Job[]; total: number }>("/api/jobs"),
   gallery: (options: { source?: "all" | "generated" | "uploaded"; model?: string; offset?: number; limit?: number } = {}) => {

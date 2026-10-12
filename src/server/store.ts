@@ -82,6 +82,7 @@ function migrateBundledServiceDefaults(saved: Partial<Settings>) {
   move("grounding", true);
   move("image-generation", true);
   move("video-generation", true);
+  move("music-generation", true);
   return changed;
 }
 
@@ -176,6 +177,8 @@ function outputArtifactKind(file: string): ArtifactKind {
   if (lower.includes("grounding") && /\.(?:svg|png|jpe?g|webp)$/.test(lower)) return "grounded-image";
   if (/\.(?:png|jpe?g|webp|gif|avif)$/.test(lower)) return "generated-image";
   if (/\.(?:mp4|webm|mov|mkv)$/.test(lower)) return "generated-video";
+  if (/\.(?:flac|wav|mp3|ogg|opus|m4a)$/.test(lower)) return "generated-audio";
+  if (lower.endsWith(".abc")) return "score";
   if (/\.(?:srt|vtt)$/.test(lower)) return "subtitle";
   if (lower.endsWith(".json")) return lower.includes("ground") ? "annotations" : "structured-data";
   if (lower.includes("translation")) return "translation";
@@ -335,17 +338,37 @@ export async function createTextToVideoJob(prompt: string, params: Record<string
   return createPromptJob("text-to-video", prompt, params, firstFrame);
 }
 
-async function createPromptJob(moduleId: "text-to-image" | "text-to-video", prompt: string, params: Record<string, unknown>, image?: Express.Multer.File): Promise<JobManifest> {
+/** A song from lyrics and a style. The lyrics are the job's source file, so they can be read and reused. */
+export async function createTextToMusicJob(lyrics: string, style: string, params: Record<string, unknown> = {}): Promise<JobManifest> {
+  if (!lyrics.trim()) throw invalid("Enter the lyrics");
+  if (!style.trim()) throw invalid("Describe the style: the genre, the voice and the instruments");
+  // Named after its first sung line rather than a section tag such as [Verse].
+  const firstLine = lyrics.split(/\r?\n/).map((line) => line.trim()).find((line) => line && !/^\[[^\]]*\]$/.test(line));
+  return createPromptJob("text-to-music", lyrics, { ...params, style: style.trim() }, undefined, {
+    file: { name: "Lyrics.txt", storedName: "lyrics.txt" },
+    param: "lyrics",
+    title: firstLine || style.trim(),
+  });
+}
+
+async function createPromptJob(
+  moduleId: "text-to-image" | "text-to-video" | "text-to-music",
+  prompt: string,
+  params: Record<string, unknown>,
+  image?: Express.Multer.File,
+  options: { file?: { name: string; storedName: string }; param?: string; title?: string } = {},
+): Promise<JobManifest> {
   const normalizedPrompt = prompt.trim();
   const workflowId = `${moduleId}.default`;
-  const title = normalizedPrompt.replace(/\s+/g, " ").slice(0, 80);
+  const title = (options.title || normalizedPrompt).replace(/\s+/g, " ").slice(0, 80);
+  const param = options.param || "prompt";
   const settings = await readSettings();
   const id = `${timestampId(settings.ui.timezone)}_${slugify(title)}-${randomUUID().slice(0, 6)}`;
   const root = jobDir(id);
   await Promise.all(["input", "work", "output"].map((dir) => fs.mkdir(path.join(root, dir), { recursive: true })));
-  const storedName = "prompt.txt";
+  const storedName = options.file?.storedName || "prompt.txt";
   await fs.writeFile(path.join(root, "input", storedName), `${normalizedPrompt}\n`, "utf8");
-  const inputs = [{ name: "Prompt.txt", storedName, mimeType: "text/plain", size: Buffer.byteLength(`${normalizedPrompt}\n`) }];
+  const inputs = [{ name: options.file?.name || "Prompt.txt", storedName, mimeType: "text/plain", size: Buffer.byteLength(`${normalizedPrompt}\n`) }];
   if (image) {
     const imageName = `first-frame${path.extname(image.originalname).toLowerCase()}`;
     await fs.rename(image.path, path.join(root, "input", imageName));
@@ -364,7 +387,7 @@ async function createPromptJob(moduleId: "text-to-image" | "text-to-video", prom
     updatedAt: now,
     inputArtifactIds: artifacts.map((artifact) => artifact.id),
     outputArtifactIds: [],
-    params: { ...params, prompt: normalizedPrompt },
+    params: { ...params, [param]: normalizedPrompt },
     steps: [],
     warnings: [],
   };
@@ -385,7 +408,7 @@ async function createPromptJob(moduleId: "text-to-image" | "text-to-video", prom
     artifacts,
     runs: [run],
     warnings: [],
-    params: { ...params, prompt: normalizedPrompt },
+    params: { ...params, [param]: normalizedPrompt },
   };
   await atomicWriteJson(path.join(root, "job.json"), manifest);
   return manifest;

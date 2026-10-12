@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Film, Globe, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
+import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Film, Globe, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Music, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
 import { api } from "../api";
 import { cn } from "../components/ui";
 import { SearchSelect } from "../components/SearchSelect";
@@ -19,6 +19,7 @@ const endpointMeta: Record<EndpointKind, { title: string; caption: string; tint:
   grounding: { title: "Grounding", caption: "Evidence location, highlighting, and redaction", tint: "endpoint-icon endpoint-grounding", icon: ScanSearch },
   "image-generation": { title: "Image generation", caption: "Text prompts to generated images", tint: "endpoint-icon endpoint-image-generation", icon: ImageIcon },
   "video-generation": { title: "Video generation", caption: "Text prompts and images to videos with sound", tint: "endpoint-icon endpoint-video-generation", icon: Film },
+  "music-generation": { title: "Music generation", caption: "Lyrics and a style to songs with vocals and a score", tint: "endpoint-icon endpoint-music-generation", icon: Music },
 };
 
 const systemStatusMeta = {

@@ -20,6 +20,8 @@ function savedFileKind(fileName: unknown): ArtifactKind {
   const lower = typeof fileName === "string" ? fileName.trim().toLowerCase() : "";
   if (/\.(?:png|jpe?g|webp|gif|avif)$/.test(lower)) return "generated-image";
   if (/\.(?:mp4|webm|mov|mkv)$/.test(lower)) return "generated-video";
+  if (/\.(?:flac|wav|mp3|ogg|opus|m4a)$/.test(lower)) return "generated-audio";
+  if (lower.endsWith(".abc")) return "score";
   if (/\.(?:srt|vtt)$/.test(lower)) return "subtitle";
   if (lower.endsWith(".json")) return "structured-data";
   return "document";
