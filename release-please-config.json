@@ -7,8 +7,7 @@
   "packages": {
     ".": {
       "package-name": "sparkfire",
-      "changelog-path": "CHANGELOG.md",
-      "release-as": "0.1.0"
+      "changelog-path": "CHANGELOG.md"
     }
   },
   "changelog-sections": [
