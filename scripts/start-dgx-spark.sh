@@ -17,13 +17,14 @@ ASR_BACKEND="${SPARKFIRE_ASR_BACKEND:-${SPARKLINGKIT_ASR_BACKEND:-parakeet}}"
 IMAGE_BACKEND="${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}"
 VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}}"
 SEARCH_BACKEND="${SPARKFIRE_SEARCH_BACKEND:-none}"
+MUSIC_BACKEND="${SPARKFIRE_MUSIC_BACKEND:-none}"
 
 usage() {
   cat <<'EOF'
 Usage: ./scripts/start-dgx-spark.sh [start|status|stop] [options]
 
 Set up and run Sparkfire's reference model stack on a 128 GB DGX Spark: OCR, transcription,
-translation, image generation and video generation.
+translation, image generation and video generation, and music generation when you turn it on.
 
 Options:
   --accept-model-licenses  Confirm that you reviewed and accept each model's terms
@@ -40,6 +41,9 @@ Options:
                            South Korea or the US
   --search-backend NAME    none (default) or searxng: web search for chat through a local SearXNG;
                            each conversation still turns it on, and the model needs tool calling
+  --music-backend NAME     none (default) or yue2: songs with vocals from lyrics and a style; YuE2's
+                           weights are CC BY-NC 4.0 (creators may sell their songs, companies need
+                           a license from m-a-p)
   -h, --help               Show this help
 
 Examples:
@@ -77,13 +81,14 @@ while (($#)); do
     --models-only)
       DEPLOY_APP=false
       ;;
-    --ocr-backend|--asr-backend|--image-backend|--video-backend|--search-backend)
+    --ocr-backend|--asr-backend|--image-backend|--video-backend|--search-backend|--music-backend)
       if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
       case "$1" in
         --ocr-backend) OCR_BACKEND="$2" ;;
         --asr-backend) ASR_BACKEND="$2" ;;
         --video-backend) VIDEO_BACKEND="$2" ;;
         --search-backend) SEARCH_BACKEND="$2" ;;
+        --music-backend) MUSIC_BACKEND="$2" ;;
         *) IMAGE_BACKEND="$2" ;;
       esac
       shift
@@ -134,7 +139,15 @@ case "$SEARCH_BACKEND" in
   none) export SPARKFIRE_SEARCH_BASE_URL="" ;;
   *) printf 'Unknown search backend: %s (use none or searxng)\n' "$SEARCH_BACKEND" >&2; exit 2 ;;
 esac
-export SPARKFIRE_OCR_BACKEND="$OCR_BACKEND" SPARKFIRE_ASR_BACKEND="$ASR_BACKEND" SPARKFIRE_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKFIRE_VIDEO_BACKEND="$VIDEO_BACKEND" SPARKFIRE_SEARCH_BACKEND="$SEARCH_BACKEND"
+# Music is opt-in for its non-commercial license: without it the app's music endpoint and the monitor's port
+# stay empty.
+case "$MUSIC_BACKEND" in
+  yue2) export SPARKFIRE_MUSIC_BASE_URL="http://host.docker.internal:8339/v1" SPARKFIRE_MUSIC_PORT="8339" ;;
+  none) export SPARKFIRE_MUSIC_BASE_URL="" SPARKFIRE_MUSIC_PORT="" ;;
+  *) printf 'Unknown music backend: %s (use none or yue2)
+' "$MUSIC_BACKEND" >&2; exit 2 ;;
+esac
+export SPARKFIRE_OCR_BACKEND="$OCR_BACKEND" SPARKFIRE_ASR_BACKEND="$ASR_BACKEND" SPARKFIRE_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKFIRE_VIDEO_BACKEND="$VIDEO_BACKEND" SPARKFIRE_SEARCH_BACKEND="$SEARCH_BACKEND" SPARKFIRE_MUSIC_BACKEND="$MUSIC_BACKEND"
 
 # SearXNG signs its tokens with a secret that stays on this machine (data/ is never committed).
 SEARXNG_SECRET_FILE="data/searxng/secret"
@@ -156,6 +169,9 @@ COMPOSE=(
   --file compose.spark.yaml
   --file compose.dgx.yaml
   --file compose.search.yaml
+  # The music service sits in a profile so a plain `docker compose up` leaves it out; the script names its
+  # services explicitly, and the profile lets stop and ps cover it too.
+  --profile music
 )
 
 require_command() {
@@ -203,7 +219,7 @@ if [[ "$ACTION" == "stop" ]]; then
     "${COMPOSE[@]}" stop
     printf 'Sparkfire and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation searxng dgx-status
+    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation music-generation searxng dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -229,6 +245,9 @@ show_status() {
   endpoint_status "Image generation" "http://127.0.0.1:8336/health"
   if [[ "$VIDEO_BACKEND" != "none" ]]; then
     endpoint_status "Video generation" "http://127.0.0.1:8337/health"
+  fi
+  if [[ "$MUSIC_BACKEND" != "none" ]]; then
+    endpoint_status "Music generation" "http://127.0.0.1:8339/health"
   fi
   if [[ "$SEARCH_BACKEND" == "searxng" ]]; then
     endpoint_status "Web search" "http://127.0.0.1:8338/healthz"
@@ -270,6 +289,8 @@ Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) use
 and FastH3 (video generation) uses the MiniMax H3 Community License, which grants use only "worldwide,
 excluding" the European Union, the United Kingdom, South Korea and the United States, and asks that shared
 videos be disclosed as machine-generated. Use --video-backend none where it does not apply.
+YuE2 (--music-backend yue2) uses CC BY-NC 4.0 with a creator permission: personal users and creators may
+publish and sell their songs, academic use is non-commercial, and companies need a license from m-a-p.
 EOF
   if [[ -t 0 ]]; then
     printf 'Have you reviewed and accepted the model terms? [y/N] ' >&2
@@ -290,6 +311,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding Sparkfire and DGX service images...\n'
   build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 z-image dgx-status)
   if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then build_targets+=(video-generation); fi
+  if [[ "$MUSIC_BACKEND" == "yue2" ]]; then build_targets+=(music-generation); fi
   if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
@@ -400,6 +422,11 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
       "FastVideo/FastVideo-FastH3-Comfy" \
       "diffusion_models/fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"
   fi
+  if [[ "$MUSIC_BACKEND" == "yue2" ]]; then
+    # The song model (score, semantic and acoustic stages) and the audio decoder, about 7.8 GB together.
+    download_model       "m-a-p/YuE2-3B"       "8f24312f187763b9854adeec87e437e2b03bbff1"       "m-a-p/YuE2-3B"
+    download_model       "m-a-p/YuE2-Vae"       "152733a19ad43aa67e367f9b5503ef8075bb5126"       "m-a-p/YuE2-Vae"
+  fi
 fi
 
 wait_for_endpoint() {
@@ -456,6 +483,12 @@ if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
   start_service video-generation "Video generation (FastH3)" "http://127.0.0.1:8337/health" 600
 else
   "${COMPOSE[@]}" stop video-generation
+fi
+# Music loads nothing until its first song either.
+if [[ "$MUSIC_BACKEND" == "yue2" ]]; then
+  start_service music-generation "Music generation (YuE2)" "http://127.0.0.1:8339/health" 300
+else
+  "${COMPOSE[@]}" stop music-generation
 fi
 # SearXNG holds no model (about 200 MB), so it starts after the models without changing their memory order.
 if [[ "$SEARCH_BACKEND" == "searxng" ]]; then

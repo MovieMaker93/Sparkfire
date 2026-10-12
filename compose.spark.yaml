@@ -28,6 +28,8 @@ services:
       # Empty with start-dgx-spark.sh --video-backend none, so the monitor does not expect the service.
       VIDEO_GENERATION_PORT: ${SPARKFIRE_VIDEO_PORT-${SPARKLINGKIT_VIDEO_PORT-8337}}
       VIDEO_COMFY_PORT: "8347"
+      # Set only with start-dgx-spark.sh --music-backend yue2; empty, the monitor does not expect the service.
+      MUSIC_GENERATION_PORT: ${SPARKFIRE_MUSIC_PORT-}
       IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8330/health', timeout=2)"]

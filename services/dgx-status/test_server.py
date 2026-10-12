@@ -58,6 +58,16 @@ class ProcessServiceTests(unittest.TestCase):
     def test_lists_video_generation_unless_its_port_is_empty(self):
         self.assertIn(("video-generation", "Video generation", 8337), server.SERVICE_SPECS)
 
+    def test_lists_music_generation_only_when_its_port_is_set(self):
+        self.assertNotIn("music-generation", [service_id for service_id, _, _ in server.SERVICE_SPECS])
+
+    def test_names_the_music_service_by_its_script(self):
+        self.write_process(4545, ["python3", "/app/music_server.py"], {})
+        self.assertEqual(
+            server.resolve_process_service(4545),
+            {"service": "music-generation", "serviceLabel": "Music generation", "port": 8339, "model": "YuE2-3B"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

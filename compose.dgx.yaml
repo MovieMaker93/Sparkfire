@@ -1,4 +1,5 @@
-# Reference deployment for a 128 GB NVIDIA DGX Spark: four model services plus video generation.
+# Reference deployment for a 128 GB NVIDIA DGX Spark: four model services plus video generation, and
+# music generation when it is turned on.
 # Use through scripts/start-dgx-spark.sh so the memory-heavy services start
 # sequentially and are checked for readiness before the next model is loaded.
 # The stack ships no LLM (chat and mind maps use an endpoint configured in Settings) and no
@@ -19,6 +20,9 @@ services:
       # start-dgx-spark.sh --video-backend none sets this empty, so the endpoint is not configured.
       VIDEO_GENERATION_BASE_URL: ${SPARKFIRE_VIDEO_BASE_URL-${SPARKLINGKIT_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}}
       VIDEO_GENERATION_MODEL: FastH3
+      # Opt-in: start-dgx-spark.sh --music-backend yue2 sets this; empty, the endpoint is not configured.
+      MUSIC_GENERATION_BASE_URL: ${SPARKFIRE_MUSIC_BASE_URL-}
+      MUSIC_GENERATION_MODEL: YuE2-3B
       SPARKFIRE_SETUP_COMPLETE: "true"
       SPARKFIRE_DEPLOYMENT_MODE: all-in-one
 
@@ -320,3 +324,44 @@ services:
       timeout: 10s
       retries: 40
       start_period: 3m
+
+  # Music generation on :8339: YuE2 (m-a-p), lyrics and a style in, a 48 kHz stereo song with vocals and its
+  # ABC score out. Opt-in, because the weights are CC BY-NC 4.0: start-dgx-spark.sh --music-backend yue2, and
+  # the profile keeps a plain `docker compose up` from starting it. Nothing loads at start. A song loads about
+  # 15 GiB, since the adapter keeps the model and its decoder on the GPU (on the Spark's shared memory that
+  # saves a minute a song), and peaks near 20 GiB. The adapter refuses to load with less than 22 GiB free and
+  # frees the weights after MUSIC_IDLE_UNLOAD_SECONDS without a song.
+  music-generation:
+    build:
+      context: ./services/dgx-models/music
+    image: sparklingkit/music-generation:yue2-9c6c4b3
+    container_name: sparklingkit-music-generation
+    profiles: [music]
+    restart: unless-stopped
+    network_mode: host
+    ipc: host
+    mem_limit: ${MUSIC_MEM_LIMIT:-32g}
+    memswap_limit: ${MUSIC_MEM_LIMIT:-32g}
+    environment:
+      HF_HUB_OFFLINE: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      MUSIC_BACKEND: yue2
+      MODEL_NAME: YuE2-3B
+      PORT: "8339"
+      IDLE_UNLOAD_SECONDS: ${MUSIC_IDLE_UNLOAD_SECONDS:-600}
+    volumes:
+      - ./data/dgx-models:/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8339/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 1m
