@@ -42,11 +42,12 @@ const queueOptions = {
 
 export const workQueue = new Queue<WorkItem>("sparklingkit", queueOptions);
 /**
- * Runs of heavy GPU modules (video, music) wait here, one worker deep, so a run waiting for the GPU lane
- * sits in Redis instead of taking one of the general workers that OCR, chat and translation need.
+ * Runs of heavy GPU modules (video, music) go here, so a run waiting for the GPU lane never takes one of the
+ * general workers that OCR, chat and translation need. The lane, not this queue, makes them take turns.
  */
 export const heavyQueue = new Queue<WorkItem>("sparklingkit-heavy", queueOptions);
 const queues = [workQueue, heavyQueue];
+const HEAVY_QUEUE_WORKERS = 8;
 
 function queueForModule(moduleId: ModuleId | "text-transform" | undefined) {
   return moduleId && moduleId !== "text-transform" && getModuleContract(moduleId)?.gpuLane === "heavy" ? heavyQueue : workQueue;
@@ -104,7 +105,9 @@ export async function startWorker() {
     }
   };
   worker = new Worker<WorkItem>("sparklingkit", processItem, { connection: workerConnection, concurrency: settings.queue.workers });
-  heavyWorker = new Worker<WorkItem>("sparklingkit-heavy", processItem, { connection: workerConnection, concurrency: 1 });
+  // Several workers so that waiting runs reach the lane, which keeps their order and tells each one what it
+  // waits for; with one worker the next run would sit in Redis as "Waiting for a worker".
+  heavyWorker = new Worker<WorkItem>("sparklingkit-heavy", processItem, { connection: workerConnection, concurrency: HEAVY_QUEUE_WORKERS });
   for (const started of [worker, heavyWorker]) {
     started.on("failed", (job, error) => console.error(`[worker] ${job?.id || "unknown"}: ${error.message}`));
   }
