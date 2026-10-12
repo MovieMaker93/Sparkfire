@@ -263,12 +263,12 @@ export function WorkflowEditorPage() {
   }
 
   function onPaletteDrag(event: DragEvent, type: WorkflowNodeType, serviceId?: WorkflowServiceId) {
-    event.dataTransfer.setData("application/sparklingkit-node", JSON.stringify({ type, serviceId }));
+    event.dataTransfer.setData("application/sparkfire-node", JSON.stringify({ type, serviceId }));
     event.dataTransfer.effectAllowed = "move";
   }
   function onDrop(event: DragEvent) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/sparklingkit-node");
+    const raw = event.dataTransfer.getData("application/sparkfire-node");
     if (!raw || !instance) return;
     const item = JSON.parse(raw) as { type: WorkflowNodeType; serviceId?: WorkflowServiceId };
     addNode(item.type, item.serviceId, instance.screenToFlowPosition({ x: event.clientX, y: event.clientY }));

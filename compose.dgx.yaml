@@ -15,7 +15,7 @@ services:
       TRANSLATION_BASE_URL: http://host.docker.internal:8334/v1
       IMAGE_GENERATION_BASE_URL: http://host.docker.internal:8336/v1
       # start-dgx-spark.sh --video-backend none sets this empty, so the endpoint is not configured.
-      VIDEO_GENERATION_BASE_URL: ${SPARKFIRE_VIDEO_BASE_URL-${SPARKLINGKIT_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}}
+      VIDEO_GENERATION_BASE_URL: ${SPARKFIRE_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}
       MUSIC_GENERATION_BASE_URL: http://host.docker.internal:8339/v1
       SPARKFIRE_SETUP_COMPLETE: "true"
       SPARKFIRE_DEPLOYMENT_MODE: all-in-one
@@ -24,7 +24,7 @@ services:
     profiles: [tools]
     build:
       context: ./services/dgx-models/downloader
-    image: sparklingkit/model-downloader:0.1.0
+    image: sparkfire/model-downloader:0.1.0
     environment:
       HF_HOME: /tmp/huggingface
       HF_TOKEN: ${HF_TOKEN:-}
@@ -38,8 +38,8 @@ services:
   saluki:
     build:
       context: ./services/dgx-models/llama-server
-    image: sparklingkit/llama-server:b11576
-    container_name: sparklingkit-saluki
+    image: sparkfire/llama-server:b11576
+    container_name: sparkfire-saluki
     restart: unless-stopped
     network_mode: host
     environment:
@@ -87,8 +87,8 @@ services:
   parakeet:
     build:
       context: ./services/dgx-models/parakeet
-    image: sparklingkit/parakeet:parakeet.cpp-v0.5.0
-    container_name: sparklingkit-parakeet
+    image: sparkfire/parakeet:parakeet.cpp-v0.5.0
+    container_name: sparkfire-parakeet
     restart: unless-stopped
     network_mode: host
     environment:
@@ -118,7 +118,7 @@ services:
   # the VLM below, which listens on a private port.
   paddleocr-vlm:
     image: vllm/vllm-openai:v0.24.0@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f
-    container_name: sparklingkit-paddleocr-vlm
+    container_name: sparkfire-paddleocr-vlm
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -170,8 +170,8 @@ services:
   paddleocr-vl:
     build:
       context: ./services/dgx-models/paddleocr-vl
-    image: sparklingkit/paddleocr-vl-adapter:paddleocr-3.7.0
-    container_name: sparklingkit-paddleocr-vl
+    image: sparkfire/paddleocr-vl-adapter:paddleocr-3.7.0
+    container_name: sparkfire-paddleocr-vl
     restart: unless-stopped
     network_mode: host
     environment:
@@ -195,8 +195,8 @@ services:
   hy-mt2:
     build:
       context: ./services/dgx-models/hy-mt2
-    image: sparklingkit/hy-mt2-1.8b-fp8:transformers-5.6.0
-    container_name: sparklingkit-hy-mt2
+    image: sparkfire/hy-mt2-1.8b-fp8:transformers-5.6.0
+    container_name: sparkfire-hy-mt2
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -229,13 +229,12 @@ services:
       start_period: 3m
 
   # Image generation on :8336: Qwen-Image-2.1-Turbo (Qwen-Image 2.1 distilled to 8 steps, float8 weights, a
-  # 34 GB cap). The service keeps the name z-image from when Z-Image-Turbo was the model, so compose still owns
-  # the container of existing installs. Model path, steps and sizes follow the backend.
-  z-image:
+  # 34 GB cap). Model path, steps and sizes follow the backend.
+  image-generation:
     build:
       context: ./services/dgx-models/image-generation
-    image: sparklingkit/image-generation:diffusers-0.41.0
-    container_name: sparklingkit-image-generation
+    image: sparkfire/image-generation:diffusers-0.41.0
+    container_name: sparkfire-image-generation
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -282,8 +281,8 @@ services:
   video-generation:
     build:
       context: ./services/dgx-models/video
-    image: sparklingkit/video-generation:comfyui-0df64eb
-    container_name: sparklingkit-video-generation
+    image: sparkfire/video-generation:comfyui-0df64eb
+    container_name: sparkfire-video-generation
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -324,8 +323,8 @@ services:
   music-generation:
     build:
       context: ./services/dgx-models/music
-    image: sparklingkit/music-generation:yue2-9c6c4b3
-    container_name: sparklingkit-music-generation
+    image: sparkfire/music-generation:yue2-9c6c4b3
+    container_name: sparkfire-music-generation
     restart: unless-stopped
     network_mode: host
     ipc: host

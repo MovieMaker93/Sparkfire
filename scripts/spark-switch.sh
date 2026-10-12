@@ -37,9 +37,7 @@ done
 
 available_gib() { free -g | awk '/^Mem:/ {print $7}'; }
 container_running() { [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" == "true" ]]; }
-# Also matches the retired qwen36, qwen3-asr, locateanything and unlimited-ocr containers, which start-dgx-spark.sh stop
-# still stops when an earlier install left them running.
-sparklingkit_running() { docker ps --format '{{.Names}}' | grep -qE '^sparklingkit-(saluki|parakeet|unlimited-ocr|paddleocr-vlm|hy-mt2|image-generation|video-generation|music-generation|qwen36|qwen3-asr|locateanything)$'; }
+sparkfire_running() { docker ps --format '{{.Names}}' | grep -qE '^sparkfire-(saluki|parakeet|paddleocr-vlm|hy-mt2|image-generation|video-generation|music-generation)$'; }
 
 confirm() {
   [[ "$ASSUME_YES" == "true" ]] && return 0
@@ -91,9 +89,9 @@ case "$ACTION" in
   status)
     printf 'Memory available: %s GiB\n' "$(available_gib)"
     if container_running "$LLM_CONTAINER"; then printf 'LLM (%s): running\n' "$LLM_CONTAINER"; else printf 'LLM (%s): stopped\n' "$LLM_CONTAINER"; fi
-    if sparklingkit_running; then printf 'Sparkfire models: running\n'; else printf 'Sparkfire models: stopped\n'; fi
+    if sparkfire_running; then printf 'Sparkfire models: running\n'; else printf 'Sparkfire models: stopped\n'; fi
     ;;
-  sparkfire|sparklingkit)
+  sparkfire)
     if container_running "$LLM_CONTAINER"; then
       llm_idle || exit 1
       confirm "Stop $LLM_CONTAINER and start Sparkfire's model stack?" || exit 1
@@ -104,7 +102,7 @@ case "$ACTION" in
     ./scripts/start-dgx-spark.sh start "${FORWARD[@]}"
     ;;
   llm)
-    if sparklingkit_running; then
+    if sparkfire_running; then
       confirm "Stop Sparkfire's model stack and start $LLM_CONTAINER?" || exit 1
       ./scripts/start-dgx-spark.sh stop
     fi

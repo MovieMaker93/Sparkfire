@@ -84,7 +84,7 @@ kept only as a user-configurable endpoint the app can still talk to).
 
 | Model | Container | Memory | Languages |
 | --- | --- | --- | --- |
-| `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
+| `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparkfire-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
 
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
 source for the GB10. The adapter accepts WAV only, which is what Sparkfire sends, and serves one request

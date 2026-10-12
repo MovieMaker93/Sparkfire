@@ -2,8 +2,8 @@ services:
   dgx-status:
     build:
       context: ./services/dgx-status
-    image: sparklingkit/dgx-spark-status:0.1.0
-    container_name: sparklingkit-dgx-status
+    image: sparkfire/dgx-spark-status:0.1.0
+    container_name: sparkfire-dgx-status
     restart: unless-stopped
     network_mode: host
     pid: host
@@ -26,7 +26,7 @@ services:
       IMAGE_GENERATION_PORT: "8336"
       OCR_VLM_PORT: "8342"
       # Empty with start-dgx-spark.sh --video-backend none, so the monitor does not expect the service.
-      VIDEO_GENERATION_PORT: ${SPARKFIRE_VIDEO_PORT-${SPARKLINGKIT_VIDEO_PORT-8337}}
+      VIDEO_GENERATION_PORT: ${SPARKFIRE_VIDEO_PORT-8337}
       VIDEO_COMFY_PORT: "8347"
       MUSIC_GENERATION_PORT: "8339"
       LLM_MODEL_NAME: saluki-27b

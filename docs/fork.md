@@ -10,12 +10,12 @@ it. Measured results are in [`validation.md`](validation.md).
 - **Name.** The product is Sparkfire; Apache 2.0 section 6 does not grant use of the SparklingKit name, which
   appears only where it says where the code comes from. Upstream's [NOTICE](../NOTICE) is kept below
   Sparkfire's.
-- **Kept on purpose.** The compose project, container and local image names, the BullMQ queue, browser
-  storage keys and model-download markers keep their `sparklingkit` prefix. Renaming them would orphan the
-  Redis volume, drop saved preferences or download every model again on existing installs.
-- **Environment.** `SPARKFIRE_*` variables are read first, then the `SPARKLINGKIT_*` names of older installs.
-- **Installers.** Upstream's hosted installer (`distribution/`, run.sparklingkit.com) is removed, because it
-  installs upstream. Sparkfire installs from a clone; releases publish `ghcr.io/<owner>/sparkfire` and a
+- **Renamed throughout.** The compose project, containers, images, job queues, browser storage keys,
+  model-download markers and environment variables are all `sparkfire`. The start scripts remove the
+  containers an install from before the rename left, which would otherwise keep running beside the new
+  ones, and accept its download markers, so no model is downloaded again. Preferences kept in the browser
+  (theme, sidebar, thinking level) start over once.
+- **Installers.** Upstream's hosted installer (`distribution/`) is removed, because it installs upstream. Sparkfire installs from a clone; releases publish `ghcr.io/<owner>/sparkfire` and a
   DGX stack bundle.
 
 ## Interface
@@ -170,7 +170,7 @@ European languages against Qwen3-ASR's 52; Qwen3-ASR was removed from the stack,
 speaks its API for a user-configured endpoint.
 
 - **Service.**
-  - `sparklingkit-parakeet` (image `sparklingkit/parakeet:parakeet.cpp-v0.5.0`) builds the engine from
+  - `sparkfire-parakeet` (image `sparkfire/parakeet:parakeet.cpp-v0.5.0`) builds the engine from
     pinned source for sm_121 and puts a small FastAPI adapter on :8333, so the app's endpoint is unchanged.
     The adapter starts the engine on 127.0.0.1:8343 and exits if it dies, so Docker restarts the container.
   - The engine serves one request at a time, and the adapter queues them. It accepts WAV only, which is
@@ -213,7 +213,7 @@ page and in the Gallery, and can be a workflow node.
   - Sizes 864 × 480, 1280 × 736 and 1344 × 768; 5, 8 or 10 seconds at 24 fps; H.264 video with AAC sound.
   - Optional sound and music fields go into the model's own prompt sections (`overall_soundscape`,
     `non_diegetic_music`).
-- **Service.** `sparklingkit-video-generation` on :8337 runs ComfyUI at a pinned commit on 127.0.0.1:8347,
+- **Service.** `sparkfire-video-generation` on :8337 runs ComfyUI at a pinned commit on 127.0.0.1:8347,
   behind a FastAPI adapter, because no diffusers release loads FastH3 yet ([ADR 0002](adr/0002-video-service-comfyui.md)).
   - The adapter writes FastVideo's official FastH3 graphs with the requested values and returns the MP4 as
     the response body; the app streams it to disk.
@@ -250,7 +250,7 @@ the license line, because YuE2's weights are non-commercial.
   that wrote it unless new ones are given, so a melody can be edited or restyled. A workflow node takes the
   style and sings incoming text or a score. The run records the seed, duration and the weights' license,
   which the job page shows under the song.
-- **Service.** `sparklingkit-music-generation` on :8339 (`services/dgx-models/music`), a FastAPI adapter
+- **Service.** `sparkfire-music-generation` on :8339 (`services/dgx-models/music`), a FastAPI adapter
   around the YuE2 package, built on the NGC PyTorch 26.07 image it was measured on. `POST
   /v1/music/generations` answers with `multipart/form-data`: the FLAC, the score and a JSON part with the
   seed, length and license.

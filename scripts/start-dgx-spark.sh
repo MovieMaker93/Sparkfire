@@ -12,7 +12,7 @@ SKIP_PULL=false
 DEPLOY_APP=true
 REFRESH_IMAGES=false
 FORCE_RECREATE=false
-VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}}"
+VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-fasth3}"
 
 usage() {
   cat <<'EOF'
@@ -126,11 +126,9 @@ fi
 SEARXNG_SECRET="$(cat "$SEARXNG_SECRET_FILE")"
 export SEARXNG_SECRET
 
-# The project, container and image names keep the SparklingKit-era "sparklingkit" prefix: renaming them would
-# orphan the redis-data volume of existing installs and break the switch script's container checks.
 COMPOSE=(
   docker compose
-  --project-name sparklingkit
+  --project-name sparkfire
   --file compose.yaml
   --file compose.spark.yaml
   --file compose.dgx.yaml
@@ -157,32 +155,28 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# Containers of services this stack no longer ships. Compose neither starts nor stops them any more, so one
-# left by an earlier install keeps restarting (unless-stopped) and holding memory the stack's budget assumes
-# is free.
-RETIRED_CONTAINERS=(sparklingkit-qwen36 sparklingkit-qwen3-asr sparklingkit-locateanything sparklingkit-unlimited-ocr)
+# Installs from before the rename to Sparkfire ran under this compose project. Its containers, retired services
+# among them, would keep restarting (unless-stopped) beside the new ones and hold the memory the stack's budget
+# assumes is free, so they and their network are removed. Its Redis volume held only the job queue and is left
+# alone; the app queues unfinished jobs again from data/ when it starts.
+LEGACY_PROJECT=sparklingkit
 
-retire_old_containers() {
-  local action="$1" name
-  for name in "${RETIRED_CONTAINERS[@]}"; do
-    docker container inspect "$name" >/dev/null 2>&1 || continue
-    if [[ "$action" == "remove" ]]; then
-      docker rm -f "$name" >/dev/null
-      printf 'Removed %s: this stack no longer ships that service.\n' "$name"
-    elif [[ "$(docker inspect -f '{{.State.Running}}' "$name")" == "true" ]]; then
-      docker stop "$name" >/dev/null
-      printf 'Stopped %s: this stack no longer ships that service.\n' "$name"
-    fi
-  done
+remove_legacy_containers() {
+  local containers=()
+  mapfile -t containers < <(docker ps -aq --filter "label=com.docker.compose.project=$LEGACY_PROJECT")
+  ((${#containers[@]})) || return 0
+  docker rm -f "${containers[@]}" >/dev/null
+  docker network rm "${LEGACY_PROJECT}_default" >/dev/null 2>&1 || true
+  printf 'Removed %s containers left from before the rename to Sparkfire.\n' "${#containers[@]}"
 }
 
 if [[ "$ACTION" == "stop" ]]; then
-  retire_old_containers stop
+  remove_legacy_containers
   if [[ "$DEPLOY_APP" == "true" ]]; then
     "${COMPOSE[@]}" stop
     printf 'Sparkfire and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop saluki parakeet paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation music-generation searxng dgx-status
+    "${COMPOSE[@]}" stop saluki parakeet paddleocr-vl paddleocr-vlm hy-mt2 image-generation video-generation music-generation searxng dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -269,7 +263,7 @@ fi
 
 if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding Sparkfire and DGX service images...\n'
-  build_targets=(model-downloader saluki parakeet paddleocr-vl hy-mt2 z-image music-generation dgx-status)
+  build_targets=(model-downloader saluki parakeet paddleocr-vl hy-mt2 image-generation music-generation dgx-status)
   if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then build_targets+=(video-generation); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
@@ -287,11 +281,12 @@ download_model() {
   local revision="$2"
   local destination="$3"
   local includes=("${@:4}")
-  local completion_marker="$model_root/$destination/.sparklingkit-$revision.complete"
+  local completion_marker="$model_root/$destination/.sparkfire-$revision.complete"
   local include_args=()
   local file
 
-  if [[ -f "$completion_marker" ]]; then
+  # A marker written before the rename to Sparkfire has another prefix; any marker for this revision counts.
+  if compgen -G "$model_root/$destination/.*-$revision.complete" >/dev/null; then
     printf 'Using existing %-34s %s\n' "$repository" "$revision"
     return
   fi
@@ -408,7 +403,7 @@ start_service() {
   wait_for_endpoint "$service" "$label" "$url" "$timeout_seconds"
 }
 
-retire_old_containers remove
+remove_legacy_containers
 printf '\nStarting the models sequentially...\n'
 # Saluki first: it loads in seconds with no peak, and holding its 13 GiB before the others start keeps a restart
 # from leaving it without room.
@@ -418,7 +413,7 @@ start_service parakeet "Transcription" "http://127.0.0.1:8333/health" 600
 start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600
 start_service paddleocr-vl "OCR layout adapter" "http://127.0.0.1:8332/health" 900
 start_service hy-mt2 "Translation" "http://127.0.0.1:8334/health" 600
-start_service z-image "Image generation (Qwen-Image-2.1-Turbo)" "http://127.0.0.1:8336/health" 1800
+start_service image-generation "Image generation (Qwen-Image-2.1-Turbo)" "http://127.0.0.1:8336/health" 1800
 # Video loads nothing until its first job, so it adds no loading peak here.
 if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
   start_service video-generation "Video generation (FastH3)" "http://127.0.0.1:8337/health" 600

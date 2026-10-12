@@ -141,7 +141,7 @@ class Comfy:
 
     async def queue(self, graph: dict) -> str:
         async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.post(f"{self.base_url}/prompt", json={"prompt": graph, "client_id": "sparklingkit"})
+            response = await client.post(f"{self.base_url}/prompt", json={"prompt": graph, "client_id": "sparkfire"})
         try:
             payload = response.json()
         except ValueError:
@@ -271,7 +271,7 @@ class VideoService:
         self.input_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         # Videos are deleted once sent; a restart clears any whose response never went out.
-        shutil.rmtree(self.output_dir / "sparklingkit", ignore_errors=True)
+        shutil.rmtree(self.output_dir / "sparkfire", ignore_errors=True)
         self.idle_unload_seconds = idle_unload_seconds
         self.job_timeout = job_timeout
         # ComfyUI runs one graph at a time anyway; holding the lock for the whole job keeps the variant switch
@@ -329,7 +329,7 @@ class VideoService:
         seed = request.seed if request.seed is not None else secrets.randbelow(MAX_SEED)
         frames = workflows.frames_for(request.duration)
         job = uuid.uuid4().hex[:12]
-        image_path = self.input_dir / f"sparklingkit-{job}{image[1]}" if image else None
+        image_path = self.input_dir / f"sparkfire-{job}{image[1]}" if image else None
 
         async with self.lock:
             if self.loaded and self.loaded != variant.id:
@@ -348,7 +348,7 @@ class VideoService:
                     text_encoder=self.backend.text_encoder,
                     video_vae=self.backend.video_vae,
                     audio_vae=self.backend.audio_vae,
-                    filename_prefix=f"sparklingkit/{job}",
+                    filename_prefix=f"sparkfire/{job}",
                     first_frame=image_path.name if image_path else None,
                 )
                 started = time.perf_counter()
@@ -363,7 +363,7 @@ class VideoService:
                 if image_path:
                     remove_files([image_path])
 
-        tagged = produced.with_name(f"{produced.stem}-sparklingkit.mp4")
+        tagged = produced.with_name(f"{produced.stem}-sparkfire.mp4")
         try:
             tag_video(produced, tagged, self.backend.disclosure)
             path = tagged
@@ -472,7 +472,7 @@ def main() -> None:
     port = int(os.getenv("PORT", "8337"))
     comfy_port = int(os.getenv("COMFY_PORT", "8347"))
     comfy_dir = Path(os.getenv("COMFYUI_DIR", "/opt/ComfyUI"))
-    work_dir = Path(os.getenv("WORK_DIR", "/tmp/sparklingkit-video"))
+    work_dir = Path(os.getenv("WORK_DIR", "/tmp/sparkfire-video"))
     model_paths = os.getenv("MODEL_PATHS_CONFIG", "/app/extra_model_paths.yaml")
     model_name = os.getenv("MODEL_NAME", backend.model_name)
     idle_unload_seconds = float(os.getenv("IDLE_UNLOAD_SECONDS", "600"))

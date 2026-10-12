@@ -45,21 +45,23 @@ alone. The services follow the stack on every start; the other saved settings ar
 Persisted schema changes are additive and are not undone by checking out an older tag, so back up `data/`
 before a major-version upgrade.
 
-### Coming from SparklingKit
+### Installs from before the rename
 
 Point an existing checkout at this repository (`git remote set-url origin
 https://github.com/MovieMaker93/Sparkfire.git && git pull`) and run the start script again. The compose
-project, container and image names keep their `sparklingkit` prefix, so the Redis volume, model downloads
-and running containers are reused; `SPARKLINGKIT_*` variables in `.env` still work.
+project, containers and images are now named `sparkfire`: the script removes the containers of the earlier
+project, so they cannot keep running beside the new ones, and reuses the downloaded models. The earlier
+Redis volume held only the job queue; the app queues unfinished jobs again from `data/`. Only `SPARKFIRE_*`
+variables in `.env` are read.
 
 ## Backups
 
 `data/` is the durable record: settings, jobs, files, chats and workflows. Redis holds only queue state.
 
 ```bash
-docker compose --project-name sparklingkit stop app
+docker compose --project-name sparkfire stop app
 tar -czf sparkfire-data-backup.tar.gz data
-docker compose --project-name sparklingkit start app
+docker compose --project-name sparkfire start app
 ```
 
 To restore, stop the app, replace `./data` with the backup, and start the same or a newer Sparkfire version.

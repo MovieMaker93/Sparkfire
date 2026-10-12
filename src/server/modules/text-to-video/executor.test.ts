@@ -17,7 +17,7 @@ describe("text-to-video executor", () => {
   const closers: Array<() => Promise<void>> = [];
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-video-run-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-video-run-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
     requests = [];

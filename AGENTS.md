@@ -11,7 +11,7 @@ them too: they hold one person's machine-specific setup. Never copy their conten
 Sparkfire is a local-first, file-oriented AI workspace: OCR, transcription, translation, visual
 grounding, image generation, video generation, mind maps, chat and node-based workflows, behind one web UI.
 It began as a fork of [stevibe/SparklingKit](https://github.com/stevibe/SparklingKit) (Apache 2.0) and is now
-its own project; `docs/fork.md` lists what it changes and what keeps the old `sparklingkit` names on purpose.
+its own project; `docs/fork.md` lists what it changes.
 Keep upstream's `NOTICE` and the README credit line, and use the SparklingKit name only to say where the code
 comes from.
 
@@ -50,7 +50,7 @@ comes from.
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
 | `scripts/spark-switch.sh` | Swaps the Spark between Sparkfire and another always-on LLM container |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
-| `docs/` | Architecture, deployment, DGX operations, workflows, changes from SparklingKit, validation results |
+| `docs/` | Architecture, deployment, DGX operations, workflows, what Sparkfire changes, validation results |
 
 ## Setup and commands
 

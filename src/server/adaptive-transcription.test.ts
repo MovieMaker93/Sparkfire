@@ -11,7 +11,7 @@ describe("adaptive transcription recovery", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-adaptive-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-adaptive-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

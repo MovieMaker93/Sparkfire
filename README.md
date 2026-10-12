@@ -191,7 +191,7 @@ The script rebuilds what changed and leaves `data/` alone. Every start points th
 
 - **From the six-model stack or an earlier model set:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR containers, and downloads the models the stack now uses. Earlier model files stay in `data/dgx-models` until you delete them; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
 - **An install configured by hand:** the stack replaces services set up in Settings or with **Configure manually**, which is gone. A workspace that is not on the stack goes through setup in the browser again.
-- **From SparklingKit or the MovieMaker93/SparklingKit fork:** point your checkout at this repository and run the start script again. Jobs, settings, models and containers are reused as they are, and the old `SPARKLINGKIT_*` variables in `.env` still work.
+- **From an install made before the rename to Sparkfire:** point your checkout at this repository and run the start script again. It removes the old containers and starts the `sparkfire-` ones, reusing your jobs, settings and downloaded models; only `SPARKFIRE_*` variables in `.env` are read.
 
 Set `HF_TOKEN` in the shell when a model download needs authentication or more download capacity: `HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses`.
 
@@ -219,24 +219,24 @@ There is no grounding model, so visual grounding is not available. Details of ea
 
 ### Memory and containers
 
-The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **12 Docker containers**, 11 without video; PaddleOCR-VL's vision model and layout stage run separately. A short-lived downloader container also runs during installation. The containers keep their `sparklingkit-` names, so existing installs carry over.
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **12 Docker containers**, 11 without video; PaddleOCR-VL's vision model and layout stage run separately. A short-lived downloader container also runs during installation.
 
 Measured on one Spark with every service loaded and idle. GPU is what the container allocates through CUDA; RAM is the container's own process memory.
 
 | # | Container | What it runs | GPU | RAM | Total |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `sparklingkit-app-1` | Web app, API and job worker | — | 0.1 GiB | 0.1 GiB |
-| 2 | `sparklingkit-redis-1` | Job queue | — | < 0.1 GiB | < 0.1 GiB |
-| 3 | `sparklingkit-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
-| 4 | `sparklingkit-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
-| 5 | `sparklingkit-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
-| 6 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
-| 7 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
-| 8 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
-| 9 | `sparklingkit-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
-| 10 | `sparklingkit-saluki` | Saluki 27B in llama-server, with its vision add-on and a 64k context | 13.0 GiB | 8.5 GiB, the memory-mapped model file, reclaimable | **13–21.5 GiB** |
-| 11 | `sparklingkit-music-generation` | YuE2-3B; nothing loaded until a song | — | — | about 0 idle |
-| 12 | `sparklingkit-searxng` | SearXNG | — | capped at 0.5 GiB | not measured |
+| 1 | `sparkfire-app-1` | Web app, API and job worker | — | 0.1 GiB | 0.1 GiB |
+| 2 | `sparkfire-redis-1` | Job queue | — | < 0.1 GiB | < 0.1 GiB |
+| 3 | `sparkfire-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
+| 4 | `sparkfire-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
+| 5 | `sparkfire-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
+| 6 | `sparkfire-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
+| 7 | `sparkfire-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
+| 8 | `sparkfire-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
+| 9 | `sparkfire-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
+| 10 | `sparkfire-saluki` | Saluki 27B in llama-server, with its vision add-on and a 64k context | 13.0 GiB | 8.5 GiB, the memory-mapped model file, reclaimable | **13–21.5 GiB** |
+| 11 | `sparkfire-music-generation` | YuE2-3B; nothing loaded until a song | — | — | about 0 idle |
+| 12 | `sparkfire-searxng` | SearXNG | — | capped at 0.5 GiB | not measured |
 
 Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes.
 

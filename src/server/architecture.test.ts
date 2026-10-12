@@ -10,7 +10,7 @@ describe("v2 workflow architecture", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-v2-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-v2-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

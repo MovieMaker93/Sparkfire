@@ -1,6 +1,6 @@
 import { CHAT_EFFORTS, type ChatEffort } from "../shared/contracts";
 
-const STORAGE_KEY = "sparklingkit:chat-effort";
+const STORAGE_KEY = "sparkfire:chat-effort";
 // "high" asks for thinking at the model's own default effort, which is what chat did before the control existed.
 const DEFAULT_EFFORT: ChatEffort = "high";
 

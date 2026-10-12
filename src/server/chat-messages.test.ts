@@ -8,7 +8,7 @@ describe("chat model messages", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-chat-messages-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-chat-messages-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

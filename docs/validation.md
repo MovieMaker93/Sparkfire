@@ -130,7 +130,7 @@ It read a table page from an image correctly, answered reasoning questions, and 
 through the app.
 
 - **Context:** 65,536 tokens (64k) in one slot (`-c 65536 --parallel 1`). The model was trained for 262,144
-  (256k), so the window can grow at the cost of more cache memory. SparklingKit's default LLM uses the same
+  (256k), so the window can grow at the cost of more cache memory. The Qwen3.6 LLM it replaced used the same
   64k (`--max-model-len 65536`).
 - **Memory breakdown:**
   - 13.0 GiB on the GPU: about 7.3 GiB of weights, 0.9 GiB for the vision add-on, and roughly 4.8 GiB for the
@@ -149,7 +149,7 @@ through the app.
 
 The `video-generation` service (ComfyUI 0df64eb behind the adapter) on 2026-10-11, next to the four-service
 stack (PaddleOCR-VL, Parakeet, Hy-MT2, Qwen-Image-2.1-Turbo) and Saluki 27B in `llama-server`, plus a few
-small containers that are not SparklingKit's. Requests went straight to the service, one at a time, with
+small containers that are not Sparkfire's. Requests went straight to the service, one at a time, with
 the same prompt and a sound description; host memory is MemTotal − MemAvailable, sampled every 0.5 s.
 
 Before any video work the Spark used about 50 GiB. Starting the service added nothing measurable: ComfyUI
@@ -289,15 +289,15 @@ measured with every service loaded and idle.
 
 | Container | GPU | RAM | Total |
 | --- | --- | --- | --- |
-| `sparklingkit-qwen36` (Qwen3.6-35B-A3B, vLLM) — *removed from the stack 2026-10-10* | ≈ 27 GiB | ≈ 4 GiB | ≈ 31 GiB; about 60 GB while loading |
-| `sparklingkit-image-generation` (Qwen-Image-2.1-Turbo, float8) | 17.1 GiB | 1.9 GiB | 19.0 GiB |
-| `sparklingkit-qwen3-asr` — *removed from the stack 2026-10-10* | 12.6 GiB | 3.9 GiB | 16.5 GiB |
-| `sparklingkit-parakeet` (the only ASR since 2026-10-10) | 1.5 GiB on start, 1.6–1.8 GiB during jobs | 0.2 GiB on start, up to 1.5 GiB during jobs | 1.7–3.4 GiB |
-| `sparklingkit-locateanything` — *removed from the stack 2026-10-10* | 8.4 GiB | 2.5 GiB | 10.9 GiB |
-| `sparklingkit-paddleocr-vlm` | 5.4 GiB | 3.6 GiB | 9.0 GiB |
-| `sparklingkit-hy-mt2` | 2.4 GiB | 3.0 GiB | 5.4 GiB |
-| `sparklingkit-paddleocr-vl` (layout, CPU) | — | 0.8 GiB | 0.8 GiB |
-| `sparklingkit-app-1`, `sparklingkit-redis-1`, `sparklingkit-dgx-status` | — | 0.1 GiB together | 0.1 GiB |
+| `sparkfire-qwen36` (Qwen3.6-35B-A3B, vLLM) — *removed from the stack 2026-10-10* | ≈ 27 GiB | ≈ 4 GiB | ≈ 31 GiB; about 60 GB while loading |
+| `sparkfire-image-generation` (Qwen-Image-2.1-Turbo, float8) | 17.1 GiB | 1.9 GiB | 19.0 GiB |
+| `sparkfire-qwen3-asr` — *removed from the stack 2026-10-10* | 12.6 GiB | 3.9 GiB | 16.5 GiB |
+| `sparkfire-parakeet` (the only ASR since 2026-10-10) | 1.5 GiB on start, 1.6–1.8 GiB during jobs | 0.2 GiB on start, up to 1.5 GiB during jobs | 1.7–3.4 GiB |
+| `sparkfire-locateanything` — *removed from the stack 2026-10-10* | 8.4 GiB | 2.5 GiB | 10.9 GiB |
+| `sparkfire-paddleocr-vlm` | 5.4 GiB | 3.6 GiB | 9.0 GiB |
+| `sparkfire-hy-mt2` | 2.4 GiB | 3.0 GiB | 5.4 GiB |
+| `sparkfire-paddleocr-vl` (layout, CPU) | — | 0.8 GiB | 0.8 GiB |
+| `sparkfire-app-1`, `sparkfire-redis-1`, `sparkfire-dgx-status` | — | 0.1 GiB together | 0.1 GiB |
 | Saluki 27B in `llama-server` (the fork's reference LLM, run next to the stack) | 13.0 GiB | 8.5 GiB, reclaimable | 13–21.5 GiB |
 
 | State | Used |
@@ -356,7 +356,7 @@ request hung.
   `GET /health` with 200 but every completion hung: a one-line request returned zero bytes within 120 s,
   and app jobs failed with "The operation was aborted due to timeout". The container had been up for
   days, so it most likely wedged during or after the OOM storms of 2026-10-05. `docker restart
-  sparklingkit-hy-mt2` fixed it: a one-line translation answered in 1.5 s and a 20-page job then completed
+  sparkfire-hy-mt2` fixed it: a one-line translation answered in 1.5 s and a 20-page job then completed
   through the app. After the clean restart the service holds 3.9 GiB of GPU memory, against the 2.4 GiB
   the table above recorded while it was wedged. The health endpoint runs no inference, so only a real
   request catches this state.

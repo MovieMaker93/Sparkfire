@@ -3,7 +3,7 @@ export const translationLanguages = [
 ] as const;
 
 const supportedTranslationLanguageNames: readonly string[] = translationLanguages.map(([name]) => name);
-export const translationPreferenceKey = "sparklingkit.translation.preferences";
+export const translationPreferenceKey = "sparkfire.translation.preferences";
 
 export interface TranslationPreferences {
   source: string;
