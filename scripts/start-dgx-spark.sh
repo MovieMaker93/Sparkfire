@@ -424,7 +424,7 @@ check_memory_for_start() {
   printf '\nOnly %s GiB of memory is free; the stack needs about %s GiB to start.\n' "$available" "$STACK_START_GIB" >&2
   printf 'Processes holding GPU memory now:\n' >&2
   nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader >&2 || true
-  printf 'Stop them first (another LLM: ./scripts/spark-switch.sh sparkfire), or pass --skip-memory-check.\n' >&2
+  printf 'Stop them first, or pass --skip-memory-check.\n' >&2
   exit 1
 }
 if [[ "$CHECK_MEMORY" == "true" ]]; then check_memory_for_start; fi
