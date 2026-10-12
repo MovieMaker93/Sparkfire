@@ -235,6 +235,14 @@ capability 12.1). Autoregressive decoding ran on CUDA graphs with FlashAttention
   for the whole song, memory went from 61.4 to 82.4 GiB (39 GiB still available) and no request failed, but
   the GPU is shared: the full-lyrics Italian song took 898 s instead of 232 s (9 tok/s), and the other
   services slowed by 3.6× (image, OCR) to 79× (translation, 2.7 s to 214 s).
+- **The adapter keeps everything on the GPU** (2026-10-12). YuE2's `decode()` moves the main model to the
+  CPU and the decoder to the GPU for every song, then back. On the Spark that move alone took 58.8 s (the
+  stock decode took 53–61 s), while decoding with model and decoder left on the GPU took 1.4 s, with 9.4 GiB
+  allocated at most. Through `services/dgx-models/music` the Italian ballad (seed 1234) took 105 s on a cold
+  start (about 50 s of it loading) and 51 s warm, for 46.8 s of audio, against 96 s through YuE2's CLI; its
+  audio was bit-identical to the CLI's (maximum difference 0.0). A loaded model left about 15 GiB in use, and
+  `POST /v1/unload` gave it back (77 to 66 GiB used). When the caller hung up after 10 s, the song stopped
+  within the same second.
 - **Which service costs what** (2026-10-12). The short Italian song, each time in a fresh process (so with
   its warm-up: 151 s alone), next to one service sending requests back to back, then next to all five with
   a 20 s pause after each request, then that same load without the song:

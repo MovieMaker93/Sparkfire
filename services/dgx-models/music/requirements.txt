@@ -1,0 +1,11 @@
+# YuE2 v0.1.6's requirements at the versions it pins, without torch and numpy, which come from the pinned
+# NVIDIA base image (see the Dockerfile), as in the run that was measured.
+transformers==4.57.6
+huggingface-hub==0.36.2
+safetensors==0.7.0
+tiktoken==0.12.0
+soundfile==0.13.1
+accelerate==1.13.0
+# The adapter
+fastapi==0.124.4
+uvicorn[standard]==0.38.0
