@@ -173,8 +173,13 @@ const clips = {
     await pause(3500);
   },
 
-  // Text to video on FastH3: a prompt and its sound, the progress view, then the finished clip playing.
+  // Text to video on FastH3: a prompt and its sound, a turn in the GPU lane behind a video already rendering,
+  // the progress view, then the finished clip playing.
   async video(page, mark) {
+    const first = new FormData();
+    first.set("prompt", "Stop-motion animation of a clay fox curling up under a paper moon, soft studio light");
+    first.set("sound", "a quiet music box, soft crackle of paper");
+    await fetch(`${BASE_URL}/api/modules/text-to-video/jobs`, { method: "POST", body: first });
     await page.goto(`${BASE_URL}/tools/text-to-video`);
     const prompt = page.locator(".video-generation-form .image-prompt-input");
     await glide(page, prompt);
@@ -185,7 +190,11 @@ const clips = {
     await pause(600);
     await glide(page, page.getByRole("button", { name: "Generate video" }));
     await page.waitForURL(/\/jobs\//, { timeout: 60_000 });
-    await pause(2500);
+    // The first video still holds the GPU, so this one waits its turn instead of loading beside it.
+    await page.getByText("Waiting for the GPU").first().waitFor({ timeout: 60_000 });
+    mark("lane-wait");
+    await pause(4000);
+    await shot(page, "video-waiting");
     mark("wait-start");
     await page.locator(".status-badge.status-done").first().waitFor({ timeout: 900_000 });
     mark("wait-end");
