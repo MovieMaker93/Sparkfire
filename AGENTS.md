@@ -32,7 +32,7 @@ comes from.
 | `src/server/processor.ts` | OCR and transcription pipelines (chunking, checkpoints, outputs) |
 | `src/server/transcript-timing.ts` | Word timestamps to transcript lines (one per sentence) and subtitle cues |
 | `src/server/ai.ts` | Every call to a model service: OCR profiles, ASR, image, chat, health checks |
-| `src/server/modules/` | Executors for translation, grounding, text-to-image, text-to-video, mind map and LLM prompts |
+| `src/server/modules/` | Executors for translation, grounding, text-to-image, text-to-video, text-to-music, mind map and LLM prompts |
 | `src/server/workflows/` | The node-based workflow engine |
 | `src/server/chat-messages.ts`, `chat-attachments.ts` | Turning stored chats and attached files into model input |
 | `src/server/chat-generation.ts` | One answer per chat, run by the server, with its tool-call loop |
@@ -41,7 +41,7 @@ comes from.
 | `src/server/queue.ts` | BullMQ queue and worker |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
-| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, video generation (ComfyUI), PaddleOCR-VL, Parakeet ASR, translation, downloader |
+| `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): image generation, video generation (ComfyUI), music generation (YuE2), PaddleOCR-VL, Parakeet ASR, translation, downloader |
 | `services/dgx-status/` | The DGX system monitor service |
 | `compose.yaml` | App and Redis |
 | `compose.spark.yaml` | Adds the system monitor on a DGX Spark |
@@ -72,7 +72,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | Type check (client and server) | `npm run typecheck` |
 | Unit tests | `npm test` (or `npx vitest run path/to/file.test.ts`) |
 | Production build | `npm run build` |
-| Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `video`, `services/dgx-status`) |
+| Python adapter tests (no GPU) | `docker run --rm -v "$PWD/services/dgx-models/image-generation:/app" -w /app python:3.12-slim sh -c "pip install -q fastapi uvicorn python-multipart httpx && python -m unittest"` (same for `paddleocr-vl`, `parakeet`, `video`, `music`, `services/dgx-status`) |
 | Whole stack on a DGX Spark | `./scripts/start-dgx-spark.sh --accept-model-licenses [--ocr-backend …] [--image-backend …] [--video-backend fasth3\|none]` |
 | Stack status / stop | `./scripts/start-dgx-spark.sh status`, `./scripts/start-dgx-spark.sh stop` |
 
@@ -82,15 +82,15 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   `output/` and `work/` (checkpoints, caches). Outputs are typed **artifacts** with lineage, so a result can
   feed the next module ("Continue with"). Each processing pass is a **run** recorded in the manifest.
 - **Modules** are `ocr`, `transcription`, `translation`, `grounding`, `text-to-image`, `text-to-video`,
-  `mindmap` and `chat`.
+  `text-to-music`, `mindmap` and `chat`.
   Which artifact kinds each accepts is decided in one place, `src/shared/module-router.ts`; do not
   duplicate those rules in UI code.
 - **Queue and progress.** Jobs run on a BullMQ worker inside the API process. Progress reaches the browser
-  through server-sent events at `/api/jobs/:id/events`. Modules marked `gpuLane: "heavy"` (video) take
+  through server-sent events at `/api/jobs/:id/events`. Modules marked `gpuLane: "heavy"` (video, music) take
   turns through `src/server/gpu-lane.ts` on their own queue, and free each other's weights when
   the work switches module.
 - **Optional modules.** A module whose service the reference stack does not ship sets
-  `hiddenUntilConfigured` in its contract (today only grounding). The API then marks it `hidden` while its
+  `hiddenUntilConfigured` in its contract (grounding, and opt-in music). The API then marks it `hidden` while its
   endpoint is off, and every UI list of tools and actions leaves it out; Settings still shows the endpoint.
 - **Settings.** `data/config/settings.json`. Environment variables only seed a new file; saved settings win
   on later starts, so upgrades never overwrite a user's endpoints.
@@ -105,6 +105,9 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   Qwen3-ASR's plain request and one line per chunk. The Parakeet adapter takes WAV only.
 - **Image generation** asks the service for `/v1/capabilities` (sizes, default and maximum steps) and
   validates requests against it.
+- **Music generation** reads `/v1/capabilities` (lyrics and style limits, the license line) and gets a
+  multipart answer: the FLAC, the ABC score and the metadata. Text is the lyrics; a `score` artifact is sung as
+  written with the lyrics and style of the song that wrote it.
 - **Video generation** also reads `/v1/capabilities` (sizes, lengths, variants, the license's disclosure
   line) and gets the MP4 back as the response body, which the executor streams to disk. Text is the prompt
   and an image the first frame; an image without a prompt reuses the prompt of the run that made it.
@@ -132,6 +135,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | 8336 | Image generation | Z-Image-Turbo | Qwen-Image 2.1, Qwen-Image-2.1-Turbo: `--image-backend qwen-image-2.1` / `qwen-image-2.1-turbo` |
 | 8337 | Video generation | FastH3 (Fast and Sharp variants, through ComfyUI) | none: `--video-backend none` |
 | 8338 | Web search (127.0.0.1 only) | none (off by default) | SearXNG: `--search-backend searxng` |
+| 8339 | Music generation | none (off by default) | YuE2-3B: `--music-backend yue2` |
 
 Rules for this layer:
 
@@ -139,7 +143,8 @@ Rules for this layer:
   stack ships no LLM (chat and mind maps use a user-configured endpoint; the reference is Saluki in
   `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
   Settings) and idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
-  ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Do not start extra models, large builds or big downloads while
+  ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Music,
+  when on, does the same with about 20 GiB a song. Do not start extra models, large builds or big downloads while
   services are loading, and check free memory (`free -g`) before running an LLM next to the stack: one
   that needs most of the Spark does not fit beside it.
 - **Pin everything.** Model downloads use exact Hugging Face revisions in `scripts/start-dgx-spark.sh`;
@@ -151,8 +156,9 @@ Rules for this layer:
 - **Licenses.** Model weights carry their own licenses and are downloaded only after the user passes
   `--accept-model-licenses`. Qwen-Image 2.1 / Turbo (Qwen Research License) is non-commercial. Parakeet-TDT-0.6B-v3 is CC BY 4.0: keep NVIDIA's credit in the README. FastH3 is under the
   MiniMax H3 Community License, which excludes the EU, the UK, South Korea and the US and asks that shared
-  outputs say they are machine-generated: keep the disclosure tag and `--video-backend none`. Never commit
-  weights.
+  outputs say they are machine-generated: keep the disclosure tag and `--video-backend none`. YuE2's weights
+  are CC BY-NC 4.0 with a creator permission, so music stays opt-in (`--music-backend yue2`) and each song
+  shows the license line. Never commit weights.
 - Validation results and known issues are in `docs/validation.md`.
 
 ## Coding conventions

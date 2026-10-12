@@ -1484,6 +1484,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .module-card-icon-grounding { background: var(--sk-n7); color: var(--sk-teal-6); }
 .module-card-icon-text-to-image { background: var(--sk-purple-2); color: var(--sk-purple-6); }
 .module-card-icon-text-to-video { background: var(--sk-green-2); color: var(--sk-green-6); }
+.module-card-icon-text-to-music { background: var(--sk-red-2); color: var(--sk-red-6); }
 .module-card-icon-mindmap { background: var(--sk-n6); color: var(--sk-teal-6); }
 .module-card-icon-chat { background: var(--sk-n7); color: var(--sk-n15); }
 .module-card-copy { @apply min-w-0 flex-1 text-[14px] leading-5 text-muted; }
@@ -1589,6 +1590,7 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .endpoint-grounding { background: var(--sk-n7) !important; color: var(--sk-teal-6) !important; }
 .endpoint-image-generation { background: var(--sk-purple-2) !important; color: var(--sk-purple-6) !important; }
 .endpoint-video-generation { background: var(--sk-green-2) !important; color: var(--sk-green-6) !important; }
+.endpoint-music-generation { background: var(--sk-red-2) !important; color: var(--sk-red-6) !important; }
 .endpoint-system-status { background: var(--sk-n6) !important; color: var(--sk-blue-6) !important; }
 .endpoint-web-search { background: var(--sk-n6) !important; color: var(--sk-teal-6) !important; }
 
@@ -2073,6 +2075,13 @@ body { background: radial-gradient(circle at 72% -15%, var(--sk-glow), transpare
 .video-sound-fields .field-label, .video-options .field-label { @apply block min-w-0; }
 .video-generation-form .image-advanced { @apply mt-5; }
 .generated-disclosure { @apply mt-3 text-[13px] leading-5 text-muted; }
+
+/* Music generation: the style above the lyrics, which keep their line breaks */
+.music-generation-form > .field-label + .field-label { @apply mt-5 block; }
+.music-style-input { @apply min-h-24 resize-y text-[15px] leading-6 sm:min-h-0; }
+.music-lyrics-input { @apply min-h-64 whitespace-pre-wrap; font-variant-ligatures: none; }
+.music-lyrics-hint, .music-score-note { @apply mt-2 text-[13px] leading-5 text-muted; }
+.music-generation-form .image-advanced { @apply mt-5; }
 
 /* Chat: thinking effort under the composer, and the model's reasoning above each answer */
 .chat-composer-footer { @apply mx-auto mt-2 flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2; }

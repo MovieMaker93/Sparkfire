@@ -28,7 +28,13 @@ describe("reference stack settings", () => {
   it("keeps the video endpoint but leaves it off when the stack runs without video", () => {
     const settings = referenceSettingsForHost(structuredClone(defaultSettings), "192.0.2.10", "split", { video: false });
     expect(settings.endpoints["video-generation"]).toMatchObject({ baseUrl: "http://192.0.2.10:8337/v1", enabled: false });
-    expect(OPTIONAL_REFERENCE_ENDPOINT_KINDS).toEqual(["video-generation"]);
+    expect(OPTIONAL_REFERENCE_ENDPOINT_KINDS).toEqual(["video-generation", "music-generation"]);
+  });
+
+  it("keeps music off unless it was asked for, since its weights are non-commercial", () => {
+    const host = "192.0.2.10";
+    expect(referenceSettingsForHost(structuredClone(defaultSettings), host, "split").endpoints["music-generation"]).toMatchObject({ baseUrl: "http://192.0.2.10:8339/v1", model: "YuE2-3B", enabled: false });
+    expect(referenceSettingsForHost(structuredClone(defaultSettings), host, "split", { music: true }).endpoints["music-generation"].enabled).toBe(true);
   });
 
   it("points speech recognition at the Parakeet service", () => {

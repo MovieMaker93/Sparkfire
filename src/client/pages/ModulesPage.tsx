@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, ExternalLink, FileText, Film, FolderOpen, Image as ImageIcon, Languages, MessageCircle, Network, ScanSearch, ScanText, Search, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, ExternalLink, FileText, Film, FolderOpen, Image as ImageIcon, Languages, MessageCircle, Music, Network, ScanSearch, ScanText, Search, X } from "lucide-react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, thumbnailUrl, uploadGroundingJob, uploadJob, uploadVideoJob } from "../api";
 import { cn, JobIcon, StatusBadge, timeAgo } from "../components/ui";
@@ -10,6 +10,7 @@ import type { Job, JobKind, ModuleDescriptor, ModuleId } from "../types";
 import { useGlobalSearch } from "../components/GlobalSearch";
 import { useImageCapabilities } from "../image-capabilities";
 import { promptBehindArtifact, useVideoCapabilities } from "../video-capabilities";
+import { styleBehindArtifact, useMusicCapabilities } from "../music-capabilities";
 import { SearchSelect } from "../components/SearchSelect";
 import { useToast } from "../components/ToastProvider";
 
@@ -22,6 +23,7 @@ const icons = {
   "scan-search": ScanSearch,
   image: ImageIcon,
   film: Film,
+  music: Music,
   network: Network,
   "message-circle": MessageCircle,
 };
@@ -33,6 +35,7 @@ const moduleHistoryTitles: Record<ModuleId, string> = {
   grounding: "Located images",
   "text-to-image": "Generated images",
   "text-to-video": "Generated videos",
+  "text-to-music": "Songs",
   mindmap: "Mind maps",
   chat: "Conversations",
 };
@@ -101,6 +104,10 @@ export function ModulePage() {
   const [videoVariant, setVideoVariant] = useState("");
   const [videoSeed, setVideoSeed] = useState("");
   const videoCapabilities = useVideoCapabilities();
+  const [musicStyle, setMusicStyle] = useState("");
+  const [musicLyrics, setMusicLyrics] = useState("");
+  const [musicSeed, setMusicSeed] = useState("");
+  const musicCapabilities = useMusicCapabilities();
   const [mindMapMode, setMindMapMode] = useState<"topic" | "result">("topic");
   const [mindMapSubject, setMindMapSubject] = useState("");
   const [mindMapDepth, setMindMapDepth] = useState("4");
@@ -182,6 +189,25 @@ export function ModulePage() {
       if (moduleId === "mindmap") setMindMapMode("result");
     }
   }, [compatibleArtifacts, moduleId, searchParams, selectedArtifact]);
+  useEffect(() => {
+    if (moduleId !== "text-to-music" || !selectedArtifactEntry || importedPromptRef.current === selectedArtifactEntry.value) return;
+    importedPromptRef.current = selectedArtifactEntry.value;
+    const { job, artifact } = selectedArtifactEntry;
+    // A score is sung again as written: start from the lyrics and style of the song that wrote it.
+    if (artifact.kind === "score") {
+      const origin = artifact.createdByRunId ? job.runs.find((run) => run.id === artifact.createdByRunId) : undefined;
+      setMusicLyrics(typeof origin?.params.lyrics === "string" ? origin.params.lyrics : "");
+      setMusicStyle((current) => current || styleBehindArtifact(job, artifact));
+      return;
+    }
+    fetch(artifactUrl(job.id, artifact))
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load the selected text result");
+        return response.text();
+      })
+      .then((content) => setMusicLyrics(content.replace(/<!--[\s\S]*?-->\s*/g, "").trim().slice(0, musicCapabilities.maxLyricsChars)))
+      .catch((value) => setError(value instanceof Error ? value.message : String(value)));
+  }, [moduleId, musicCapabilities.maxLyricsChars, selectedArtifactEntry]);
   useEffect(() => {
     if (!["text-to-image", "text-to-video"].includes(moduleId) || !selectedArtifactEntry || importedPromptRef.current === selectedArtifactEntry.value) return;
     importedPromptRef.current = selectedArtifactEntry.value;
@@ -353,6 +379,33 @@ export function ModulePage() {
     }
   }
 
+  async function createSong() {
+    if (!musicStyle.trim() || !musicLyrics.trim()) return;
+    setUploading(true); setError("");
+    const seed = Number.parseInt(musicSeed, 10);
+    const options = Number.isInteger(seed) && seed >= 0 ? { seed } : {};
+    try {
+      if (selectedArtifactEntry) {
+        const workflowId = moduleWorkflowForArtifact("text-to-music", selectedArtifactEntry.artifact.kind);
+        if (!workflowId) throw new Error("This result cannot become a song");
+        const queued = await api.startRun(selectedArtifactEntry.job.id, {
+          moduleId: "text-to-music",
+          workflowId,
+          inputArtifactIds: [selectedArtifactEntry.artifact.id],
+          params: { artifactId: selectedArtifactEntry.artifact.id, style: musicStyle.trim(), lyrics: musicLyrics.trim(), ...options },
+        });
+        navigate(`/jobs/${queued.job.id}`);
+      } else {
+        const job = await api.createMusicJob(musicLyrics.trim(), musicStyle.trim(), options);
+        navigate(`/jobs/${job.id}`);
+      }
+    } catch (value) {
+      setError(value instanceof Error ? value.message : String(value));
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function startGrounding() {
     const queries = [...new Set(groundingQueries.split(/\r?\n/).map((query) => query.trim()).filter(Boolean))].slice(0, 12);
     if ((!selectedArtifactEntry && files.length !== 1) || !queries.length) return;
@@ -511,6 +564,19 @@ export function ModulePage() {
       </div><p>Reuse a seed with the same prompt, size, and length to reproduce a video.</p></details>
       {videoCapabilities.disclosure && <p className="generated-disclosure">Each video is labelled “{videoCapabilities.disclosure}”. Say so when you share it.</p>}
       <div className="module-form-actions"><button className="button-primary" onClick={() => void createVideo()} disabled={uploading || !module.configured || !videoPrompt.trim()}>{uploading ? files.length && !selectedArtifactEntry ? `Uploading ${uploadProgress}%` : "Starting…" : <><Film size={18} />Generate video</>}</button></div>
+    </section> : module.id === "text-to-music" ? <section className="module-form-card image-generation-form music-generation-form">
+      <div className="module-form-heading"><h2>Write the song</h2><p>Give the lyrics and describe how it should sound. The model writes a score first, then sings it with its own accompaniment; the lyrics, the score and the song stay together.</p></div>
+      {!module.configured && <div className="module-setup-note"><span>The Music generation service is not configured yet.</span><Link to="/settings" state={{ backgroundLocation: location }}>Configure service</Link></div>}
+      {selectedArtifactEntry && <ImportedArtifactCard job={selectedArtifactEntry.job} artifact={selectedArtifactEntry.artifact} onRemove={() => { setSelectedArtifact(""); importedPromptRef.current = ""; setMusicLyrics(""); }} compact />}
+      {selectedArtifactEntry?.artifact.kind === "score" && <p className="music-score-note">This score is sung as written, so the melody stays; change the style to hear it another way.</p>}
+      <label className="field-label">Style<textarea className="input mt-2 music-style-input" value={musicStyle} onChange={(event) => setMusicStyle(event.target.value)} placeholder="Italian, pop ballad, warm male tenor voice, acoustic guitar, strings, soft drums, 76 BPM" maxLength={musicCapabilities.maxStyleChars} rows={2} /></label>
+      <label className="field-label">Lyrics<textarea className="input mt-2 image-prompt-input music-lyrics-input" value={musicLyrics} onChange={(event) => setMusicLyrics(event.target.value)} placeholder={"[Verse]\nCade la sera sul porto\nIl mare parla piano\n\n[Chorus]\nResta con me stanotte"} maxLength={musicCapabilities.maxLyricsChars} /></label>
+      <p className="music-lyrics-hint">Mark the parts with [Verse], [Chorus], [Bridge], [Intro] and [Outro], one line per sung phrase. Longer lyrics make a longer song: two verses, two choruses and a bridge come to about three or four minutes.</p>
+      <details className="image-advanced"><summary>Advanced{musicCapabilities.model ? <small>{musicCapabilities.model}</small> : null}</summary><div className="image-advanced-fields">
+        <label className="field-label">Seed<input className="input mt-2" type="number" inputMode="numeric" min={0} value={musicSeed} onChange={(event) => setMusicSeed(event.target.value)} placeholder="Random" /></label>
+      </div><p>Reuse a seed with the same lyrics and style to get the same song back.</p></details>
+      {musicCapabilities.license && <p className="generated-disclosure">{musicCapabilities.license}. Creators may publish and sell their songs; company use needs a license from the model&apos;s authors.</p>}
+      <div className="module-form-actions"><button className="button-primary" onClick={() => void createSong()} disabled={uploading || !module.configured || !musicStyle.trim() || !musicLyrics.trim()}>{uploading ? "Starting…" : <><Music size={18} />Make song</>}</button></div>
     </section> : <section className="module-coming-card">
       <span className={`module-card-icon module-card-icon-${module.id}`}><Icon size={28} /></span>
       <div><h2>The workspace is ready for this module</h2><p>The provider can already be configured in Settings. Execution will be enabled when this module&apos;s workflow contract is connected.</p></div>

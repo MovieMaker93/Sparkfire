@@ -8,7 +8,7 @@ import multer from "multer";
 import { z } from "zod";
 import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES, WEB_SEARCH_PROVIDERS } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
-import { checkEndpoint, imageCapabilities, openChatStream, type ChatCompletionMessage, thinkingOptions, videoCapabilities, type ImageCapabilities, type VideoCapabilities } from "./ai.js";
+import { checkEndpoint, imageCapabilities, musicCapabilities, openChatStream, type ChatCompletionMessage, thinkingOptions, videoCapabilities, type ImageCapabilities, type MusicCapabilities, type VideoCapabilities } from "./ai.js";
 import { chatAttachmentPath, MAX_ATTACHMENTS_PER_MESSAGE, readChatAttachment, saveChatAttachment } from "./chat-attachments.js";
 import { chatGeneration, chatStreamDeltas, claimChatGeneration, releaseChatGeneration, type ChatGeneration } from "./chat-generation.js";
 import { modelMessagesForChat } from "./chat-messages.js";
@@ -31,6 +31,7 @@ import {
   createTextTranslationJob,
   createTextToImageJob,
   createTextToVideoJob,
+  createTextToMusicJob,
   deleteChat,
   deleteInputFile,
   deleteJob,
@@ -85,7 +86,7 @@ const settingsSchema = z.object({
   setup: z.object({ completed: z.boolean(), mode: z.enum(["all-in-one", "split", "custom"]), onboardingVersion: z.number().int().min(1), completedAt: z.string().datetime().optional() }),
   systemStatus: z.object({ baseUrl: z.union([z.string().url(), z.literal("")]) }),
   webSearch: webSearchSchema,
-  endpoints: z.object({ stt: endpointSchema, ocr: endpointSchema, llm: endpointSchema, translation: endpointSchema, grounding: endpointSchema, "image-generation": endpointSchema, "video-generation": endpointSchema }),
+  endpoints: z.object({ stt: endpointSchema, ocr: endpointSchema, llm: endpointSchema, translation: endpointSchema, grounding: endpointSchema, "image-generation": endpointSchema, "video-generation": endpointSchema, "music-generation": endpointSchema }),
   audio: z.object({
     chunkTargetSec: z.number().int().min(15).max(3600),
     chunkOverlapSec: z.number().min(0).max(30),
@@ -162,6 +163,21 @@ async function currentVideoCapabilities(settings: Settings) {
   if (cachedVideoCapabilities?.key === key && Date.now() - cachedVideoCapabilities.at < 60_000) return cachedVideoCapabilities.value;
   const value = await videoCapabilities(endpoint);
   cachedVideoCapabilities = { key, at: Date.now(), value };
+  return value;
+}
+const textToMusicSchema = z.object({
+  style: z.string().trim().min(1).max(1000),
+  lyrics: z.string().trim().min(1).max(20_000),
+  seed: z.number().int().min(0).max(2 ** 31 - 1).optional(),
+});
+
+let cachedMusicCapabilities: { key: string; at: number; value: MusicCapabilities } | undefined;
+async function currentMusicCapabilities(settings: Settings) {
+  const endpoint = settings.endpoints["music-generation"];
+  const key = `${endpoint.baseUrl}|${endpoint.model}`;
+  if (cachedMusicCapabilities?.key === key && Date.now() - cachedMusicCapabilities.at < 60_000) return cachedMusicCapabilities.value;
+  const value = await musicCapabilities(endpoint);
+  cachedMusicCapabilities = { key, at: Date.now(), value };
   return value;
 }
 const mindMapSchema = z.object({
@@ -339,6 +355,27 @@ app.post("/api/modules/text-to-image/jobs", async (request, response) => {
   if (!capabilities.sizes.some((size) => size.value === input.size)) return response.status(400).json({ error: `${capabilities.model || "The image model"} does not offer ${input.size.replace("x", " × ")}` });
   if (input.steps !== undefined && capabilities.maxSteps && input.steps > capabilities.maxSteps) return response.status(400).json({ error: `${capabilities.model || "The image model"} accepts at most ${capabilities.maxSteps} steps` });
   const job = await createTextToImageJob(input.prompt, { prompt: input.prompt, size: input.size, ...(input.steps !== undefined ? { steps: input.steps } : {}), ...(input.seed !== undefined ? { seed: input.seed } : {}) });
+  try {
+    await enqueueJob(job.id);
+  } catch (error) {
+    await updateJob(job.id, { status: "failed", stage: "Queue unavailable", error: error instanceof Error ? error.message : String(error) });
+    throw error;
+  }
+  response.status(201).json(job);
+});
+app.get("/api/modules/text-to-music/capabilities", async (_request, response) => {
+  response.json(await currentMusicCapabilities(await readSettings()));
+});
+app.post("/api/modules/text-to-music/jobs", async (request, response) => {
+  const input = textToMusicSchema.parse(request.body);
+  const settings = await readSettings();
+  const module = listModules(settings).find((candidate) => candidate.id === "text-to-music");
+  if (!module?.configured) return response.status(409).json({ error: "Configure and enable the Music generation service first" });
+  const capabilities = await currentMusicCapabilities(settings);
+  const model = capabilities.model || "The music model";
+  if (input.style.length > capabilities.maxStyleChars) return response.status(400).json({ error: `${model} takes a style of up to ${capabilities.maxStyleChars} characters` });
+  if (input.lyrics.length > capabilities.maxLyricsChars) return response.status(400).json({ error: `${model} takes lyrics of up to ${capabilities.maxLyricsChars} characters` });
+  const job = await createTextToMusicJob(input.lyrics, input.style, input.seed !== undefined ? { seed: input.seed } : {});
   try {
     await enqueueJob(job.id);
   } catch (error) {

@@ -129,6 +129,27 @@ export const MODULE_CONTRACTS: readonly ModuleContract[] = [
     gpuLane: "heavy",
   },
   {
+    id: "text-to-music",
+    title: "Text to music",
+    shortTitle: "Music",
+    description: "Write a song from lyrics and a style, sung with its own accompaniment, with an editable score.",
+    icon: "music",
+    route: "/tools/text-to-music",
+    providerKind: "music-generation",
+    // Text becomes the lyrics; a score (one it wrote, perhaps edited) is sung as written.
+    accepts: [...textResults, "score"],
+    produces: ["generated-audio", "score"],
+    handoff: { mode: "workflow", workflows: [{ workflowId: "text-to-music.default", accepts: [...textResults, "score"] }], maxInputs: 1 },
+    actionLabel: "Make a song",
+    actionDescription: "Sing this text as lyrics, or this score as written",
+    implementation: "ready",
+    // A song's own score goes back in to sing it again, as edited or with another style.
+    allowSelfHandoff: true,
+    // Opt-in for its non-commercial weights, so it stays out of every list until its endpoint is on.
+    hiddenUntilConfigured: true,
+    gpuLane: "heavy",
+  },
+  {
     id: "mindmap",
     title: "Mind map",
     shortTitle: "Map",

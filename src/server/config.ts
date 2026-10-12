@@ -33,7 +33,7 @@ const configuredMode = DEPLOYMENT_MODES.includes(environmentMode as (typeof DEPL
   ? environmentMode as Settings["setup"]["mode"]
   : "custom";
 const explicitlyComplete = brandEnv("SETUP_COMPLETE");
-const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
+const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL, process.env.MUSIC_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
 
 export const defaultSettings: Settings = {
   schemaVersion: 2,
@@ -62,6 +62,8 @@ export const defaultSettings: Settings = {
     grounding: { ...environmentEndpoint(process.env.GROUNDING_BASE_URL, process.env.GROUNDING_MODEL, ""), apiKey: process.env.GROUNDING_API_KEY || "" },
     "image-generation": { ...environmentEndpoint(process.env.IMAGE_GENERATION_BASE_URL, process.env.IMAGE_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.imageGeneration.model), apiKey: process.env.IMAGE_GENERATION_API_KEY || "" },
     "video-generation": { ...environmentEndpoint(process.env.VIDEO_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.videoGeneration.model), apiKey: process.env.VIDEO_GENERATION_API_KEY || "" },
+    // Opt-in (start-dgx-spark.sh --music-backend yue2), so it stays off unless its URL is set.
+    "music-generation": { ...environmentEndpoint(process.env.MUSIC_GENERATION_BASE_URL, process.env.MUSIC_GENERATION_MODEL, BUNDLED_SERVICE_CATALOG.musicGeneration.model), apiKey: process.env.MUSIC_GENERATION_API_KEY || "" },
   },
   audio: {
     chunkTargetSec: 60,

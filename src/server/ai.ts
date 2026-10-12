@@ -622,6 +622,116 @@ export async function generateVideo(endpoint: EndpointConfig, request: VideoRequ
   };
 }
 
+export interface MusicCapabilities {
+  model?: string;
+  maxStyleChars: number;
+  maxLyricsChars: number;
+  /** Whether the service sings a given ABC score instead of writing one. */
+  acceptsScore: boolean;
+  /** The weights' license, shown with every song. */
+  license?: string;
+  /** False when the endpoint does not describe itself and these are Sparkfire's defaults. */
+  reported: boolean;
+}
+
+export const DEFAULT_MUSIC_CAPABILITIES: MusicCapabilities = { maxStyleChars: 1000, maxLyricsChars: 20_000, acceptsScore: false, reported: false };
+
+/** Reads the Sparkfire music adapter's /v1/capabilities; other servers get conservative defaults. */
+export async function musicCapabilities(endpoint: EndpointConfig, signal?: AbortSignal): Promise<MusicCapabilities> {
+  try {
+    const response = await fetch(url(endpoint.baseUrl, "capabilities"), { headers: headers(endpoint, false), signal: requestSignal(5000, signal) });
+    if (!response.ok) return DEFAULT_MUSIC_CAPABILITIES;
+    const payload = (await response.json()) as Record<string, unknown>;
+    const limit = (value: unknown, fallback: number) => (typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback);
+    const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined);
+    return {
+      model: text(payload.model),
+      maxStyleChars: limit(payload.maxStyleChars, DEFAULT_MUSIC_CAPABILITIES.maxStyleChars),
+      maxLyricsChars: limit(payload.maxLyricsChars, DEFAULT_MUSIC_CAPABILITIES.maxLyricsChars),
+      acceptsScore: payload.acceptsScore === true,
+      license: text(payload.license),
+      reported: true,
+    };
+  } catch {
+    return DEFAULT_MUSIC_CAPABILITIES;
+  }
+}
+
+export interface MusicRequest {
+  style: string;
+  lyrics: string;
+  /** An ABC score to sing as written. */
+  score?: string;
+  seed?: number;
+}
+
+export interface GeneratedMusicResult {
+  bytes: number;
+  score: string;
+  model?: string;
+  seed?: number;
+  durationSeconds?: number;
+  elapsedSeconds?: number;
+  /** Stages that ran out of room before the song ended, so the song stops early. */
+  truncated: string[];
+  license?: string;
+}
+
+/**
+ * Asks the music service for one song. The answer is multipart: the FLAC goes to `destination`, the ABC score
+ * and the metadata come back. A song of a few minutes is tens of MB, which fits in memory while it is split.
+ */
+export async function generateMusic(endpoint: EndpointConfig, request: MusicRequest, destination: string, signal?: AbortSignal): Promise<GeneratedMusicResult> {
+  const response = await fetch(url(endpoint.baseUrl, "music/generations"), {
+    method: "POST",
+    headers: headers(endpoint),
+    body: JSON.stringify({
+      model: endpoint.model,
+      style: request.style,
+      lyrics: request.lyrics,
+      ...(request.score ? { score: request.score } : {}),
+      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+    }),
+    // A long song on a busy Spark took 15 minutes (docs/validation.md).
+    signal: requestSignal(60 * 60_000, signal),
+  });
+  if (!response.ok) throw new Error(await responseError(response));
+  if (!(response.headers.get("content-type") || "").startsWith("multipart/form-data")) throw new Error("The music endpoint did not return a song");
+  const form = await response.formData();
+  const audio = form.get("audio");
+  if (!(audio instanceof Blob) || !audio.size) throw new Error("The music endpoint returned no audio");
+  const score = form.get("score");
+  const metadataPart = form.get("metadata");
+  let metadata: Record<string, unknown> = {};
+  try {
+    metadata = JSON.parse(typeof metadataPart === "string" ? metadataPart : metadataPart instanceof Blob ? await metadataPart.text() : "{}") as Record<string, unknown>;
+  } catch {
+    // The song is still worth keeping without its details.
+  }
+  const partial = `${destination}.part`;
+  try {
+    await fs.writeFile(partial, Buffer.from(await audio.arrayBuffer()));
+    await fs.rename(partial, destination);
+  } catch (error) {
+    await fs.rm(partial, { force: true });
+    throw error;
+  }
+  const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined);
+  const truncated = metadata.truncated && typeof metadata.truncated === "object"
+    ? Object.entries(metadata.truncated as Record<string, unknown>).filter(([, value]) => value === true).map(([stage]) => stage)
+    : [];
+  return {
+    bytes: audio.size,
+    score: typeof score === "string" ? score : score instanceof Blob ? await score.text() : "",
+    model: typeof metadata.model === "string" ? metadata.model : undefined,
+    seed: Number.isInteger(metadata.seed) ? Number(metadata.seed) : undefined,
+    durationSeconds: number(metadata.durationSeconds),
+    elapsedSeconds: number(metadata.elapsedSeconds),
+    truncated,
+    license: typeof metadata.license === "string" ? metadata.license : undefined,
+  };
+}
+
 export interface GroundingBox {
   x1: number;
   y1: number;

@@ -17,6 +17,7 @@ const serviceLabels: Record<EndpointKind, string> = {
   grounding: "Grounding",
   "image-generation": "Image generation",
   "video-generation": "Video generation",
+  "music-generation": "Music generation",
 };
 
 const serviceDescriptions: Record<EndpointKind, string> = {
@@ -27,6 +28,7 @@ const serviceDescriptions: Record<EndpointKind, string> = {
   grounding: "Locate objects and regions inside images",
   "image-generation": "Generate images from text prompts",
   "video-generation": "Generate videos with sound from text or an image",
+  "music-generation": "Songs with vocals from lyrics and a style (opt-in)",
 };
 
 // Video generation may be left out of a deployment (--video-backend none), so its absence does not fail setup.
@@ -99,7 +101,8 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
         return;
       }
       const missingOptional = results.filter(([kind, result]) => !result.ok && isOptionalReferenceKind(kind)).map(([kind]) => serviceLabels[kind]);
-      setVerifiedReference(missingOptional.length ? referenceSettingsForHost(settings, host, mode, { video: false }) : candidate);
+      // Each optional service is on when it answered: video unless it is left out, music when it was turned on.
+      setVerifiedReference(referenceSettingsForHost(settings, host, mode, { video: checks["video-generation"]?.ok === true, music: checks["music-generation"]?.ok === true }));
       toast.success("Bundled services verified", missingOptional.length ? `${missingOptional.join(", ")} did not answer and stays off until you enable it in Settings.` : "Review the connection and apply when ready.");
     } catch (value) {
       setReferenceChecks({});

@@ -35,7 +35,7 @@ cd Sparkfire
 
 Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
 
-Ports 8330–8337 bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
+Ports 8330–8337 (and 8339 with music) bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
 ### Sparkfire with other providers
 
@@ -74,6 +74,7 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
 | 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.41.0 |
 | 8337 | Video generation | FastH3 (`FastVideo/FastVideo-FastH3-Trim-Comfy`, `FastVideo/FastVideo-FastH3-Comfy`) / ComfyUI 0df64eb |
+| 8339 | Music generation (only with `--music-backend yue2`) | `m-a-p/YuE2-3B`, `m-a-p/YuE2-Vae` / YuE2 v0.1.6 on NGC PyTorch 26.07 |
 | 54321 | Sparkfire | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
@@ -111,6 +112,23 @@ South Korea and the United States, and asks that shared outputs be disclosed as 
 carries that note in its metadata. Where the license does not apply, start the stack with
 `--video-backend none`: the service is not built, downloaded or started, and the app leaves its video
 endpoint off.
+
+### Music generation
+
+Port 8339 serves YuE2 from m-a-p, which turns lyrics and a style into a song with vocals: it writes the song as
+an editable ABC score first, then sings it as 48 kHz stereo FLAC. It is off unless the stack starts with
+`--music-backend yue2`, because the weights are CC BY-NC 4.0: personal users and creators may publish and
+sell their songs, academic use is non-commercial, and companies need a license from m-a-p. With the option,
+the start script builds the service and downloads the model and its decoder at pinned revisions (about
+7.8 GB).
+
+Nothing loads at start. The first song loads the model in about 50 seconds; the weights stay for ten idle
+minutes (`MUSIC_IDLE_UNLOAD_SECONDS`) and are freed at once by `POST /v1/unload`. A loaded model holds about
+15 GiB and a song peaks near 20 GiB, so the adapter refuses to load while less than 22 GiB is free, and the
+app runs music and video one at a time (the heavy GPU lane). YuE2 moves its model between the CPU and the GPU
+for every song, which saves memory on a graphics card with its own; on the Spark's shared memory the move took
+a minute, so the adapter keeps both on the GPU. A 47-second song then takes about 51 seconds, with audio
+identical to YuE2's own path.
 
 ## Operations
 

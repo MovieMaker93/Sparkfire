@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { AudioLines, BrainCircuit, ChevronUp, Film, GitBranch, Images, Image as ImageIcon, LayoutGrid, Languages, MessageCircle, Network, PanelLeftClose, PanelLeftOpen, ScanSearch, ScanText, Search, Settings } from "lucide-react";
+import { AudioLines, BrainCircuit, ChevronUp, Film, GitBranch, Image as ImageIcon, Images, Languages, LayoutGrid, MessageCircle, Music, Network, PanelLeftClose, PanelLeftOpen, ScanSearch, ScanText, Search, Settings } from "lucide-react";
 import { api } from "../api";
 import { settingsUpdatedEvent } from "../settings-events";
 import type { Health, ModuleDescriptor, Settings as AppSettings, SparkStatus } from "../types";
@@ -8,7 +8,7 @@ import { displayVersion, isNewerVersion, latestRelease, type ReleaseManifest } f
 import { BrandWordmark } from "./BrandMark";
 import { useGlobalSearch } from "./GlobalSearch";
 
-const moduleIcons = { "scan-text": ScanText, "audio-lines": AudioLines, languages: Languages, "scan-search": ScanSearch, image: ImageIcon, film: Film, network: Network, "message-circle": MessageCircle };
+const moduleIcons = { "scan-text": ScanText, "audio-lines": AudioLines, languages: Languages, "scan-search": ScanSearch, image: ImageIcon, film: Film, music: Music, network: Network, "message-circle": MessageCircle };
 const mobileNav = [
   { to: "/", label: "Home", icon: LayoutGrid, exact: true },
   { to: "/workflows", label: "Flows", icon: GitBranch, exact: false },

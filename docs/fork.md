@@ -61,6 +61,8 @@ API additions:
 - `GET /api/modules/text-to-image/capabilities` returns the sizes and step limits of the active image model.
 - `GET /api/modules/text-to-video/capabilities` and `POST /api/modules/text-to-video/jobs` (multipart, with an
   optional `firstFrame` image): see [Video generation](#video-generation-fasth3).
+- `GET /api/modules/text-to-music/capabilities` and `POST /api/modules/text-to-music/jobs` (JSON: `lyrics`,
+  `style`, optional `seed`): see [Music generation](#music-generation-yue2).
 
 ## Chat
 
@@ -138,6 +140,7 @@ deploy time:
 | Image (:8336) | Z-Image-Turbo | Qwen-Image 2.1 (float8 weights, 2K sizes, 40 steps; Qwen Research License) | `--image-backend qwen-image-2.1` |
 | | | Qwen-Image-2.1-Turbo (the same model distilled to 8 fixed steps) | `--image-backend qwen-image-2.1-turbo` |
 | Video (:8337) | FastH3 (MiniMax H3 Community License; not licensed in the EU, UK, South Korea or US) | none | `--video-backend none` |
+| Music (:8339) | none (opt-in) | YuE2-3B (CC BY-NC 4.0 weights with a creator permission) | `--music-backend yue2` |
 
 ```bash
 ./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --image-backend qwen-image-2.1-turbo --accept-model-licenses
@@ -223,6 +226,36 @@ page and in the Gallery, and can be a workflow node.
   and has official ComfyUI support, so it is the candidate for a second backend in the adapter's registry.
 - **Updating an existing install.** The start script builds the service and
   downloads both checkpoint sets at pinned revisions. Saved settings gain the video endpoint automatically when it was empty.
+
+## Music generation: YuE2
+
+The Text to music module sings a song from lyrics and a style. It is opt-in: it appears only once its endpoint
+is on, which `--music-backend yue2` does, because YuE2's weights are non-commercial.
+
+- **Model.** [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B) from m-a-p (release `yue2-v0.1.6`) with its
+  audio decoder `m-a-p/YuE2-Vae`, about 7.8 GB at pinned revisions. It writes the song as an ABC score
+  (melody and chords), then sings it: 48 kHz stereo FLAC. Quality was judged very good in English, Italian and
+  Mandarin (docs/validation.md).
+- **Results.** A song job keeps the lyrics as `Lyrics.txt` and returns `song.flac` (`generated-audio`) and
+  `score.abc` (`score`, a new artifact kind no other module is offered). Text from any module can become the
+  lyrics; a score goes back into **Make a song** to be sung as written, with the lyrics and style of the song
+  that wrote it unless new ones are given, so a melody can be edited or restyled. A workflow node takes the
+  style and sings incoming text or a score. The run records the seed, duration and the weights' license,
+  which the job page shows under the song.
+- **Service.** `sparklingkit-music-generation` on :8339 (`services/dgx-models/music`), a FastAPI adapter
+  around the YuE2 package, built on the NGC PyTorch 26.07 image it was measured on. `POST
+  /v1/music/generations` answers with `multipart/form-data`: the FLAC, the score and a JSON part with the
+  seed, length and license.
+  - Nothing loads until the first song (about 50 s); the weights are freed after `MUSIC_IDLE_UNLOAD_SECONDS`
+    (default 600) or at once by `POST /v1/unload`. Before loading it checks that 22 GiB is free.
+  - YuE2 moves its model to the CPU and its decoder to the GPU for every song, which suits a graphics card
+    with its own memory. On the Spark's shared memory that move took 59 s of a 96 s song, so the adapter
+    keeps both on the GPU: a 47-second song takes 51 s, with audio identical to YuE2's own path.
+  - It sings one song at a time and stops a song when the app hangs up.
+- **Heavy lane.** Music and video share the heavy GPU lane: they take turns, and switching from one to the
+  other frees the previous service's weights first.
+- **License.** Code Apache 2.0; weights CC BY-NC 4.0 with a creator permission: personal users and creators
+  may publish and monetize their songs, academic use is non-commercial, companies need a license from m-a-p.
 
 ## Sharing the Spark with another LLM
 
