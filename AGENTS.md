@@ -1,7 +1,8 @@
 # AGENTS.md
 
 Instructions for AI coding agents (and new contributors) working in this repository. Read this first; it is
-the single source of truth for how the project is built, tested and changed. `CLAUDE.md` imports this file.
+the single source of truth for how the project is built, tested and changed. `CLAUDE.md` imports this file, and
+`CONTRIBUTING.md` is the short version for people: keep the two in agreement.
 
 If git-ignored notes exist next to this file (`CLAUDE.local.md`, `AGENTS.local.md`, or `*.local.md`), read
 them too: they hold one person's machine-specific setup. Never copy their contents into tracked files.
