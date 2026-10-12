@@ -69,6 +69,7 @@ data/
 ├── config/
 │   ├── settings.json
 │   ├── secrets.json
+│   ├── upgrades.json            # one-time settings upgrades already applied
 │   ├── prompts/
 │   └── workflows/               # saved workflow definitions
 ├── jobs/<job-id>/

@@ -114,13 +114,13 @@ is one chunk either way.
   container's health check does not fail while it transcribes.
 - **Status page:** the system monitor labels the engine's GPU process "ASR" and names its model.
 
-## LLM: Underdog Saluki 27B (evaluated, not integrated)
+## LLM: Underdog Saluki 27B (the default)
 
 [Saluki](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) is a 2-bit GGUF of Qwen3.8-27B
 (7.9 GB) with an optional vision add-on. It ran in stock `llama-server` (CUDA) with `--jinja -ngl 99 -fa on
 -c 65536 --parallel 1`, on the LLM port, so the app used it unchanged.
 
-| | Saluki 27B | Qwen3.6-35B-A3B NVFP4 (current) |
+| | Saluki 27B | Qwen3.6-35B-A3B NVFP4 (retired) |
 | --- | --- | --- |
 | GPU memory | 13.0 GiB, loads in about 5 s with no peak | about 28 GiB, about 60 GB peak while loading |
 | Decode | 22–23 tok/s | 20–54 tok/s |
@@ -315,7 +315,7 @@ measured with every service loaded and idle.
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
 transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
 LLM (started by hand) and the mind map requested directly with thinking off, so its figures describe the
-Saluki configuration, not the default Qwen3.6 LLM; the busy peak of Qwen3.6 plus Parakeet remains the
+Saluki configuration, now the default, not the retired Qwen3.6 LLM; the busy peak of Qwen3.6 plus Parakeet remains the
 README's estimate. The 92.4 GiB peak belongs to the pass that ran before Hy-MT2's wedge was found (see
 Known issues): the LLM spent its whole 8192-token budget on a reasoning trace while every translation
 request hung.

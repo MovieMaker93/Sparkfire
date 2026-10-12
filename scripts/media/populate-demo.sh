@@ -14,8 +14,8 @@ image() {
     | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/text-to-image/jobs" | jq -r .id
 }
 
-# The LLM endpoint seeds as text only: declare Saluki's image input and tool calling, which chat attachments
-# and web search need.
+# Declare Saluki's image input and tool calling, which chat attachments and web search need: a fresh demo seeds
+# them, but settings saved before Saluki became the default do not have them.
 curl -s "$api/settings" | jq '.endpoints.llm.capabilities = ["text", "image", "tools"]' \
   | curl -s -X PUT -H 'Content-Type: application/json' --data-binary @- "$api/settings" > /dev/null
 

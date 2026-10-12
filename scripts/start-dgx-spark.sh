@@ -239,6 +239,8 @@ show_status() {
   "${COMPOSE[@]}" ps
   printf '\nEndpoints\n'
   endpoint_status "System status" "http://127.0.0.1:8330/health"
+  # Saluki is started by hand (README, "Connect an LLM"), so "unavailable" here only means chat waits for it.
+  endpoint_status "LLM (Saluki)" "http://127.0.0.1:8331/v1/models"
   endpoint_status "OCR" "http://127.0.0.1:8332/v1/models"
   endpoint_status "Transcription" "http://127.0.0.1:8333/health"
   endpoint_status "Translation" "http://127.0.0.1:8334/health"

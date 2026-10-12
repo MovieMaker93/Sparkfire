@@ -126,11 +126,15 @@ API additions:
 
 ## Model backends
 
-The DGX stack drops upstream's bundled Qwen3.6 LLM: chat, mind maps and summaries use any
-OpenAI-compatible endpoint configured in Settings (the reference is Saluki 27B in `llama-server`; an
-`--llm-backend` service is planned), and so is the grounding service (LocateAnything-3B was removed
-from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself stays and works once a
-grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
+The DGX stack drops upstream's bundled Qwen3.6 LLM. Chat, mind maps and summaries default to Saluki 27B
+(`saluki-27b`) in `llama-server` on port 8331, which is started by hand (an `--llm-backend` service is
+planned). New installs and the guided setup point there, with image input and tool calling declared (the
+guided setup switches it on once Saluki answers). An existing install switches its LLM to Saluki once, on its
+first start after the upgrade, whatever it used before, and drops that LLM's key; `data/config/upgrades.json`
+records the switch, so another OpenAI-compatible endpoint chosen in Settings afterwards stays. An install with
+no Saluki address, in its environment or from the reference preset, keeps its LLM. The grounding service is dropped too
+(LocateAnything-3B was removed from the stack with its 10.9 GiB and 7.3 GB; the grounding module itself
+stays and works once a grounding endpoint is configured in Settings). Of the bundled services, OCR and images keep upstream's
 defaults, speech is Parakeet only, and video generation is Sparkfire's own; three can be switched at
 deploy time:
 

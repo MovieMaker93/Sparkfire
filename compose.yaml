@@ -14,7 +14,7 @@ services:
       WORKER_ENABLED: "true"
       SYSTEM_STATUS_BASE_URL: ${SYSTEM_STATUS_BASE_URL:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
-      LLM_MODEL: ${LLM_MODEL:-qwen36-35b-a3b-nvfp4}
+      LLM_MODEL: ${LLM_MODEL:-saluki-27b}
       LLM_API_KEY: ${LLM_API_KEY:-}
       OCR_BASE_URL: ${OCR_BASE_URL:-}
       OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}

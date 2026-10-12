@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { PromptPreset, Settings } from "./models.js";
 import { DEPLOYMENT_MODES } from "../shared/contracts.js";
-import { REFERENCE_SERVICE_CATALOG } from "../shared/reference-stack.js";
+import { REFERENCE_LLM_CAPABILITIES, REFERENCE_SERVICE_CATALOG } from "../shared/reference-stack.js";
 
 export const ROOT_DIR = process.cwd();
 export const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT_DIR, "data"));
@@ -33,6 +33,9 @@ const configuredMode = DEPLOYMENT_MODES.includes(environmentMode as (typeof DEPL
   ? environmentMode as Settings["setup"]["mode"]
   : "custom";
 const explicitlyComplete = brandEnv("SETUP_COMPLETE");
+// Saluki's image input and tool calling are known; another model starts as text only until Settings says more.
+const llmModel = process.env.LLM_MODEL?.trim() || BUNDLED_SERVICE_CATALOG.llm.model;
+const llmCapabilities = llmModel === BUNDLED_SERVICE_CATALOG.llm.model ? [...REFERENCE_LLM_CAPABILITIES] : ["text" as const];
 const environmentHasServices = [process.env.LLM_BASE_URL, process.env.OCR_BASE_URL, process.env.STT_BASE_URL, process.env.TRANSLATION_BASE_URL, process.env.GROUNDING_BASE_URL, process.env.IMAGE_GENERATION_BASE_URL, process.env.VIDEO_GENERATION_BASE_URL, process.env.MUSIC_GENERATION_BASE_URL].some((value) => Boolean(value?.trim()));
 
 export const defaultSettings: Settings = {
@@ -53,8 +56,9 @@ export const defaultSettings: Settings = {
     baseUrl: process.env.WEB_SEARCH_BASE_URL?.trim() || "",
   },
   endpoints: {
-    // The reference stack ships no LLM; any OpenAI-compatible endpoint set here (env or Settings) is used as configured.
-    llm: { ...environmentEndpoint(process.env.LLM_BASE_URL, process.env.LLM_MODEL, "", ["text"]), apiKey: process.env.LLM_API_KEY || "" },
+    // The stack does not start the LLM, but its reference is Saluki 27B in llama-server (README, "Connect an LLM").
+    // Any other OpenAI-compatible endpoint set here (env or Settings) is used as configured.
+    llm: { ...environmentEndpoint(process.env.LLM_BASE_URL, process.env.LLM_MODEL, BUNDLED_SERVICE_CATALOG.llm.model, llmCapabilities), apiKey: process.env.LLM_API_KEY || "" },
     ocr: { ...environmentEndpoint(process.env.OCR_BASE_URL, process.env.OCR_MODEL, BUNDLED_SERVICE_CATALOG.ocr.model), apiKey: process.env.OCR_API_KEY || "" },
     stt: { ...environmentEndpoint(process.env.STT_BASE_URL, process.env.STT_MODEL, BUNDLED_SERVICE_CATALOG.stt.model), apiKey: process.env.STT_API_KEY || "" },
     translation: { ...environmentEndpoint(process.env.TRANSLATION_BASE_URL, process.env.TRANSLATION_MODEL, BUNDLED_SERVICE_CATALOG.translation.model), apiKey: process.env.TRANSLATION_API_KEY || "" },

@@ -2,13 +2,17 @@
 # music generation when it is turned on.
 # Use through scripts/start-dgx-spark.sh so the memory-heavy services start
 # sequentially and are checked for readiness before the next model is loaded.
-# The stack ships no LLM (chat and mind maps use an endpoint configured in Settings) and no
-# grounding service (the module stays available through Settings).
+# The stack does not start the LLM: the app expects Saluki 27B in llama-server on port 8331, started by
+# hand (README, "Connect an LLM"), and any other endpoint can be set in Settings. It ships no grounding
+# service either (the module stays available through Settings).
 
 services:
   app:
     environment:
       SYSTEM_STATUS_BASE_URL: http://host.docker.internal:8330
+      # Saluki 27B in llama-server on the host, started by hand; a URL of your own in .env takes its place.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8331/v1}
+      LLM_MODEL: ${LLM_MODEL:-saluki-27b}
       OCR_BASE_URL: http://host.docker.internal:8332/v1
       OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}
       STT_BASE_URL: http://host.docker.internal:8333/v1

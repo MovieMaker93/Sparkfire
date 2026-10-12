@@ -5,10 +5,14 @@ import { lookup as mimeLookup } from "mime-types";
 import { DATA_DIR, defaultPrompts, defaultSettings } from "./config.js";
 import { moduleForLegacyJob } from "./modules/registry.js";
 import { ENDPOINT_KINDS } from "../shared/contracts.js";
+import { REFERENCE_LLM_CAPABILITIES, REFERENCE_SERVICE_CATALOG, referenceHost } from "../shared/reference-stack.js";
 import type { Artifact, ArtifactKind, ChatRecord, JobKind, JobManifest, JobStatus, ModuleId, PromptPreset, Settings, WorkflowRun } from "./models.js";
 
 const settingsPath = path.join(DATA_DIR, "config", "settings.json");
 const secretsPath = path.join(DATA_DIR, "config", "secrets.json");
+// One-time changes to saved settings, listed once applied. Kept out of settings.json, which a save from Settings rewrites.
+const upgradesPath = path.join(DATA_DIR, "config", "upgrades.json");
+const SALUKI_UPGRADE = "llm-saluki-27b";
 
 async function exists(file: string) {
   try {
@@ -30,10 +34,15 @@ export async function initializeData() {
   for (const folder of ["config/prompts", "config/workflows", "jobs", "chats", "logs", "tmp"]) {
     await fs.mkdir(path.join(DATA_DIR, folder), { recursive: true });
   }
+  const applied = await appliedUpgrades();
+  const appliedBefore = applied.length;
+  let llmSwitched = false;
   if (!(await exists(settingsPath))) {
     const safe = structuredClone(defaultSettings);
     for (const endpoint of Object.values(safe.endpoints)) endpoint.apiKey = "";
     await atomicWriteJson(settingsPath, safe);
+    // A new install starts on Saluki already; recording it keeps a later choice in Settings from being switched back.
+    if (!applied.includes(SALUKI_UPGRADE)) applied.push(SALUKI_UPGRADE);
   } else {
     const saved = JSON.parse(await fs.readFile(settingsPath, "utf8")) as Partial<Settings> & { pdf?: Partial<Settings["pdf"]> & { skipOcrIfTextLayer?: boolean } };
     let changed = false;
@@ -47,6 +56,11 @@ export async function initializeData() {
       changed = true;
     }
     changed = migrateBundledServiceDefaults(saved) || changed;
+    if (!applied.includes(SALUKI_UPGRADE)) {
+      const outcome = switchLlmToSaluki(saved);
+      if (outcome !== "nowhere") applied.push(SALUKI_UPGRADE);
+      if (outcome === "switched") llmSwitched = changed = true;
+    }
     if (changed) await atomicWriteJson(settingsPath, saved);
   }
   if (!(await exists(secretsPath))) {
@@ -59,7 +73,39 @@ export async function initializeData() {
   }
   const settings = await readSettings();
   if (settings.schemaVersion !== 2) throw new Error("Settings migration failed");
+  // The key belonged to the LLM that Saluki replaced, perhaps a cloud service, and must not be sent to the Spark.
+  if (llmSwitched) settings.endpoints.llm.apiKey = "";
   await writeSettings(settings);
+  if (applied.length !== appliedBefore) await atomicWriteJson(upgradesPath, { applied });
+}
+
+async function appliedUpgrades(): Promise<string[]> {
+  try {
+    const saved = JSON.parse(await fs.readFile(upgradesPath, "utf8")) as { applied?: unknown };
+    return Array.isArray(saved.applied) ? saved.applied.filter((name): name is string => typeof name === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saluki 27B became the default LLM in place of whatever an install had, the retired Qwen3.6 on most. It runs where
+ * the environment says (the start scripts), or else on the Spark the reference preset points at; an install with
+ * neither has no Saluki to switch to and keeps its LLM until it has one.
+ */
+function switchLlmToSaluki(saved: Partial<Settings>): "switched" | "already" | "nowhere" {
+  const current = saved.endpoints?.llm;
+  if (current?.baseUrl && current.model === REFERENCE_SERVICE_CATALOG.llm.model) return "already";
+  const seeded = defaultSettings.endpoints.llm;
+  const host = referenceHost(saved);
+  const llm = seeded.baseUrl
+    ? { ...seeded, apiKey: "" }
+    : host
+      ? { baseUrl: `http://${host}:${REFERENCE_SERVICE_CATALOG.llm.port}/v1`, model: REFERENCE_SERVICE_CATALOG.llm.model, apiKey: "", enabled: true, capabilities: [...REFERENCE_LLM_CAPABILITIES] }
+      : undefined;
+  if (!llm) return "nowhere";
+  saved.endpoints = { ...saved.endpoints, llm } as Settings["endpoints"];
+  return "switched";
 }
 
 function migrateBundledServiceDefaults(saved: Partial<Settings>) {

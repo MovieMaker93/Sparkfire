@@ -146,14 +146,14 @@ cd Sparkfire
 
 ### Connect an LLM
 
-The stack ships no LLM, so chat, mind maps and LLM prompts in workflows wait until you point **Settings → Services → Language model** at an OpenAI-compatible endpoint, local or in the cloud. The reference is [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) in `llama-server` from a CUDA build of [llama.cpp](https://github.com/ggml-org/llama.cpp): 13 GiB of GPU memory, 22 tokens a second, and it reads images.
+Chat, mind maps and LLM prompts in workflows use [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) by default, in `llama-server` from a CUDA build of [llama.cpp](https://github.com/ggml-org/llama.cpp): 13 GiB of GPU memory, 22 tokens a second, and it reads images. The stack does not start it, so run it on the Spark, on port 8331:
 
 ```bash
 llama-server -m Underdog-Saluki-27B-1.0-IQ2-mix.gguf --mmproj mmproj-Underdog-Saluki-27B-1.0-F16.gguf \
   --jinja -ngl 99 -fa on -c 65536 --parallel 1 --host 0.0.0.0 --port 8331 --alias saluki-27b
 ```
 
-In Settings, set the URL to `http://host.docker.internal:8331/v1` and the model to `saluki-27b`, and tick **Images** and **Tool calling**. Mind maps ask the model to answer without thinking, so Saluki's reasoning cannot use up their token budget; chat lets you choose the thinking level per message.
+Sparkfire is already pointed at it. The start scripts set the language model to `saluki-27b` at `http://host.docker.internal:8331/v1` (the Spark's address in a split deployment), with **Images** and **Tool calling** ticked, and the guided setup does the same. An existing install switches its language model to Saluki once, on its first start after the upgrade, whatever it used before. Until Saluki runs, the language model shows as offline. To use another OpenAI-compatible endpoint, local or in the cloud, change it in **Settings → Services → Language model**. Mind maps ask the model to answer without thinking, so Saluki's reasoning cannot use up their token budget; chat lets you choose the thinking level per message.
 
 ### Other ways to run it
 
@@ -198,7 +198,7 @@ git pull
 The script rebuilds what changed and leaves `data/` alone. Saved settings are never rewritten, so a few upgrades need one change in **Settings → Services**:
 
 - **From Qwen3-ASR:** choose `Parakeet-TDT-0.6B-v3` under Speech to text. Until then transcription still works, with minute-long lines instead of sentences.
-- **From the six-model stack:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything containers. Repoint or turn off the LLM (port 8331) and grounding (port 8335) endpoints, which no longer answer; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
+- **From the six-model stack:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything containers. The language model switches to [Saluki](#connect-an-llm) on port 8331 by itself; start Saluki. Turn off grounding (port 8335), which no longer answers; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
 - **From SparklingKit or the MovieMaker93/SparklingKit fork:** point your checkout at this repository and run the start script again. Jobs, settings, models and containers are reused as they are, and the old `SPARKLINGKIT_*` variables in `.env` still work.
 
 Set `HF_TOKEN` in the shell when a model download needs authentication or more download capacity: `HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses`.
@@ -221,7 +221,7 @@ Five models share the Spark, six with music, each in its own container behind an
 | Music generation | off | [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B), non-commercial: `--music-backend yue2` | 8339 |
 | Web search for chat | off | SearXNG: `--search-backend searxng` (bound to 127.0.0.1) | 8338 |
 | System monitor | memory, GPU and service health in the sidebar | | 8330 |
-| Language model | not shipped: any OpenAI-compatible endpoint ([Saluki 27B](#connect-an-llm) in the reference) | | yours |
+| Language model | [Saluki 27B](#connect-an-llm) in llama-server, which you start | any OpenAI-compatible endpoint, in Settings | 8331 |
 | Visual grounding | not shipped: any compatible endpoint | | yours |
 
 The clips and measurements use PaddleOCR-VL-1.6 and Qwen-Image-2.1-Turbo. Details of each backend are in [docs/fork.md](docs/fork.md#model-backends), and measured results in [docs/validation.md](docs/validation.md).

@@ -31,7 +31,8 @@ const serviceDescriptions: Record<EndpointKind, string> = {
   "music-generation": "Songs with vocals from lyrics and a style (opt-in)",
 };
 
-// Video generation may be left out of a deployment (--video-backend none), so its absence does not fail setup.
+// Video generation may be left out of a deployment (--video-backend none), music is opt-in and the LLM is started by
+// hand, so their absence does not fail setup.
 const checkedReferenceKinds: EndpointKind[] = [...REFERENCE_ENDPOINT_KINDS, ...OPTIONAL_REFERENCE_ENDPOINT_KINDS];
 const isOptionalReferenceKind = (kind: EndpointKind) => (OPTIONAL_REFERENCE_ENDPOINT_KINDS as readonly EndpointKind[]).includes(kind);
 
@@ -101,8 +102,8 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
         return;
       }
       const missingOptional = results.filter(([kind, result]) => !result.ok && isOptionalReferenceKind(kind)).map(([kind]) => serviceLabels[kind]);
-      // Each optional service is on when it answered: video unless it is left out, music when it was turned on.
-      setVerifiedReference(referenceSettingsForHost(settings, host, mode, { video: checks["video-generation"]?.ok === true, music: checks["music-generation"]?.ok === true }));
+      // Each optional service is on when it answered: video unless it is left out, music when it was turned on, Saluki when it runs.
+      setVerifiedReference(referenceSettingsForHost(settings, host, mode, { video: checks["video-generation"]?.ok === true, music: checks["music-generation"]?.ok === true, llm: checks.llm?.ok === true }));
       toast.success("Bundled services verified", missingOptional.length ? `${missingOptional.join(", ")} did not answer and stays off until you enable it in Settings.` : "Review the connection and apply when ready.");
     } catch (value) {
       setReferenceChecks({});
@@ -204,12 +205,12 @@ export function OnboardingPage({ settings, canCancel, onComplete, onCancel }: {
           <div className="onboarding-command"><span><ServerCog size={18} /><code>{installCommand}</code></span><button onClick={() => void copyText(installCommand)} aria-label="Copy model installation command"><Copy size={17} /></button></div>
           <p className="onboarding-script-note">The script builds the service images, downloads pinned model revisions and starts the services in a memory-safe order. It never installs Docker itself; <code>./scripts/start-dgx-spark.sh status</code> and <code>stop</code> manage the stack later.</p>
 
-          <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "Sparkfire uses Docker's host gateway to reach ports 8332–8334, 8336, and 8337." : "Ports 8330, 8332–8334, 8336, and 8337 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
+          <div className="onboarding-step onboarding-connect-step"><span>2</span><div><h3>{tab === "local" ? "Verify local services" : "Connect this workspace"}</h3><p>{tab === "local" ? "Sparkfire uses Docker's host gateway to reach ports 8332–8334, 8336, and 8337, and Saluki on 8331." : "Ports 8330–8334, 8336, and 8337 must be reachable from this server over a trusted LAN or VPN."}</p></div></div>
           {tab === "remote" && <label className="onboarding-host-field">DGX hostname or IP<input className="input" value={remoteHost} onChange={(event) => { setRemoteHost(event.target.value); setVerifiedReference(undefined); setReferenceChecks({}); setError(""); }} placeholder="192.168.22.33 or dgx-spark.local" /></label>}
 
           <ReferenceChecks checks={referenceChecks} />
           {error && <p className="onboarding-error" role="alert">{error}</p>}
-          <div className="onboarding-review-note"><strong>Applying this preset updates the bundled service URLs and model names, and the optional system-monitor URL.</strong><span>It does not change workspace data or processing settings.</span></div>
+          <div className="onboarding-review-note"><strong>Applying this preset updates the bundled service URLs and model names, switches the language model to Saluki, and sets the optional system-monitor URL.</strong><span>It does not change workspace data or processing settings.</span></div>
           <div className="onboarding-actions">{canCancel && <button className="button-secondary" onClick={onCancel}>Cancel</button>}{!verifiedReference ? <button className="button-primary" onClick={() => void verifyReference()} disabled={checking || (tab === "remote" && !remoteHost.trim())}>{checking ? <><LoaderCircle size={18} className="animate-spin" />Checking services…</> : "Verify services"}</button> : <button className="button-primary" onClick={() => void applyReference()} disabled={saving}>{saving ? <><LoaderCircle size={18} className="animate-spin" />Applying…</> : <><Check size={18} />Apply and continue</>}</button>}</div>
         </div> : <div className="onboarding-tab-panel onboarding-manual-panel" role="tabpanel">
           <div className="onboarding-panel-heading"><span className="onboarding-option-icon"><Settings2 size={24} /></span><div><h2>Configure services independently</h2><p>Add any compatible local, network, or cloud endpoint. You only need to configure the capabilities you plan to use.</p></div></div>

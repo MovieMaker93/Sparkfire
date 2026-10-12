@@ -89,6 +89,9 @@ if [[ -n "$MODEL_HOST" ]]; then
     exit 2
   fi
   export SYSTEM_STATUS_BASE_URL="http://$MODEL_HOST:8330"
+  # Saluki in llama-server, which the model host runs by hand (README, "Connect an LLM").
+  export LLM_BASE_URL="http://$MODEL_HOST:8331/v1"
+  export LLM_MODEL="saluki-27b"
   export OCR_BASE_URL="http://$MODEL_HOST:8332/v1"
   export OCR_MODEL="Unlimited-OCR"
   export STT_BASE_URL="http://$MODEL_HOST:8333/v1"

@@ -93,7 +93,8 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
   `hiddenUntilConfigured` in its contract (grounding, and opt-in music). The API then marks it `hidden` while its
   endpoint is off, and every UI list of tools and actions leaves it out; Settings still shows the endpoint.
 - **Settings.** `data/config/settings.json`. Environment variables only seed a new file; saved settings win
-  on later starts, so upgrades never overwrite a user's endpoints.
+  on later starts, so upgrades never overwrite a user's endpoints. The one exception is a one-time upgrade,
+  recorded in `data/config/upgrades.json` so it runs once: Saluki replaced every install's LLM.
 - **Model calls** live in `src/server/ai.ts`. Every request carries its own `AbortSignal` timeout. A global
   undici dispatcher (`src/server/http-dispatcher.ts`) disables Node's 300-second fetch timeouts, which
   would otherwise cut off long generations.
@@ -129,6 +130,7 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 | --- | --- | --- | --- |
 | 54321 | Sparkfire app | | |
 | 8330 | System monitor | | |
+| 8331 | Language model (started by hand) | Saluki 27B (`saluki-27b`, llama-server) | any OpenAI-compatible endpoint in Settings |
 | 8332 | OCR | Unlimited-OCR | PaddleOCR-VL-1.6 adapter (+ its vLLM on 8342): `--ocr-backend paddleocr-vl` |
 | 8333 | Speech recognition | Parakeet-TDT-0.6B-v3 | |
 | 8334 | Translation | Hy-MT2-1.8B-FP8 | |
@@ -140,9 +142,9 @@ Set `WORKER_ENABLED=false` to keep seeded queued and running jobs as they are wh
 Rules for this layer:
 
 - **Memory is the constraint.** The Spark has about 121 GiB of unified memory shared by CPU and GPU. The
-  stack ships no LLM (chat and mind maps use a user-configured endpoint; the reference is Saluki in
-  `llama-server`, ~13 GiB) or grounding (LocateAnything was removed; the module stays, endpoint in
-  Settings) and idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
+  stack does not start the LLM (the app defaults to Saluki 27B in `llama-server` on 8331, ~13 GiB, run by
+  hand; any endpoint can replace it in Settings) and ships no grounding (LocateAnything was removed; the
+  module stays, endpoint in Settings). It idles around 29 GiB. Video generation loads nothing until a job and frees its weights after
   ten idle minutes; a job adds 35 to 48 GiB with Fast and up to 57 GiB with Sharp while it runs. Music,
   when on, does the same with about 20 GiB a song. Do not start extra models, large builds or big downloads while
   services are loading, and check free memory (`free -g`) before running an LLM next to the stack: one

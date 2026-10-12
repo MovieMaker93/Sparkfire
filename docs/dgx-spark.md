@@ -33,7 +33,7 @@ cd Sparkfire
 ./scripts/start-sparkfire.sh --model-host DGX-HOSTNAME
 ```
 
-Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
+Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores the endpoint selection in its settings. The LLM endpoint is pointed at Saluki on port 8331 (see [Connect an LLM](../README.md#connect-an-llm)), switched on once it answers. The model host does not receive the application's job database, chat history, or durable workspace files.
 
 Ports 8330–8337 (and 8339 with music) bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
@@ -69,6 +69,7 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | Port | Service | Model/backend |
 | ---: | --- | --- |
 | 8330 | System status | Lightweight read-only Python API |
+| 8331 | LLM (started by hand) | Underdog Saluki 27B (`saluki-27b`) / llama-server |
 | 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
 | 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
@@ -189,4 +190,4 @@ Saved settings are intentionally retained across restarts and upgrades. To move 
 
 ### Upgrading from the six-model stack
 
-`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold about 27 GiB. Saved settings are not rewritten, so the LLM still points at port 8331 and grounding at port 8335. Until you repoint or disable those two endpoints in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. A newly configured LLM endpoint accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.
+`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold about 27 GiB. Saved settings are not rewritten, with one exception: on its first start after the upgrade the LLM switches to Saluki on port 8331, whatever it used before; start Saluki ([Connect an LLM](../README.md#connect-an-llm)). Grounding still points at port 8335. Until Saluki runs and grounding is disabled in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. An LLM endpoint you configure yourself accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.
