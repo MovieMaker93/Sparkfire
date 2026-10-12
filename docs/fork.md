@@ -220,6 +220,9 @@ page and in the Gallery, and can be a workflow node.
   - Nothing loads until the first job. The weights are freed after `VIDEO_IDLE_UNLOAD_SECONDS` (default
     600) without a job, and before a job that needs the other variant, so only one diffusion model is ever
     resident. `POST /v1/unload` frees them at once.
+  - Before each job the adapter checks free memory (`MemAvailable`) against what the job was measured to need:
+    the variant's peak (Fast 48 GiB, Sharp 57 GiB) less its weights when that variant is already loaded (34 and
+    44 GiB), plus 2 GiB. Short of it, it answers 503 with `Retry-After`, and the app waits and asks again.
   - The app runs heavy GPU jobs one at a time (`gpuLane` in the module contract, `src/server/gpu-lane.ts`),
     on their own queue so they never take the workers that OCR, chat and translation use. A second video
     waits, shown as "Waiting for the GPU", instead of loading next to the first. The same lane will take

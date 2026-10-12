@@ -50,9 +50,10 @@ The script:
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds Sparkfire and the thin model API adapters;
 3. downloads the stack's models from their publishers into `data/dgx-models/`, at pinned revisions except Saluki's for now;
-4. starts the model servers one at a time, Saluki first, and waits for each health endpoint;
-5. starts the read-only system monitor; and
-6. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
+4. on a fresh start, checks that about 64 GiB are free, which the stack needs while its models load, and stops otherwise (`--skip-memory-check` overrides it);
+5. starts the model servers one at a time, Saluki first, and waits for each health endpoint;
+6. starts the read-only system monitor; and
+7. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
 
 The first run downloads a substantial amount of model data and builds several ARM64 CUDA images. Later runs reuse both the model files and Docker cache. Set `HF_TOKEN` in the command environment if Hugging Face authentication is required:
 

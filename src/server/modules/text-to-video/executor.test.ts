@@ -13,6 +13,8 @@ describe("text-to-video executor", () => {
   let baseUrl = "";
   /** When set, the fake service holds every answer until it settles, like a long generation. */
   let gate: Promise<void> | undefined;
+  /** How many requests the fake service turns away for lack of memory before it makes the video. */
+  let refusals = 0;
   const previousDataDir = process.env.DATA_DIR;
   const closers: Array<() => Promise<void>> = [];
 
@@ -22,11 +24,18 @@ describe("text-to-video executor", () => {
     vi.resetModules();
     requests = [];
     gate = undefined;
+    refusals = 0;
     const server = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk) => chunks.push(chunk));
       request.on("end", async () => {
         requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        if (refusals > 0) {
+          refusals -= 1;
+          response.writeHead(503, { "Content-Type": "application/json", "Retry-After": "1" });
+          response.end(JSON.stringify({ detail: "Not enough free memory for a Fast video: 40 GiB available, 50 GiB needed." }));
+          return;
+        }
         await gate;
         response.writeHead(200, { "Content-Type": "video/mp4", "X-Model": "FastH3", "X-Seed": "42", "X-Variant": "fast", "X-Frames": "124", "X-Disclosure": "AI-generated with MiniMax H3 (FastH3)" });
         response.end(MP4);
@@ -108,6 +117,19 @@ describe("text-to-video executor", () => {
     release();
     await Promise.all([firstRun, secondRun]);
     expect(requests.map((request) => request.prompt)).toEqual(["A paper boat", "A red kite"]);
+  });
+
+  it("waits while the service is short of memory, then makes the video", async () => {
+    const { store } = await setup();
+    const { executeWorkflow } = await import("../executors.js");
+    refusals = 1;
+    const job = await store.createTextToVideoJob("A paper boat", {});
+    const running = executeWorkflow("text-to-video.default", job, job.runs[0]);
+    await vi.waitFor(async () => expect((await store.readJob(job.id)).stage).toBe("Waiting for memory"));
+    expect((await store.readJob(job.id)).detail).toContain("40 GiB available, 50 GiB needed");
+    await running;
+    expect(requests).toHaveLength(2);
+    expect(await fs.readFile(store.safeOutputPath(job.id, "generated-video.mp4"))).toEqual(MP4);
   });
 
   it("refuses to run without a configured video service", async () => {

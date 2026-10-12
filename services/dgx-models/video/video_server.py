@@ -12,7 +12,9 @@ drives it headlessly over its HTTP API, behind the surface Sparkfire speaks:
 
 ComfyUI keeps every weight it has loaded until it is told to free them, which would leave the stack about
 30 GiB heavier between jobs. The adapter frees them after IDLE_UNLOAD_SECONDS without a job, and before a job
-that needs the other variant, so only one diffusion model is ever resident.
+that needs the other variant, so only one diffusion model is ever resident. Before each job it checks that the
+machine has the memory the job was measured to need, and answers 503 with Retry-After when it does not, rather
+than let the Spark run out.
 """
 
 import asyncio
@@ -50,6 +52,10 @@ class Variant:
     label: str
     description: str
     unet: str
+    # Measured on the Spark (docs/validation.md): what the weights hold between jobs, and the most a job of
+    # this variant added above the idle stack, at any size and length.
+    loaded_gib: float
+    peak_gib: float
 
 
 @dataclass(frozen=True)
@@ -84,8 +90,8 @@ BACKENDS = {
         video_vae="minimax_h3_video_vae_int8_convrot.safetensors",
         audio_vae="minimax_h3_audio_vae_fp32.safetensors",
         variants=(
-            Variant("fast", "Fast", "FastH3 Trim, NVFP4", "fastvideo_fasth3_trim_8step_nvfp4.safetensors"),
-            Variant("sharp", "Sharp", "FastH3 V2, int8: about twice as slow, sharper detail", "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"),
+            Variant("fast", "Fast", "FastH3 Trim, NVFP4", "fastvideo_fasth3_trim_8step_nvfp4.safetensors", loaded_gib=34, peak_gib=48),
+            Variant("sharp", "Sharp", "FastH3 V2, int8: about twice as slow, sharper detail", "fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors", loaded_gib=44, peak_gib=57),
         ),
         sizes=FASTH3_SIZES,
         durations=(5, 8, 10),
@@ -95,6 +101,8 @@ BACKENDS = {
 
 MAX_FIRST_FRAME_BYTES = 20 * 1024 * 1024
 MAX_SEED = 2**31 - 1
+# Free memory kept beyond a job's measured peak.
+MEMORY_MARGIN_GIB = 2
 
 
 class ComfyError(Exception):
@@ -103,6 +111,21 @@ class ComfyError(Exception):
 
 class ComfyCancelled(Exception):
     """The caller went away, so the job was taken off ComfyUI's queue."""
+
+
+class NotEnoughMemory(Exception):
+    """The job would not fit next to what already runs on the machine."""
+
+
+def available_gib(meminfo: Path = Path("/proc/meminfo")) -> float | None:
+    """MemAvailable of the whole machine: on the Spark CPU and GPU share it, and a container sees the host's."""
+    try:
+        for line in meminfo.read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) / 2**20
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
 
 
 def describe_error(payload: dict[str, Any]) -> str:
@@ -263,8 +286,10 @@ class GeneratedVideo:
 
 
 class VideoService:
-    def __init__(self, comfy: Comfy, backend: Backend, work_dir: Path, idle_unload_seconds: float, job_timeout: float = 30 * 60) -> None:
+    def __init__(self, comfy: Comfy, backend: Backend, work_dir: Path, idle_unload_seconds: float, job_timeout: float = 30 * 60,
+                 memory: Callable[[], float | None] = available_gib) -> None:
         self.comfy = comfy
+        self.memory = memory
         self.backend = backend
         self.input_dir = work_dir / "input"
         self.output_dir = work_dir / "output"
@@ -311,6 +336,16 @@ class VideoService:
         await self.comfy.free()
         self.loaded = None
 
+    def check_memory(self, variant: Variant) -> None:
+        # Loaded weights are already counted in what the machine uses, so a warm job needs only its working memory.
+        need = variant.peak_gib - (variant.loaded_gib if self.loaded == variant.id else 0) + MEMORY_MARGIN_GIB
+        free = self.memory()
+        if free is not None and free < need:
+            raise NotEnoughMemory(
+                f"Not enough free memory for a {variant.label} video: {free:.0f} GiB available, {need:.0f} GiB needed. "
+                "Wait for other jobs to finish, or free a model."
+            )
+
     async def unload_if_idle(self) -> bool:
         if self.loaded is None or self.lock.locked() or time.monotonic() - self.last_used < self.idle_unload_seconds:
             return False
@@ -335,6 +370,7 @@ class VideoService:
             if self.loaded and self.loaded != variant.id:
                 # One diffusion model at a time keeps the peak at what was measured.
                 await self.unload()
+            self.check_memory(variant)
             try:
                 if image and image_path:
                     image_path.write_bytes(image[0])
@@ -411,6 +447,8 @@ def create_app(service: VideoService, model_name: str, idle_check_seconds: float
             video = await service.generate(body, request.is_disconnected)
         except ComfyCancelled:
             return Response(status_code=499)
+        except NotEnoughMemory as error:
+            raise HTTPException(status_code=503, detail=str(error), headers={"Retry-After": "60"}) from None
         except ComfyError as error:
             raise HTTPException(status_code=502, detail=str(error)) from None
         headers = {

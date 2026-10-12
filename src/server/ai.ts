@@ -27,6 +27,22 @@ async function responseError(response: Response) {
   return `${response.status} ${response.statusText}${body ? ` — ${body.slice(0, 500)}` : ""}`;
 }
 
+/** A heavy service would not start the job, because the machine lacks the memory it needs; later it may. */
+export class NotEnoughMemoryError extends Error {
+  constructor(message: string, readonly retryAfterSeconds: number) {
+    super(message);
+    this.name = "NotEnoughMemoryError";
+  }
+}
+
+/** The video and music adapters answer 503 with Retry-After when the job would not fit in free memory. */
+async function generationError(response: Response) {
+  if (response.status !== 503 || !response.headers.has("retry-after")) return new Error(await responseError(response));
+  const body = await response.json().catch(() => undefined) as { detail?: unknown } | undefined;
+  const retryAfter = Number(response.headers.get("retry-after"));
+  return new NotEnoughMemoryError(typeof body?.detail === "string" ? body.detail : "Not enough free memory", Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter : 60);
+}
+
 export async function checkEndpoint(kind: EndpointHealth["kind"], endpoint: EndpointConfig): Promise<EndpointHealth> {
   const started = performance.now();
   if (endpoint.enabled === false || !endpoint.baseUrl || !endpoint.model) {
@@ -595,7 +611,7 @@ export async function generateVideo(endpoint: EndpointConfig, request: VideoRequ
     // The service answers only once the whole video exists, which takes minutes for long or sharp clips.
     signal: requestSignal(60 * 60_000, signal),
   });
-  if (!response.ok) throw new Error(await responseError(response));
+  if (!response.ok) throw await generationError(response);
   if (!response.body || !(response.headers.get("content-type") || "").startsWith("video/")) throw new Error("The video endpoint did not return a video");
   const partial = `${destination}.part`;
   let bytes = 0;
@@ -695,7 +711,7 @@ export async function generateMusic(endpoint: EndpointConfig, request: MusicRequ
     // A long song on a busy Spark took 15 minutes (docs/validation.md).
     signal: requestSignal(60 * 60_000, signal),
   });
-  if (!response.ok) throw new Error(await responseError(response));
+  if (!response.ok) throw await generationError(response);
   if (!(response.headers.get("content-type") || "").startsWith("multipart/form-data")) throw new Error("The music endpoint did not return a song");
   const form = await response.formData();
   const audio = form.get("audio");
