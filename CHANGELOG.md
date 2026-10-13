@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.3.3](https://github.com/MovieMaker93/Sparkfire/compare/v0.3.2...v0.3.3) (2026-10-13)
+
+
+### Bug fixes
+
+* **media:** record the clips at 2x for real ([8595124](https://github.com/MovieMaker93/Sparkfire/commit/85951246f3dfa23d348eea2200b36747d86a5a96))
+
+
+### Documentation
+
+* **media:** encode every clip's MP4 at 1920 x 1200 ([92440b0](https://github.com/MovieMaker93/Sparkfire/commit/92440b06bed63b5ea82d3c6500a91e5c2dfcbd97))
+* **media:** open and close the tour on the logo, at 1920 x 1200 ([71e80d1](https://github.com/MovieMaker93/Sparkfire/commit/71e80d189b517731b25cef0470434f8190930e6d))
+* **media:** open and close the tour on the logo, at 1920 x 1200 ([9770722](https://github.com/MovieMaker93/Sparkfire/commit/9770722377edf5313ede870e32fabdcf72517f15))
+* **media:** re-record the README clips at 1920 x 1200 ([ddaa837](https://github.com/MovieMaker93/Sparkfire/commit/ddaa83721552266e4092b787752d9e58edac2ad1))
+* **media:** re-record the README clips at 2x ([d0d3579](https://github.com/MovieMaker93/Sparkfire/commit/d0d3579c9abafd8f3175c9c0ce850e52ec552dd3))
+* **media:** re-record the README clips at a real 2x ([442ff9d](https://github.com/MovieMaker93/Sparkfire/commit/442ff9d0dfdfbaaa9bc2f52cfe5e18717d417b6c))
+
 ## [0.3.2](https://github.com/MovieMaker93/Sparkfire/compare/v0.3.1...v0.3.2) (2026-10-13)
 
 
