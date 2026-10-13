@@ -1,6 +1,6 @@
 {
   "name": "sparkfire",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A local-first, file-oriented AI workspace for modular inference services and reusable workflows.",
   "private": true,
   "license": "Apache-2.0",
