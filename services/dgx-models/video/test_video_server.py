@@ -116,7 +116,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflows.format_prompt(prompt, first_frame=True), prompt)
 
     def graph(self, **overrides):
-        options = dict(prompt="p", width=864, height=480, frames=124, seed=42, unet="u.safetensors", text_encoder="t", video_vae="v", audio_vae="a", filename_prefix="sparklingkit/job")
+        options = dict(prompt="p", width=864, height=480, frames=124, seed=42, unet="u.safetensors", text_encoder="t", video_vae="v", audio_vae="a", filename_prefix="sparkfire/job")
         return workflows.build_graph(**{**options, **overrides})
 
     def test_graph_links_only_to_nodes_it_has(self):
@@ -186,7 +186,7 @@ class AdapterTests(unittest.TestCase):
         self.assertIn("overall_soundscape: rain on tin", graph["conditioning"]["inputs"]["prompt"])
         self.assertEqual(self.service.loaded, "fast")
         # The video is removed once it has been sent.
-        self.assertEqual(list((self.work_dir / "output" / "sparklingkit").iterdir()), [])
+        self.assertEqual(list((self.work_dir / "output" / "sparkfire").iterdir()), [])
 
     def test_first_frame_is_handed_to_comfy_and_removed_afterwards(self):
         response = self.generate(first_frame="data:image/png;base64," + base64.b64encode(PNG).decode())

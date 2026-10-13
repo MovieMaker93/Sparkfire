@@ -1,28 +1,22 @@
-# Reference deployment for a 128 GB NVIDIA DGX Spark: four model services plus video generation, and
-# music generation when it is turned on.
+# Sparkfire's stack for a 128 GB NVIDIA DGX Spark. Its models are fixed, chosen and measured to share the
+# Spark's memory (docs/validation.md): Saluki 27B for chat, PaddleOCR-VL-1.6, Parakeet, Hy-MT2,
+# Qwen-Image-2.1-Turbo, FastH3 and YuE2, plus SearXNG for web search (compose.search.yaml).
 # Use through scripts/start-dgx-spark.sh so the memory-heavy services start
 # sequentially and are checked for readiness before the next model is loaded.
-# The stack ships no LLM (chat and mind maps use an endpoint configured in Settings) and no
-# grounding service (the module stays available through Settings).
+# There is no grounding service (the module stays out of the app).
 
 services:
   app:
     environment:
       SYSTEM_STATUS_BASE_URL: http://host.docker.internal:8330
+      LLM_BASE_URL: http://host.docker.internal:8331/v1
       OCR_BASE_URL: http://host.docker.internal:8332/v1
-      OCR_MODEL: ${OCR_MODEL:-Unlimited-OCR}
       STT_BASE_URL: http://host.docker.internal:8333/v1
-      STT_MODEL: ${STT_MODEL:-Parakeet-TDT-0.6B-v3}
       TRANSLATION_BASE_URL: http://host.docker.internal:8334/v1
-      TRANSLATION_MODEL: Hy-MT2-1.8B-FP8
       IMAGE_GENERATION_BASE_URL: http://host.docker.internal:8336/v1
-      IMAGE_GENERATION_MODEL: ${IMAGE_GENERATION_MODEL:-Z-Image-Turbo}
       # start-dgx-spark.sh --video-backend none sets this empty, so the endpoint is not configured.
-      VIDEO_GENERATION_BASE_URL: ${SPARKFIRE_VIDEO_BASE_URL-${SPARKLINGKIT_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}}
-      VIDEO_GENERATION_MODEL: FastH3
-      # Opt-in: start-dgx-spark.sh --music-backend yue2 sets this; empty, the endpoint is not configured.
-      MUSIC_GENERATION_BASE_URL: ${SPARKFIRE_MUSIC_BASE_URL-}
-      MUSIC_GENERATION_MODEL: YuE2-3B
+      VIDEO_GENERATION_BASE_URL: ${SPARKFIRE_VIDEO_BASE_URL-http://host.docker.internal:8337/v1}
+      MUSIC_GENERATION_BASE_URL: http://host.docker.internal:8339/v1
       SPARKFIRE_SETUP_COMPLETE: "true"
       SPARKFIRE_DEPLOYMENT_MODE: all-in-one
 
@@ -30,20 +24,71 @@ services:
     profiles: [tools]
     build:
       context: ./services/dgx-models/downloader
-    image: sparklingkit/model-downloader:0.1.0
+    image: sparkfire/model-downloader:0.1.0
     environment:
       HF_HOME: /tmp/huggingface
       HF_TOKEN: ${HF_TOKEN:-}
     volumes:
       - ./data/dgx-models:/models
 
+  # Chat LLM on :8331: Underdog Saluki 27B, a 2-bit GGUF of Qwen3.8-27B with its vision add-on, in llama.cpp's
+  # llama-server. About 13 GiB on the GPU with the 64k context, loaded in seconds with no peak
+  # (docs/validation.md). --jinja gives it tool calls for web search, --mmproj image input. These are the flags
+  # its memory was measured with; the alias is the model id the app asks for.
+  saluki:
+    build:
+      context: ./services/dgx-models/llama-server
+    image: sparkfire/llama-server:b11576
+    container_name: sparkfire-saluki
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PORT: "8331"
+    volumes:
+      - ./data/dgx-models:/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command:
+      - --model
+      - /models/ConwayResearch/Underdog-Saluki-27B-1.0/Underdog-Saluki-27B-1.0-IQ2-mix.gguf
+      - --mmproj
+      - /models/ConwayResearch/Underdog-Saluki-27B-1.0/mmproj-Underdog-Saluki-27B-1.0-F16.gguf
+      - --alias
+      - saluki-27b
+      - --jinja
+      - -ngl
+      - "99"
+      - -fa
+      - "on"
+      - -c
+      - "65536"
+      - --parallel
+      - "1"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8331"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8331/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 2m
+
   # ASR backend. The adapter on :8333 starts parakeet.cpp's parakeet-server on 127.0.0.1:8343,
   # which serves one request at a time.
   parakeet:
     build:
       context: ./services/dgx-models/parakeet
-    image: sparklingkit/parakeet:parakeet.cpp-v0.5.0
-    container_name: sparklingkit-parakeet
+    image: sparkfire/parakeet:parakeet.cpp-v0.5.0
+    container_name: sparkfire-parakeet
     restart: unless-stopped
     network_mode: host
     environment:
@@ -69,64 +114,11 @@ services:
       retries: 80
       start_period: 1m
 
-  unlimited-ocr:
-    image: vllm/vllm-openai:unlimited-ocr@sha256:542961a42d9183813819a23ef3a8b50bfb4f5ef7b0fb4f8e4f56edd8445efb18
-    container_name: sparklingkit-unlimited-ocr
-    restart: unless-stopped
-    network_mode: host
-    ipc: host
-    shm_size: "16gb"
-    environment:
-      HF_HOME: /root/.cache/huggingface
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-    volumes:
-      - ./data/dgx-models/baidu/Unlimited-OCR:/model:ro
-      - ./data/dgx-runtime/ocr:/root/.cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    entrypoint: ["vllm", "serve"]
-    command:
-      - /model
-      - --served-model-name
-      - Unlimited-OCR
-      - --host
-      - 0.0.0.0
-      - --port
-      - "8332"
-      - --trust-remote-code
-      - --max-model-len
-      - ${OCR_MAX_MODEL_LEN:-32768}
-      - --max-num-seqs
-      - ${OCR_MAX_NUM_SEQS:-2}
-      - --kv-cache-memory-bytes
-      - ${OCR_KV_CACHE_MEMORY_BYTES:-5G}
-      - --gpu-memory-utilization
-      - ${OCR_GPU_MEMORY_UTILIZATION:-0.12}
-      - --logits-processors
-      - vllm.model_executor.models.unlimited_ocr:NGramPerReqLogitsProcessor
-      - --no-enable-prefix-caching
-      - --mm-processor-cache-gb
-      - "0"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8332/v1/models >/dev/null || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 120
-      start_period: 2m
-
-  # Alternative OCR backend (SPARKFIRE_OCR_BACKEND=paddleocr-vl). It replaces unlimited-ocr on :8332:
-  # the adapter runs PP-DocLayout on CPU and sends each detected element to the VLM below.
+  # OCR on :8332: PaddleOCR-VL-1.6. The adapter runs PP-DocLayout on CPU and sends each detected element to
+  # the VLM below, which listens on a private port.
   paddleocr-vlm:
     image: vllm/vllm-openai:v0.24.0@sha256:251eba5cc7c12fed0b75da22a9240e582b1c9e39f6fbc064f86781b963bd814f
-    container_name: sparklingkit-paddleocr-vlm
+    container_name: sparkfire-paddleocr-vlm
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -178,8 +170,8 @@ services:
   paddleocr-vl:
     build:
       context: ./services/dgx-models/paddleocr-vl
-    image: sparklingkit/paddleocr-vl-adapter:paddleocr-3.7.0
-    container_name: sparklingkit-paddleocr-vl
+    image: sparkfire/paddleocr-vl-adapter:paddleocr-3.7.0
+    container_name: sparkfire-paddleocr-vl
     restart: unless-stopped
     network_mode: host
     environment:
@@ -203,8 +195,8 @@ services:
   hy-mt2:
     build:
       context: ./services/dgx-models/hy-mt2
-    image: sparklingkit/hy-mt2-1.8b-fp8:transformers-5.6.0
-    container_name: sparklingkit-hy-mt2
+    image: sparkfire/hy-mt2-1.8b-fp8:transformers-5.6.0
+    container_name: sparkfire-hy-mt2
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -236,30 +228,28 @@ services:
       retries: 120
       start_period: 3m
 
-  # One image service on :8336 whose model is chosen at deploy time with SPARKFIRE_IMAGE_BACKEND:
-  # z-image (Z-Image-Turbo, default), qwen-image-2.1 (Qwen-Image 2.1, float8 weights, ~34 GB cap) or
-  # qwen-image-2.1-turbo (the same model distilled to 8 steps).
-  # Model path, name, steps and sizes follow the backend unless overridden below.
-  z-image:
+  # Image generation on :8336: Qwen-Image-2.1-Turbo (Qwen-Image 2.1 distilled to 8 steps, float8 weights, a
+  # 34 GB cap). Model path, steps and sizes follow the backend.
+  image-generation:
     build:
       context: ./services/dgx-models/image-generation
-    image: sparklingkit/image-generation:diffusers-0.41.0
-    container_name: sparklingkit-image-generation
+    image: sparkfire/image-generation:diffusers-0.41.0
+    container_name: sparkfire-image-generation
     restart: unless-stopped
     network_mode: host
     ipc: host
     shm_size: "16gb"
-    mem_limit: ${IMAGE_MEM_LIMIT:-26g}
-    memswap_limit: ${IMAGE_MEM_LIMIT:-26g}
+    mem_limit: ${IMAGE_MEM_LIMIT:-34g}
+    memswap_limit: ${IMAGE_MEM_LIMIT:-34g}
     environment:
       HF_HOME: /root/.cache/huggingface
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
-      IMAGE_BACKEND: ${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}
+      IMAGE_BACKEND: qwen-image-2.1-turbo
       PORT: "8336"
-      # Empty uses the backend's own default (flash for Z-Image, SDPA for Qwen-Image).
+      # Empty uses the backend's own default (SDPA for Qwen-Image).
       ATTENTION_BACKEND: ${IMAGE_ATTENTION_BACKEND:-}
       DEFAULT_STEPS: ${IMAGE_DEFAULT_STEPS:-}
       MAX_PIXELS: ${IMAGE_MAX_PIXELS:-}
@@ -291,8 +281,8 @@ services:
   video-generation:
     build:
       context: ./services/dgx-models/video
-    image: sparklingkit/video-generation:comfyui-0df64eb
-    container_name: sparklingkit-video-generation
+    image: sparkfire/video-generation:comfyui-0df64eb
+    container_name: sparkfire-video-generation
     restart: unless-stopped
     network_mode: host
     ipc: host
@@ -326,17 +316,15 @@ services:
       start_period: 3m
 
   # Music generation on :8339: YuE2 (m-a-p), lyrics and a style in, a 48 kHz stereo song with vocals and its
-  # ABC score out. Opt-in, because the weights are CC BY-NC 4.0: start-dgx-spark.sh --music-backend yue2, and
-  # the profile keeps a plain `docker compose up` from starting it. Nothing loads at start. A song loads about
+  # ABC score out. The weights are CC BY-NC 4.0 with a creator permission. Nothing loads at start. A song loads about
   # 15 GiB, since the adapter keeps the model and its decoder on the GPU (on the Spark's shared memory that
   # saves a minute a song), and peaks near 20 GiB. The adapter refuses to load with less than 22 GiB free and
   # frees the weights after MUSIC_IDLE_UNLOAD_SECONDS without a song.
   music-generation:
     build:
       context: ./services/dgx-models/music
-    image: sparklingkit/music-generation:yue2-9c6c4b3
-    container_name: sparklingkit-music-generation
-    profiles: [music]
+    image: sparkfire/music-generation:yue2-9c6c4b3
+    container_name: sparkfire-music-generation
     restart: unless-stopped
     network_mode: host
     ipc: host

@@ -23,9 +23,10 @@ MIB = 1024 * 1024
 
 # An empty VIDEO_GENERATION_PORT means the stack runs without video generation (--video-backend none).
 VIDEO_GENERATION_PORT = os.getenv("VIDEO_GENERATION_PORT", "8337").strip()
-# Music generation is opt-in (--music-backend yue2), so the monitor expects it only when a port is set.
-MUSIC_GENERATION_PORT = os.getenv("MUSIC_GENERATION_PORT", "").strip()
+# Music generation is part of the stack; an empty port leaves it out.
+MUSIC_GENERATION_PORT = os.getenv("MUSIC_GENERATION_PORT", "8339").strip()
 SERVICE_SPECS = (
+    ("llm", "LLM", int(os.getenv("LLM_PORT", "8331"))),
     ("ocr", "OCR", int(os.getenv("OCR_PORT", "8332"))),
     ("asr", "ASR", int(os.getenv("ASR_PORT", "8333"))),
     ("translation", "Translation", int(os.getenv("TRANSLATION_PORT", "8334"))),
@@ -42,10 +43,12 @@ PROCESS_SIGNATURES = {
     # parakeet.cpp's engine (a private port behind the ASR adapter) is a binary whose environment this container
     # cannot read, so its command line names it; the adapter's script has an underscore and does not match.
     "parakeet-server": ("asr", "ASR", int(os.getenv("ASR_PORT", "8333")), os.getenv("ASR_MODEL_NAME", "Parakeet-TDT-0.6B-v3")),
+    # llama.cpp's llama-server, which serves Saluki, is a binary like parakeet-server.
+    "llama-server": ("llm", "LLM", int(os.getenv("LLM_PORT", "8331")), os.getenv("LLM_MODEL_NAME", "saluki-27b")),
     "hy_server.py": ("translation", "Translation", int(os.getenv("TRANSLATION_PORT", "8334")), "Hy-MT2-1.8B-FP8"),
     "locate_server.py": ("grounding", "Grounding", int(os.getenv("GROUNDING_PORT", "8335")), "nvidia/LocateAnything-3B"),
     "music_server.py": ("music-generation", "Music generation", int(MUSIC_GENERATION_PORT or "8339"), os.getenv("MUSIC_GENERATION_MODEL", "YuE2-3B")),
-    "/app/server.py": ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336")), os.getenv("IMAGE_GENERATION_MODEL", "Z-Image-Turbo")),
+    "/app/server.py": ("image-generation", "Image generation", int(os.getenv("IMAGE_GENERATION_PORT", "8336")), os.getenv("IMAGE_GENERATION_MODEL", "Qwen-Image-2.1-Turbo")),
 }
 
 

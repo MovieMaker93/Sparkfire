@@ -19,12 +19,12 @@ describe("chat effort", () => {
     const values = stubStorage();
     expect(readChatEffort()).toBe("high");
     saveChatEffort("off");
-    expect(values.get("sparklingkit:chat-effort")).toBe("off");
+    expect(values.get("sparkfire:chat-effort")).toBe("off");
     expect(readChatEffort()).toBe("off");
   });
 
   it("ignores unknown stored values and unavailable storage", () => {
-    stubStorage({ "sparklingkit:chat-effort": "xhigh" });
+    stubStorage({ "sparkfire:chat-effort": "xhigh" });
     expect(readChatEffort()).toBe("high");
     vi.stubGlobal("window", { localStorage: { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } } });
     expect(readChatEffort()).toBe("high");

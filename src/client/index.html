@@ -12,7 +12,7 @@
     <script>
       // Set the theme before first paint; theme.ts keeps it in sync with Settings afterwards.
       try {
-        const preference = localStorage.getItem("sparklingkit:theme") || "auto";
+        const preference = localStorage.getItem("sparkfire:theme") || "auto";
         const dark = preference === "dark" || (preference !== "light" && !matchMedia("(prefers-color-scheme: light)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
       } catch {

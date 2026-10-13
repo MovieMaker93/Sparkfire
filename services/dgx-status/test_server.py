@@ -58,8 +58,19 @@ class ProcessServiceTests(unittest.TestCase):
     def test_lists_video_generation_unless_its_port_is_empty(self):
         self.assertIn(("video-generation", "Video generation", 8337), server.SERVICE_SPECS)
 
-    def test_lists_music_generation_only_when_its_port_is_set(self):
-        self.assertNotIn("music-generation", [service_id for service_id, _, _ in server.SERVICE_SPECS])
+    def test_lists_the_llm_and_music_generation_as_part_of_the_stack(self):
+        self.assertIn(("llm", "LLM", 8331), server.SERVICE_SPECS)
+        self.assertIn(("music-generation", "Music generation", 8339), server.SERVICE_SPECS)
+
+    def test_names_the_llama_server_engine_as_the_llm_from_its_command_line(self):
+        directory = Path(self.proc.name) / "4646"
+        directory.mkdir()
+        args = ["llama-server", "--model", "/models/ConwayResearch/x.gguf", "--alias", "saluki-27b", "--port", "8331"]
+        (directory / "cmdline").write_bytes(b"\0".join(part.encode() for part in args) + b"\0")
+        self.assertEqual(
+            server.resolve_process_service(4646),
+            {"service": "llm", "serviceLabel": "LLM", "port": 8331, "model": "saluki-27b"},
+        )
 
     def test_names_the_music_service_by_its_script(self):
         self.write_process(4545, ["python3", "/app/music_server.py"], {})

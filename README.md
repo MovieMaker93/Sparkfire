@@ -9,9 +9,9 @@
 [![Express](https://img.shields.io/badge/Express-5-444444?style=flat-square)](https://expressjs.com)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-**Sparkfire turns files into reusable AI work. It reads documents, transcribes recordings, translates, generates images and videos with sound, sings songs from your lyrics, maps ideas, and lets you chat about all of it, with web search and music when you turn them on. The models run on your own DGX Spark.**
+**Sparkfire turns files into reusable AI work. It reads documents, transcribes recordings, translates, generates images and videos with sound, sings songs from your lyrics, maps ideas, and lets you chat about all of it, with web search. The models run on your own DGX Spark.**
 
-Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a translation, a mind map or a conversation; a generated image becomes the first frame of a video. Five specialised models share one Spark behind one interface, next to the LLM of your choice, and your files stay on your network.
+Every source and every result stays an ordinary file with its history, so one result can feed the next: a scanned PDF becomes Markdown, then a translation, a mind map or a conversation; a generated image becomes the first frame of a video. Seven models, chosen and measured to share one Spark's memory, sit behind one interface, and your files stay on your network.
 
 > [!NOTE]
 > Based on [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei (Apache 2.0). Sparkfire is maintained by [MovieMaker93](https://github.com/MovieMaker93) and is not affiliated with or endorsed by the SparklingKit project. See [what Sparkfire changes](#what-sparkfire-changes).
@@ -25,7 +25,7 @@ Every source and every result stays an ordinary file with its history, so one re
 ## Contents
 
 - [Features](#features)
-- [Quick start](#quick-start) · [Connect an LLM](#connect-an-llm) · [Other ways to run it](#other-ways-to-run-it) · [Upgrading](#upgrading)
+- [Quick start](#quick-start) · [The chat model](#the-chat-model) · [Other ways to run it](#other-ways-to-run-it) · [Upgrading](#upgrading)
 - [Models and memory](#models-and-memory) · [Video: choices and trade-offs](#video-choices-and-trade-offs)
 - [Configuration](#configuration) · [How it works](#how-it-works) · [Security and privacy](#security-and-privacy)
 - [What Sparkfire changes](#what-sparkfire-changes) · [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
@@ -44,7 +44,7 @@ Start anything from one page: drop a file to read or transcribe it, translate te
 
 ### Read documents (OCR)
 
-Drop a PDF or a scan and get Markdown that keeps headings, tables and reading order, with the page layout saved next to it. The reference setup uses PaddleOCR-VL-1.6: on a 20-page test document it kept 99.9 % of the words in reading order and every numeric table cell, at about 6 seconds a page. Long documents get an outline to jump through; the source view shows exactly what the model produced.
+Drop a PDF or a scan and get Markdown that keeps headings, tables and reading order, with the page layout saved next to it. Sparkfire uses PaddleOCR-VL-1.6: on a 20-page test document it kept 99.9 % of the words in reading order and every numeric table cell, at about 6 seconds a page. Long documents get an outline to jump through; the source view shows exactly what the model produced.
 
 [![A three-page report recognised into Markdown: jumping through the outline, then the Markdown source (click for the MP4)](.github/media/ocr.webp)](.github/media/ocr.mp4)
 
@@ -60,7 +60,7 @@ Hy-MT2-1.8B-FP8 translates pasted text live as you type, and you save the result
 
 ### Generate images
 
-Describe a picture and get it back in seconds. With Qwen-Image-2.1-Turbo, which the clips use, an image takes about 18 seconds at 1024 × 1024 and about a minute at 2K, with legible lettering; Z-Image-Turbo is the default. Seed and step controls sit under Advanced. Every image lands in the Gallery, where you can filter by model and compare two side by side.
+Describe a picture and get it back in seconds. Qwen-Image-2.1-Turbo makes an image in about 18 seconds at 1024 × 1024 and about a minute at 2K, with legible lettering. Seed and step controls sit under Advanced. Every image lands in the Gallery, where you can filter by model and compare two side by side.
 
 [![Typing a prompt, the progress view, the finished image, then the Gallery and its compare picker (click for the MP4)](.github/media/image.webp)](.github/media/image.mp4)
 
@@ -72,11 +72,11 @@ FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/Mi
 
 [![Typing a scene and its sound, the progress view, then the finished clip playing on the job page (click for the MP4)](.github/media/video.webp)](.github/media/video.mp4)
 
-### Make songs (optional)
+### Make songs
 
 Write lyrics, mark the parts with `[Verse]`, `[Chorus]` and `[Bridge]`, describe the style (genre, voice, instruments, tempo), and YuE2 sings it as a song with its own accompaniment: 48 kHz stereo, in English, Italian, Mandarin and other languages. It writes the song as an editable score first (melody and chords in ABC notation), and the score stays with the song. Hand the score back with **Continue with → Make a song** to sing the same melody in another style, or after editing a note. The lyrics can come from any text result too: a transcript, an OCR page, a translation. Once the model is loaded a song takes about as long as it plays, so a three-minute song takes three to four minutes; songs take turns with videos ([Heavy jobs take turns](#heavy-jobs-take-turns)).
 
-Music is off unless you start the stack with `--music-backend yue2`, because YuE2's weights are non-commercial: you may publish and sell the songs you make, but a company needs a license from the authors ([model licenses](#model-licenses)). [YuE2](https://github.com/multimodal-art-projection/YuE) is made by the Multimodal Art Projection team (m-a-p).
+YuE2's weights are non-commercial with a creator permission: you may publish and sell the songs you make, but a company needs a license from the authors ([model licenses](#model-licenses)). [YuE2](https://github.com/multimodal-art-projection/YuE) is made by the Multimodal Art Projection team (m-a-p).
 
 ### Chat with your files
 
@@ -86,9 +86,9 @@ Attach images, PDFs or text files with the + button, choose how hard the model s
 
 ### Search the web from chat
 
-Turn on **Web** in a conversation and the model can search the web and read pages before it answers, through a local [SearXNG](https://github.com/searxng/searxng). It takes up to six rounds of searches and page reads, then answers with numbered sources; a foldable block lists what it searched and read. The switch is off in every conversation until you turn it on there.
+Turn on **Web** in a conversation and the model can search the web and read pages before it answers, through a local [SearXNG](https://github.com/searxng/searxng). It takes up to six rounds of searches and page reads, then answers with numbered sources; a foldable block lists what it searched and read. New conversations start with the switch on.
 
-It needs `--search-backend searxng` at install (or your own SearXNG URL in Settings) and a model with **Tool calling** ticked in Settings (`llama-server` needs `--jinja`). Searches reach the engines behind SearXNG, so keep the switch off for conversations that must stay local. Page reads refuse local and private network addresses. Details in [docs/fork.md](docs/fork.md#chat).
+SearXNG runs with the stack on the Spark, and Saluki answers the tool calls. Searches reach the engines behind SearXNG, so turn the switch off in conversations that must stay local. Page reads refuse local and private network addresses. A workspace on another machine has no web search, because SearXNG listens only on the Spark. Details in [docs/fork.md](docs/fork.md#chat).
 
 [![Turning Web on, asking a current question, the searches and pages as they run, then the answer with numbered sources (click for the MP4)](.github/media/websearch.webp)](.github/media/websearch.mp4)
 
@@ -102,10 +102,6 @@ Turn a document, transcript or image into an interactive map, then fold and unfo
 
 Connect the same modules in a node editor and run the flow again on a new file: inputs typed by artifact kind, **If** and **Switch** branches, **Merge**, **Save to file**, and a node for every module, video and LLM prompts included. Definitions are JSON files, each run keeps a snapshot of the flow it ran, and the run view shows which nodes ran, were skipped or failed. See [Workflow design and JSON contracts](docs/workflows.md).
 
-### Find things in images (optional)
-
-Visual grounding boxes every match for anything you can name, with a slider between the original and the result. The stack does not ship a grounding model, so the tool stays hidden until you enable a grounding endpoint in **Settings → Services**; Sparkfire was tested with LocateAnything-3B.
-
 ### Dark, light or system
 
 Pick a theme in Settings; the whole interface follows, at any screen width.
@@ -118,64 +114,60 @@ Pick a theme in Settings; the whole interface follows, at any screen width.
 
 You need:
 - an NVIDIA DGX Spark (or another GB10 system) with its stock DGX OS, which includes Docker, the NVIDIA container runtime and CUDA 13;
-- about 190 GB of free disk for the model weights and service images (about 135 GB without video);
+- more than 200 GB of free disk for the model weights and service images (about 55 GB less without video);
 - internet access for the first run.
 
 ```bash
 git clone https://github.com/MovieMaker93/Sparkfire.git
 cd Sparkfire
 # Builds the services, downloads the models at pinned revisions, starts everything in a memory-safe order
-./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --accept-model-licenses
+./scripts/start-dgx-spark.sh --accept-model-licenses
 ```
 
 - The first run takes 30 to 60 minutes, mostly downloads; later runs reuse everything and take a few minutes.
 - `--accept-model-licenses` confirms you have read the [model licenses](#model-licenses). FastH3, the video model, is not licensed in the EU, the UK, South Korea or the US: add `--video-backend none` there.
-- Add `--image-backend qwen-image-2.1-turbo` for Qwen-Image (non-commercial use only).
-- Add `--search-backend searxng` to let chat search the web through a local SearXNG (about 200 MB, no model).
-- Add `--music-backend yue2` to make songs from lyrics with YuE2 (about 8 GB more; non-commercial weights, see [Make songs](#make-songs-optional)).
+- The models are fixed: Saluki 27B, PaddleOCR-VL-1.6, Parakeet, Hy-MT2, Qwen-Image-2.1-Turbo, FastH3 and YuE2, with SearXNG for web search ([Models and memory](#models-and-memory)). There is nothing to choose.
 - Open `http://<spark-host>:54321` from any device on your network.
 
 | To | Run |
 | --- | --- |
 | See what is running | `./scripts/start-dgx-spark.sh status` |
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
-| Switch a model | run the start script again with another `--image-backend` or `--ocr-backend`, `--video-backend none` to leave video out, or `--music-backend yue2` to add music |
-| Use Unlimited-OCR instead of PaddleOCR-VL | leave out `--ocr-backend` |
+| Leave video out | run the start script again with `--video-backend none` |
 | Update | `git pull`, then run the start script again with the same options |
 | Share the Spark with another LLM | `./scripts/spark-switch.sh sparkfire` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
 
-### Connect an LLM
+### The chat model
 
-The stack ships no LLM, so chat, mind maps and LLM prompts in workflows wait until you point **Settings → Services → Language model** at an OpenAI-compatible endpoint, local or in the cloud. The reference is [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) in `llama-server` from a CUDA build of [llama.cpp](https://github.com/ggml-org/llama.cpp): 13 GiB of GPU memory, 22 tokens a second, and it reads images.
+Chat, mind maps and LLM prompts in workflows use [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0), a 2-bit GGUF of Qwen3.8-27B with a vision add-on, in `llama-server` from [llama.cpp](https://github.com/ggml-org/llama.cpp): 13 GiB of GPU memory, 22 tokens a second, and it reads images and calls tools. The start script builds `llama-server` for the Spark's GPU, downloads Saluki and starts it first, on port 8331, with the flags its memory was measured with:
 
 ```bash
 llama-server -m Underdog-Saluki-27B-1.0-IQ2-mix.gguf --mmproj mmproj-Underdog-Saluki-27B-1.0-F16.gguf \
   --jinja -ngl 99 -fa on -c 65536 --parallel 1 --host 0.0.0.0 --port 8331 --alias saluki-27b
 ```
 
-In Settings, set the URL to `http://host.docker.internal:8331/v1` and the model to `saluki-27b`, and tick **Images** and **Tool calling**. With Saluki's thinking on, a mind map can come back empty ([known issue](docs/validation.md#llm-underdog-saluki-27b-evaluated-not-integrated)); chat lets you choose the thinking level per message.
+Mind maps ask the model to answer without thinking, so Saluki's reasoning cannot use up their token budget; chat lets you choose the thinking level per message. Saluki's download is not pinned to a revision yet, unlike the other models.
 
 ### Other ways to run it
 
-Sparkfire has two layers that can run apart: the **models** (the reference stack, your LLM, the optional system monitor) and the **workspace** (the web app, its API, the Redis queue and your files).
+Sparkfire has two layers that can run apart: the **models** (the stack and its system monitor) and the **workspace** (the web app, its API, the Redis queue and your files).
 
 | Setup | Models | Workspace | Start with |
 | --- | --- | --- | --- |
 | **All in one** | DGX Spark | the same Spark | the [quick start](#quick-start) |
 | **Split** | DGX Spark | another server | `./scripts/start-dgx-spark.sh --models-only --accept-model-licenses` on the Spark, then `./scripts/start-sparkfire.sh --model-host <spark-host>` on the server |
-| **Workspace only** | your own endpoints, local or cloud | any Docker host | `./scripts/start-sparkfire.sh --configure-later` |
 
-On the first visit, onboarding offers the same three choices: **Run models locally**, **Run models remotely** (it checks ports 8332–8337 on the Spark; video on 8337 is optional) and **Configure manually**. Reopen it from **Settings → General → Deployment**; changing endpoints keeps your jobs, chats, workflows and files. In split mode, keep the Spark's ports 8330–8337 behind a firewall, LAN or VPN.
+With `./scripts/start-sparkfire.sh --configure-later`, the first visit asks where the stack runs: **Run models locally** or **Run models remotely** (it checks the stack's ports 8330–8339 on the Spark; video on 8337 is optional). Reopen it from **Settings → General → Deployment**; it keeps your jobs, chats, workflows and files. In split mode, keep the Spark's ports 8330–8339 behind a firewall, LAN or VPN.
 
 Each release also publishes a multi-platform image, `ghcr.io/moviemaker93/sparkfire`, for your own Compose file. To build from source instead:
 
 ```bash
-cp .env.example .env    # leave the URLs empty for onboarding, or set your endpoints
+cp .env.example .env    # leave the URLs empty to set up in the browser
 docker compose up -d --build
 # with web search: docker compose -f compose.yaml -f compose.search.yaml up -d --build
 ```
 
-The image includes `ffmpeg`, `ffprobe`, `pdftotext` and `pdftoppm`, for `linux/amd64` and `linux/arm64`. Environment variables only seed a new `data/config/settings.json`; after that, saved settings win, so an upgrade never replaces your endpoints. See [Application deployment and upgrades](docs/deployment.md) for network binding, backups and releases, and the [DGX Spark deployment guide](docs/dgx-spark.md) for what the start script does.
+The image includes `ffmpeg`, `ffprobe`, `pdftotext` and `pdftoppm`, for `linux/amd64` and `linux/arm64`. Every start points the services at the stack's models; the environment and setup only say where the stack runs. See [Application deployment and upgrades](docs/deployment.md) for network binding, backups and releases, and the [DGX Spark deployment guide](docs/dgx-spark.md) for what the start script does.
 
 **Local development** needs Node.js 22 or newer, Redis, ffmpeg and Poppler:
 
@@ -192,14 +184,14 @@ npm run dev                                                 # API on :54321, Vit
 
 ```bash
 git pull
-./scripts/start-dgx-spark.sh --ocr-backend paddleocr-vl --accept-model-licenses   # the options you installed with
+./scripts/start-dgx-spark.sh --accept-model-licenses   # with --video-backend none if you installed with it
 ```
 
-The script rebuilds what changed and leaves `data/` alone. Saved settings are never rewritten, so a few upgrades need one change in **Settings → Services**:
+The script rebuilds what changed and leaves `data/` alone. Every start points the services at the stack's models, so no setting needs changing after an upgrade, whatever was chosen before.
 
-- **From Qwen3-ASR:** choose `Parakeet-TDT-0.6B-v3` under Speech to text. Until then transcription still works, with minute-long lines instead of sentences.
-- **From the six-model stack:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything containers. Repoint or turn off the LLM (port 8331) and grounding (port 8335) endpoints, which no longer answer; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
-- **From SparklingKit or the MovieMaker93/SparklingKit fork:** point your checkout at this repository and run the start script again. Jobs, settings, models and containers are reused as they are, and the old `SPARKLINGKIT_*` variables in `.env` still work.
+- **From the six-model stack or an earlier model set:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR containers, and downloads the models the stack now uses. Earlier model files stay in `data/dgx-models` until you delete them; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
+- **An install configured by hand:** the stack replaces services set up in Settings or with **Configure manually**, which is gone. A workspace that is not on the stack goes through setup in the browser again.
+- **From an install made before the rename to Sparkfire:** point your checkout at this repository and run the start script again. It removes the old containers and starts the `sparkfire-` ones, reusing your jobs, settings and downloaded models; only `SPARKFIRE_*` variables in `.env` are read.
 
 Set `HF_TOKEN` in the shell when a model download needs authentication or more download capacity: `HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses`.
 
@@ -207,55 +199,50 @@ Set `HF_TOKEN` in the shell when a model download needs authentication or more d
 
 ## Models and memory
 
-### The reference stack
+### The stack
 
-Five models share the Spark, six with music, each in its own container behind an OpenAI-compatible API, so any of them can be replaced by an endpoint you configure.
+Sparkfire's models are fixed: one per service, chosen and measured to share the Spark's memory, each in its own container behind an OpenAI-compatible API. Users do not pick models; every start points the app at these.
 
-| Capability | Default | Alternatives | Port |
-| --- | --- | --- | --- |
-| OCR | [Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR) in vLLM | [PaddleOCR-VL-1.6](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6), with page layout: `--ocr-backend paddleocr-vl` | 8332 |
-| Speech recognition | [Parakeet-TDT-0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) in parakeet.cpp | | 8333 |
-| Translation | [Hy-MT2-1.8B-FP8](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | | 8334 |
-| Image generation | [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) in diffusers | [Qwen-Image-2.1-Turbo](https://huggingface.co/Qwen/Qwen-Image-2.1) or Qwen-Image 2.1, non-commercial: `--image-backend qwen-image-2.1-turbo` | 8336 |
-| Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy), Fast and Sharp, in ComfyUI | none: `--video-backend none` | 8337 |
-| Music generation | off | [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B), non-commercial: `--music-backend yue2` | 8339 |
-| Web search for chat | off | SearXNG: `--search-backend searxng` (bound to 127.0.0.1) | 8338 |
-| System monitor | memory, GPU and service health in the sidebar | | 8330 |
-| Language model | not shipped: any OpenAI-compatible endpoint ([Saluki 27B](#connect-an-llm) in the reference) | | yours |
-| Visual grounding | not shipped: any compatible endpoint | | yours |
+| Capability | Model | Port |
+| --- | --- | --- |
+| Chat, mind maps, LLM prompts | [Saluki 27B](#the-chat-model) in llama-server | 8331 |
+| OCR | [PaddleOCR-VL-1.6](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6), with page layout, in vLLM | 8332 |
+| Speech recognition | [Parakeet-TDT-0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) in parakeet.cpp | 8333 |
+| Translation | [Hy-MT2-1.8B-FP8](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8) | 8334 |
+| Image generation | [Qwen-Image-2.1-Turbo](https://huggingface.co/Qwen/Qwen-Image-2.1) in diffusers, non-commercial | 8336 |
+| Video generation | [FastH3](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy), Fast and Sharp, in ComfyUI; `--video-backend none` leaves it out | 8337 |
+| Music generation | [YuE2-3B](https://huggingface.co/m-a-p/YuE2-3B), non-commercial | 8339 |
+| Web search for chat | SearXNG (bound to 127.0.0.1) | 8338 |
+| System monitor | memory, GPU and service health in the sidebar | 8330 |
 
-The clips and measurements use PaddleOCR-VL-1.6 and Qwen-Image-2.1-Turbo. Details of each backend are in [docs/fork.md](docs/fork.md#model-backends), and measured results in [docs/validation.md](docs/validation.md).
+There is no grounding model, so visual grounding is not available. Details of each backend are in [docs/fork.md](docs/fork.md#model-backends), and measured results in [docs/validation.md](docs/validation.md).
 
 ### Memory and containers
 
-The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **8 Docker containers**, **9** with PaddleOCR-VL, whose vision model and layout stage run separately, and one more with SearXNG. A short-lived downloader container also runs during installation. The containers keep their `sparklingkit-` names, so existing installs carry over.
+The DGX Spark has about 121 GiB of usable unified memory, shared by the CPU and the GPU. The stack runs **12 Docker containers**, 11 without video; PaddleOCR-VL's vision model and layout stage run separately. A short-lived downloader container also runs during installation.
 
 Measured on one Spark with every service loaded and idle. GPU is what the container allocates through CUDA; RAM is the container's own process memory.
 
 | # | Container | What it runs | GPU | RAM | Total |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `sparklingkit-app-1` | Web app, API and job worker | — | 0.1 GiB | 0.1 GiB |
-| 2 | `sparklingkit-redis-1` | Job queue | — | < 0.1 GiB | < 0.1 GiB |
-| 3 | `sparklingkit-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
-| 4 | `sparklingkit-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
-| 5 | `sparklingkit-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
-| 6 | `sparklingkit-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
-| 7 | `sparklingkit-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
-| 8 | `sparklingkit-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
-| 9 | `sparklingkit-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
-| — | `sparklingkit-searxng` | SearXNG, only with `--search-backend searxng` | — | capped at 0.5 GiB | not measured |
-| — | `sparklingkit-music-generation` | YuE2-3B, only with `--music-backend yue2`; nothing loaded until a song | — | — | about 0 idle |
+| 1 | `sparkfire-app-1` | Web app, API and job worker | — | 0.1 GiB | 0.1 GiB |
+| 2 | `sparkfire-redis-1` | Job queue | — | < 0.1 GiB | < 0.1 GiB |
+| 3 | `sparkfire-dgx-status` | System monitor | — | < 0.1 GiB | < 0.1 GiB |
+| 4 | `sparkfire-image-generation` | Qwen-Image-2.1-Turbo or 2.1, float8 | 17.1 GiB | 1.9 GiB | **19.0 GiB** |
+| 5 | `sparkfire-parakeet` | Parakeet-TDT-0.6B-v3 in parakeet.cpp (ggml on CUDA), behind a small adapter | 1.5 GiB | 0.2 GiB | **1.7 GiB** |
+| 6 | `sparkfire-paddleocr-vlm` | PaddleOCR-VL-1.6 vision model in vLLM | 5.4 GiB | 3.6 GiB | **9.0 GiB** |
+| 7 | `sparkfire-hy-mt2` | Hy-MT2-1.8B-FP8 translation | 2.4 GiB | 3.0 GiB | **5.4 GiB** |
+| 8 | `sparkfire-paddleocr-vl` | PaddleOCR-VL layout stage (PP-DocLayoutV3, on the CPU) | — | 0.8 GiB | 0.8 GiB |
+| 9 | `sparkfire-video-generation` | FastH3 in ComfyUI, behind a small adapter; nothing loaded until a job | 0.7 GiB | 0.1 GiB | **0.8 GiB** idle |
+| 10 | `sparkfire-saluki` | Saluki 27B in llama-server, with its vision add-on and a 64k context | 13.0 GiB | 8.5 GiB, the memory-mapped model file, reclaimable | **13–21.5 GiB** |
+| 11 | `sparkfire-music-generation` | YuE2-3B; nothing loaded until a song | — | — | about 0 idle |
+| 12 | `sparkfire-searxng` | SearXNG | — | capped at 0.5 GiB | not measured |
 
-Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes. The alternatives change single rows:
-
-| Instead of | You run | Memory |
-| --- | --- | --- |
-| Rows 6 and 8 | `sparklingkit-unlimited-ocr` (Unlimited-OCR in vLLM, the default) | Not measured. vLLM may reserve up to 12% of memory (about 15 GiB). |
-| Row 4's model | Z-Image-Turbo (the default) | Not measured; the container is capped at 26 GiB. |
+Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it transcribes.
 
 | State | Memory used |
 | --- | --- |
-| All services idle | about 29 GiB |
+| All services idle | about 29 GiB, plus Saluki's 13–21.5 GiB |
 | Busy (two jobs at a time, the app's default) | about 38 GiB at peak |
 | Starting up | about 39 GiB at peak |
 | A video job (on top of the above) | +35–39 GiB for Fast at 480p, +41–48 GiB for Fast at 720p or longer, +44–57 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
@@ -263,7 +250,7 @@ Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it 
 
 These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack. The older 84–96 GiB figures in that file were measured with the Qwen3.6 LLM and Qwen3-ASR resident, before Sparkfire removed them.
 
-That leaves about 90 GiB for an LLM of your choice (Saluki needs about 13 GiB), a grounding server if you run one, the system, and headroom under load. Measured together with Saluki, the largest video job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB.
+Saluki's row was measured on its own next to the stack (docs/validation.md). Measured together with Saluki, the largest video job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB.
 
 **Keep the queue at two workers** (Settings → Advanced, the default) on a Spark. The queue sets how many jobs run at once besides video, which has its own lane (below), and the app reads it only at start. Two is the safer setting: with a video running, two more jobs such as a large image can run beside it, and the video and the image set the memory peak. Jobs past the second wait their turn. Raising the number adds less memory than you might expect, because OCR and transcription use little beyond what their services already hold (vLLM reserves PaddleOCR-VL's memory at start, and Parakeet works through 30-second chunks). What it does add is GPU contention, which slows every running job. Chat answers do not go through the queue, so they run alongside whatever the queue holds with either setting.
 
@@ -280,7 +267,7 @@ A song next to a busy stack (images, OCR, speech, translation and chat all worki
 
 ## Video: choices and trade-offs
 
-FastH3 shares one Spark with four other models and your LLM, so each video setting trades quality or speed against memory. Every number here was measured on the Spark, with Saluki loaded; the details are in [docs/validation.md](docs/validation.md) and the runtime decision in [ADR 0002](docs/adr/0002-video-service-comfyui.md).
+FastH3 shares one Spark with the other six models, so each video setting trades quality or speed against memory. Every number here was measured on the Spark, with Saluki loaded; the details are in [docs/validation.md](docs/validation.md) and the runtime decision in [ADR 0002](docs/adr/0002-video-service-comfyui.md).
 
 | Choice | What Sparkfire uses | What it costs | Why |
 | --- | --- | --- | --- |
@@ -314,13 +301,13 @@ Per job, the form sets Fast or Sharp, the size, the length and the seed. For the
 
 ## Configuration
 
-Everything is set in **Settings**, saved in `data/config/settings.json`, with API keys apart in `data/config/secrets.json`.
+**Settings** holds the appearance, time zone, processing limits and prompt presets, saved in `data/config/settings.json`. The services are not set there:
 
-- **Services.** Each model provider (language model, OCR, speech, translation, grounding, image, video) has its own URL, model, API key, on/off switch and connection test; web search and the system monitor take a URL. Local services and cloud APIs can be mixed.
-- **Language model.** Its accepted inputs decide what Sparkfire sends it: **Images** lets chat and workflow LLM nodes pass pictures, **Tool calling** lets chat offer web search.
-- **Web search.** The base URL of a SearXNG instance with its JSON format on. `compose.search.yaml` runs one with the settings in `services/searxng/`, which the app reaches as `http://searxng:8080`.
+- **Services.** Settings → Services shows each service of the stack, its fixed model and where it runs, with a connection test. Every start points them at the stack's models, and a save from Settings cannot change them. To move the stack to another Spark, run setup again from **General → Deployment**.
+- **Language model.** Saluki takes text and images and answers tool calls, so chat and workflow LLM nodes can pass pictures and chat offers web search.
+- **Web search.** The stack's SearXNG, run by `compose.search.yaml` with the settings in `services/searxng/`, which the app reaches as `http://searxng:8080`.
 - **Advanced.** Transcription chunk size and overlap, adaptive splitting, request timeouts, PDF rasterisation, queue concurrency, retries and how long work folders are kept. The display time zone is under **General**.
-- **System monitor.** The DGX start script runs a small read-only service that shows unified memory, CUDA allocations, GPU use and temperature in the sidebar. To add it to another deployment: `docker compose -f compose.spark.yaml up -d --build dgx-status`, then set its URL in Settings. Leave the URL empty to hide the block.
+- **System monitor.** The DGX start script runs a small read-only service that shows unified memory, CUDA allocations, GPU use and temperature in the sidebar.
 
 ## How it works
 
@@ -392,7 +379,7 @@ Request contracts are in `src/server/index.ts` and [docs/fork.md](docs/fork.md).
 
 Sparkfire assumes a trusted user on a trusted network. It has no built-in authentication and no multi-tenant isolation. Do not expose it to the public internet; put it behind an authenticated reverse proxy, a VPN or equivalent access control.
 
-Uploaded content goes to the inference endpoints you configure, so a deployment is only as private as those services and the network around them. Review who runs each endpoint, what it logs and keeps, and how traffic reaches it before processing sensitive material. With web search on in a conversation, the model's search queries go to the engines behind SearXNG and the pages it reads are fetched from the server; page reads never reach private network addresses.
+Uploaded content goes to the stack's services on your Spark, so a deployment is as private as the Spark and the network around it. With web search on in a conversation, which new conversations start with, the model's search queries go to the engines behind SearXNG and the pages it reads are fetched from the server; page reads never reach private network addresses.
 
 Grounding overlays are previews, not redaction. A rectangle drawn over an image or over selectable PDF text does not remove what is underneath.
 
@@ -406,7 +393,7 @@ Sparkfire started as a fork of SparklingKit 0.1.5 and is now its own project. Co
 | **Gallery** | Every image and generated video with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
 | **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control with the reasoning shown live; answers that keep going when you leave the page; web search with cited sources |
-| **Models** | Parakeet-TDT-0.6B-v3 for speech; PaddleOCR-VL-1.6 for OCR; Qwen-Image 2.1 and Qwen-Image-2.1-Turbo for images; FastH3 for video with sound; seed and step controls. No bundled LLM or grounding model, which frees about 42 GiB |
+| **Models** | A fixed stack: Saluki 27B for chat, PaddleOCR-VL-1.6 for OCR, Parakeet-TDT-0.6B-v3 for speech, Qwen-Image-2.1-Turbo for images, FastH3 for video with sound, YuE2 for songs; seed and step controls. No grounding model |
 | **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
 | **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
 
@@ -435,19 +422,19 @@ Sparkfire changes copyright 2026 MovieMaker93.
 
 ### Model licenses
 
-Model weights are not part of this repository. The start script downloads them after you accept their terms; the acceptance flag records that you reviewed them and does not change them. OCR, speech, translation and Z-Image-Turbo can be used anywhere, commercially too. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
+Model weights are not part of this repository. The start script downloads them after you accept their terms; the acceptance flag records that you reviewed them and does not change them. OCR, speech and translation can be used anywhere, commercially too. Underdog Saluki 27B, the chat model, is ConwayResearch's model built on Qwen3.8-27B; review its model card for its terms. Parakeet-TDT-0.6B-v3 is NVIDIA's and uses CC BY 4.0, which allows commercial use with credit (see the acknowledgements); parakeet.cpp, which runs it, is MIT.
 
-Three models have narrower terms. Qwen-Image 2.1 and Qwen-Image-2.1-Turbo (opt-in) use the Qwen Research License (non-commercial). FastH3, the default video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository. Start the stack with `--video-backend none` where FastH3's license does not apply.
+Three models have narrower terms. Qwen-Image-2.1-Turbo, the image model, uses the Qwen Research License (non-commercial). FastH3, the video model, is a distill of MiniMax H3 under the [MiniMax H3 Community License](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE): it grants use only "worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, asks that shared outputs be disclosed as machine-generated, and asks commercial products to display "MiniMax H3". [ComfyUI](https://github.com/comfyanonymous/ComfyUI), which runs FastH3, is GPL-3.0; it is fetched at a pinned commit when the video image is built, runs as its own process, and is not part of this repository. Start the stack with `--video-backend none` where FastH3's license does not apply.
 
-YuE2 (opt-in, `--music-backend yue2`) has its code under Apache 2.0 and its weights under [CC BY-NC 4.0 with a creator permission](https://github.com/multimodal-art-projection/YuE/blob/main/MODEL_LICENSE): personal users and creators may publish and monetize the songs they make, academic use is non-commercial, and companies need a commercial license from m-a-p. Each song in Sparkfire shows that line.
+YuE2, the music model, has its code under Apache 2.0 and its weights under [CC BY-NC 4.0 with a creator permission](https://github.com/multimodal-art-projection/YuE/blob/main/MODEL_LICENSE): personal users and creators may publish and monetize the songs they make, academic use is non-commercial, and companies need a commercial license from m-a-p. Each song in Sparkfire shows that line.
 
 [SearXNG](https://github.com/searxng/searxng), which runs web search, is AGPL-3.0. Like ComfyUI, it runs from its own pinned image as a separate service and is not part of this repository.
 
 ## Acknowledgements
 
 - [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei, the project Sparkfire is built on.
-- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Baidu ([Unlimited-OCR](https://huggingface.co/baidu/Unlimited-OCR)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), Tongyi-MAI ([Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)), MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3), whose text encoder uses Qwen's Qwen3-VL-32B weights), the Multimodal Art Projection team ([YuE2](https://github.com/multimodal-art-projection/YuE), which writes and sings the songs), and [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, whose [FastH3 Trim](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) and [FastH3 V2](https://huggingface.co/FastVideo/FastVideo-FastH3-Comfy) distills and workflow templates make the videos.
-- The reference LLM, run next to the stack: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) by ConwayResearch.
+- The model teams whose open weights do the work: Qwen ([Qwen-Image 2.1](https://huggingface.co/Qwen/Qwen-Image-2.1)), PaddlePaddle ([PaddleOCR-VL](https://huggingface.co/PaddlePaddle/PaddleOCR-VL-1.6)), Tencent ([Hy-MT2](https://huggingface.co/tencent/Hy-MT2-1.8B-FP8)), NVIDIA ([Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), MiniMax ([MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3), whose text encoder uses Qwen's Qwen3-VL-32B weights), the Multimodal Art Projection team ([YuE2](https://github.com/multimodal-art-projection/YuE), which writes and sings the songs), and [FastVideo](https://github.com/hao-ai-lab/FastVideo) at Hao AI Lab, whose [FastH3 Trim](https://huggingface.co/FastVideo/FastVideo-FastH3-Trim-Comfy) and [FastH3 V2](https://huggingface.co/FastVideo/FastVideo-FastH3-Comfy) distills and workflow templates make the videos.
+- The chat model: [Underdog Saluki 27B](https://huggingface.co/ConwayResearch/Underdog-Saluki-27B-1.0) by ConwayResearch.
 - The serving and tooling stack: [parakeet.cpp](https://github.com/mudler/parakeet.cpp) by mudler (MIT), which runs Parakeet from its [GGUF files](https://huggingface.co/mudler/parakeet-cpp-gguf), [vLLM](https://github.com/vllm-project/vllm), [llama.cpp](https://github.com/ggml-org/llama.cpp), [diffusers](https://github.com/huggingface/diffusers), [ComfyUI](https://github.com/comfyanonymous/ComfyUI) by comfyanonymous and Comfy-Org (GPL-3.0), which runs FastH3 with Comfy-Org's [comfy-kitchen](https://pypi.org/project/comfy-kitchen/) kernels, [PyAV](https://github.com/PyAV-Org/PyAV), which writes the disclosure into each video, [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR), React, Express, BullMQ, Vite, and [Playwright](https://playwright.dev), which records the README clips.
 - Web search: [SearXNG](https://github.com/searxng/searxng) (AGPL-3.0), which queries the search engines, and Mozilla's [Readability](https://github.com/mozilla/readability) with [linkedom](https://github.com/WebReflection/linkedom) by Andrea Giammarchi (WebReflection), which pull the main text out of the pages chat reads.
 - The demo transcript reads from [LibriSpeech](https://www.openslr.org/12) (CC BY 4.0); the demo report is fictional.

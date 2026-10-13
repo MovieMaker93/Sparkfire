@@ -25,7 +25,7 @@ describe("ASR requests", () => {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Test server did not start");
 
-    const folder = await fs.mkdtemp(path.join(tmpdir(), "sparklingkit-ai-"));
+    const folder = await fs.mkdtemp(path.join(tmpdir(), "sparkfire-ai-"));
     cleanup.push(() => fs.rm(folder, { recursive: true, force: true }));
     const audio = path.join(folder, "sample.wav");
     await fs.writeFile(audio, "test audio");
@@ -102,7 +102,7 @@ describe("ASR requests", () => {
 });
 
 async function audioFile() {
-  const folder = await fs.mkdtemp(path.join(tmpdir(), "sparklingkit-asr-"));
+  const folder = await fs.mkdtemp(path.join(tmpdir(), "sparkfire-asr-"));
   cleanup.push(() => fs.rm(folder, { recursive: true, force: true }));
   const file = path.join(folder, "chunk.wav");
   await fs.writeFile(file, "test audio");
@@ -126,7 +126,7 @@ async function jsonServer(handler: (url: string, body: string) => unknown) {
 }
 
 async function pageImage() {
-  const folder = await fs.mkdtemp(path.join(tmpdir(), "sparklingkit-ocr-"));
+  const folder = await fs.mkdtemp(path.join(tmpdir(), "sparkfire-ocr-"));
   cleanup.push(() => fs.rm(folder, { recursive: true, force: true }));
   const file = path.join(folder, "page-1.png");
   await fs.writeFile(file, "png bytes");
@@ -213,7 +213,7 @@ describe("video generation", () => {
   }
 
   async function folder() {
-    const created = await fs.mkdtemp(path.join(tmpdir(), "sparklingkit-video-"));
+    const created = await fs.mkdtemp(path.join(tmpdir(), "sparkfire-video-"));
     cleanup.push(() => fs.rm(created, { recursive: true, force: true }));
     return created;
   }

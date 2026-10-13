@@ -9,7 +9,7 @@ describe("stored data renaming", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-rename-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-rename-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

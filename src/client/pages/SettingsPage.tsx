@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, Eye, EyeOff, FileCog, Files, Film, Globe, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Music, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
+import { Activity, AudioLines, ChevronRight, CircleAlert, Clock3, FileCog, Files, Film, Globe, Image as ImageIcon, Languages, LoaderCircle, Monitor, Moon, Music, Plus, Save, ScanSearch, ScanText, Server, SlidersHorizontal, Sparkles, Sun, X } from "lucide-react";
 import { api } from "../api";
 import { cn } from "../components/ui";
 import { SearchSelect } from "../components/SearchSelect";
 import { useToast } from "../components/ToastProvider";
 import { announceSettingsUpdated } from "../settings-events";
 import { applyTheme, type ThemePreference } from "../theme";
-import type { EndpointHealth, EndpointKind, ModelInputCapability, PromptPreset, Settings } from "../types";
+import type { EndpointHealth, EndpointKind, PromptPreset, Settings } from "../types";
 
 type SettingsServiceKind = EndpointKind | "system-status" | "web-search";
 
@@ -35,6 +35,11 @@ const webSearchMeta = {
   tint: "endpoint-icon endpoint-web-search",
   icon: Globe,
 };
+
+// The stack's services in the order they are listed. There is no grounding service in the stack.
+const stackServices: EndpointKind[] = ["llm", "stt", "ocr", "translation", "image-generation", "video-generation", "music-generation"];
+
+const capabilityLabels = { text: "Text", image: "Images", tools: "Tool calling" } as const;
 
 const settingsSections = [
   { key: "general" as const, label: "General", title: "General", description: "Appearance and region", icon: Clock3 },
@@ -92,7 +97,6 @@ export function SettingsPage() {
   const [settings, setSettings] = useState<Settings>();
   const [prompts, setPrompts] = useState<PromptPreset[]>([]);
   const [tests, setTests] = useState<Partial<Record<EndpointKind, EndpointHealth | "testing">>>({});
-  const [showKeys, setShowKeys] = useState<Partial<Record<EndpointKind, boolean>>>({});
   const [webSearchTest, setWebSearchTest] = useState<Awaited<ReturnType<typeof api.testWebSearch>> | "testing">();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -167,20 +171,6 @@ export function SettingsPage() {
     try { setWebSearchTest(await api.testWebSearch(settings.webSearch)); }
     catch (testError) { setWebSearchTest({ ok: false, latencyMs: 0, results: 0, error: testError instanceof Error ? testError.message : String(testError) }); }
   }
-  function endpointChange(kind: EndpointKind, field: "baseUrl" | "model" | "apiKey", value: string) {
-    setSettings((current) => current ? ({ ...current, endpoints: { ...current.endpoints, [kind]: { ...current.endpoints[kind], [field]: value } } }) : current);
-  }
-  function endpointCapabilityChange(kind: EndpointKind, capability: ModelInputCapability, enabled: boolean) {
-    setSettings((current) => {
-      if (!current) return current;
-      const endpoint = current.endpoints[kind];
-      const capabilities = new Set(endpoint.capabilities || ["text"]);
-      if (enabled) capabilities.add(capability);
-      else capabilities.delete(capability);
-      capabilities.add("text");
-      return { ...current, endpoints: { ...current.endpoints, [kind]: { ...endpoint, capabilities: [...capabilities] } } };
-    });
-  }
   function selectAudioProfile(profile: AudioProfile) {
     if (!settings || profile === "custom") return;
     setSettings({ ...settings, audio: { ...settings.audio, ...audioProfiles[profile].values } });
@@ -209,7 +199,7 @@ export function SettingsPage() {
             </div>
             <div className="settings-dialog-actions">
               {tab === "prompts" && <button className="button-secondary" onClick={() => setEditingPrompt(blankPrompt())}><Plus size={16} />New preset</button>}
-              {tab !== "prompts" && !(tab === "services" && !selectedService) && settings && <button className="button-primary" onClick={save} disabled={saving}>{saving ? <><LoaderCircle size={16} className="animate-spin" />Saving…</> : <><Save size={16} />Save changes</>}</button>}
+              {tab !== "prompts" && tab !== "services" && settings && <button className="button-primary" onClick={save} disabled={saving}>{saving ? <><LoaderCircle size={16} className="animate-spin" />Saving…</> : <><Save size={16} />Save changes</>}</button>}
             </div>
           </header>
           {error && <div className="error-card settings-error"><CircleAlert size={18} />{error}</div>}
@@ -222,8 +212,8 @@ export function SettingsPage() {
               <div className="settings-value-row"><span><strong>Time zone</strong><small>Used for displayed dates and times, and when naming new job and conversation folders. Existing work is not renamed.</small></span><span className="timezone-setting-control"><SearchSelect value={settings.ui.timezone} onChange={(timezone) => setSettings({ ...settings, ui: { ...settings.ui, timezone } })} options={[...(!["UTC", ...timezoneOptions].includes(settings.ui.timezone) ? [{ value: settings.ui.timezone, label: settings.ui.timezone.replaceAll("_", " ") }] : []), { value: "UTC", label: "UTC" }, ...timezoneOptions.filter((timezone) => timezone !== "UTC").map((timezone) => ({ value: timezone, label: timezone.replaceAll("_", " ") }))]} searchPlaceholder="Search time zones" emptyMessage="No time zones found" ariaLabel="Time zone" /><button className="button-secondary compact" onClick={() => setSettings({ ...settings, ui: { ...settings.ui, timezone: browserTimezone } })}>Use device time zone</button></span></div>
             </div><p className="settings-footnote">This device reports <strong>{browserTimezone.replaceAll("_", " ")}</strong>.</p></div>
             <div className="settings-section-block"><h3>Deployment</h3><div className="settings-group settings-value-group">
-              <div className="settings-value-row settings-deployment-row"><span><strong>Application and model services</strong><small>Choose whether Sparkfire and the reference models share one DGX Spark, run on separate hosts, or use independently configured services.</small></span><span className="settings-deployment-control"><strong>{deploymentModeLabel(settings.setup.mode)}</strong><button className="button-secondary compact" onClick={() => navigate("/setup")}>Change setup</button></span></div>
-            </div><p className="settings-footnote">Changing the setup verifies and updates service endpoints. Your jobs, chats, workflows, and files are not removed.</p></div>
+              <div className="settings-value-row settings-deployment-row"><span><strong>Application and model services</strong><small>Whether Sparkfire runs on the DGX Spark with its model stack or on another machine that reaches it.</small></span><span className="settings-deployment-control"><strong>{deploymentModeLabel(settings.setup.mode)}</strong><button className="button-secondary compact" onClick={() => navigate("/setup")}>Change setup</button></span></div>
+            </div><p className="settings-footnote">Changing the setup verifies the stack and points Sparkfire at it. Your jobs, chats, workflows, and files are not removed.</p></div>
           </section>}
           {tab === "services" && !selectedService && <section className="settings-section-block">
             <h3>System</h3>
@@ -242,10 +232,10 @@ export function SettingsPage() {
               </button>
             </div>
             <h3 className="settings-service-section-title">AI services</h3>
-            <div className="settings-group settings-service-list">{(["stt", "ocr", "llm", "translation", "grounding", "image-generation", "video-generation"] as EndpointKind[]).map((kind) => {
+            <div className="settings-group settings-service-list">{stackServices.map((kind) => {
               const meta = endpointMeta[kind]; const endpoint = settings.endpoints[kind]; const Icon = meta.icon;
               const configured = Boolean(endpoint.baseUrl && endpoint.model);
-              const state = !endpoint.enabled ? "Disabled" : configured ? "Enabled" : "Needs setup";
+              const state = !endpoint.enabled ? "Not running" : configured ? "Enabled" : "Needs setup";
               return <button className="settings-service-row" key={kind} onClick={() => setSelectedService(kind)}>
                 <span className={meta.tint}><Icon size={18} /></span>
                 <span className="settings-service-copy"><strong>{meta.title}</strong><small>{meta.caption}</small></span>
@@ -253,27 +243,26 @@ export function SettingsPage() {
                 <ChevronRight size={18} />
               </button>;
             })}</div>
-            <p className="settings-footnote">Select an item to configure its connection and availability.</p>
+            <p className="settings-footnote">Sparkfire's models are fixed, chosen to share the Spark's memory. Select a service to see where it runs and test it.</p>
           </section>}
 
           {tab === "services" && selectedService === "system-status" && <section className="settings-service-detail">
             <div className="settings-section-block"><h3>Connection</h3><div className="settings-group">
               <div className="settings-service-enable-row"><div className="settings-group-identity"><span className={systemStatusMeta.tint}><Activity size={18} /></span><div><h3>Sidebar status</h3><p>Show live machine and accelerator information.</p></div></div><div className="settings-group-actions"><span className={cn("status-badge", settings.systemStatus.baseUrl ? "status-done" : "status-idle")}>{settings.systemStatus.baseUrl ? "Visible" : "Hidden"}</span></div></div>
-              <div className="settings-control-grid">
-                <label className="field-label settings-control-full">Base URL <span className="font-normal text-muted">(optional)</span><input className="input mt-2" value={settings.systemStatus.baseUrl} placeholder="http://dgx-spark.local:8330" onChange={(event) => setSettings({ ...settings, systemStatus: { baseUrl: event.target.value } })} /></label>
-              </div>
-            </div><p className="settings-footnote">Sparkfire reads <strong>/v1/status</strong> from this service. Clear the URL and save to hide the machine-status block from the sidebar.</p></div>
+            </div></div>
+            <div className="settings-section-block"><h3>Service</h3><div className="settings-group settings-value-group">
+              <ReadOnlyRow label="Address" description="Set by the stack" value={settings.systemStatus.baseUrl || "Not running"} />
+            </div><p className="settings-footnote">Sparkfire reads <strong>/v1/status</strong> from this service.</p></div>
           </section>}
 
           {tab === "services" && selectedService === "web-search" && <section className="settings-service-detail">
             <div className="settings-section-block"><h3>Connection</h3><div className="settings-group">
-              <div className="settings-service-enable-row"><div className="settings-group-identity"><span className={webSearchMeta.tint}><Globe size={18} /></span><div><h3>Search service</h3><p>Offer a Web switch in chat. It stays off in each conversation until you turn it on.</p></div></div><div className="settings-group-actions">{webSearchTest && webSearchTest !== "testing" && <span className={cn("status-badge", webSearchTest.ok ? "status-done" : "status-failed")}>{webSearchTest.ok ? `${webSearchTest.latencyMs} ms` : "Offline"}</span>}<label className={cn("settings-toggle", settings.webSearch.enabled && "active")} title="Enable web search"><input type="checkbox" checked={settings.webSearch.enabled} onChange={(event) => setSettings({ ...settings, webSearch: { ...settings.webSearch, enabled: event.target.checked } })} /><i /></label><button className="button-secondary compact" onClick={() => void testWebSearch()} disabled={webSearchTest === "testing" || !settings.webSearch.baseUrl}>{webSearchTest === "testing" ? <><LoaderCircle size={15} className="animate-spin" /><span>Testing</span></> : <><span className="test-label-full">Test search</span><span className="test-label-short">Test</span></>}</button></div></div>
-              <div className="settings-control-grid">
-                <label className="field-label settings-control-full">SearXNG base URL<input className="input mt-2" value={settings.webSearch.baseUrl} placeholder="http://dgx-spark.local:8338" onChange={(event) => setSettings({ ...settings, webSearch: { ...settings.webSearch, baseUrl: event.target.value } })} /></label>
-              </div>
+              <div className="settings-service-enable-row"><div className="settings-group-identity"><span className={webSearchMeta.tint}><Globe size={18} /></span><div><h3>Search service</h3><p>{settings.webSearch.enabled ? "New conversations start with the Web switch on; each can turn it off." : "SearXNG runs on the Spark itself, so a workspace on another machine has no web search."}</p></div></div><div className="settings-group-actions">{webSearchTest && webSearchTest !== "testing" && <span className={cn("status-badge", webSearchTest.ok ? "status-done" : "status-failed")}>{webSearchTest.ok ? `${webSearchTest.latencyMs} ms` : "Offline"}</span>}<button className="button-secondary compact" onClick={() => void testWebSearch()} disabled={webSearchTest === "testing" || !settings.webSearch.baseUrl}>{webSearchTest === "testing" ? <><LoaderCircle size={15} className="animate-spin" /><span>Testing</span></> : <><span className="test-label-full">Test search</span><span className="test-label-short">Test</span></>}</button></div></div>
               {webSearchTest && webSearchTest !== "testing" && !webSearchTest.ok && <p className="settings-inline-error">{webSearchTest.error}</p>}
               {webSearchTest && webSearchTest !== "testing" && webSearchTest.ok && !webSearchTest.results && <p className="settings-inline-warning">Connected, but the test search returned no results. Check the engines enabled in SearXNG.</p>}
-              {!settings.endpoints.llm.capabilities?.includes("tools") && <p className="settings-inline-warning">The language model does not declare tool calling yet. Turn on <strong>Tool calling</strong> under Language model, or the Web switch stays hidden.</p>}
+            </div></div>
+            <div className="settings-section-block"><h3>Service</h3><div className="settings-group settings-value-group">
+              <ReadOnlyRow label="SearXNG" description="Set by the stack" value={settings.webSearch.baseUrl || "Not available"} />
             </div><p className="settings-footnote">Searches send what a conversation is about to the search engines behind this service; pages the model reads are fetched by this server, never from private network addresses.</p></div>
           </section>}
 
@@ -281,16 +270,15 @@ export function SettingsPage() {
             const kind = selectedService as EndpointKind; const meta = endpointMeta[kind]; const endpoint = settings.endpoints[kind]; const result = tests[kind]; const Icon = meta.icon;
             return <section className="settings-service-detail">
               <div className="settings-section-block"><h3>Connection</h3><div className="settings-group">
-                <div className="settings-service-enable-row"><div className="settings-group-identity"><span className={meta.tint}><Icon size={18} /></span><div><h3>Service availability</h3><p>Allow Sparkfire to use this endpoint.</p></div></div><div className="settings-group-actions">{result && result !== "testing" && <span className={cn("status-badge", result.ok ? "status-done" : "status-failed")}>{result.ok ? `${result.latencyMs} ms` : result.enabled ? "Offline" : "Disabled"}</span>}<label className={cn("settings-toggle", endpoint.enabled && "active")} title={`Enable ${meta.title}`}><input type="checkbox" checked={endpoint.enabled} onChange={(event) => setSettings({ ...settings, endpoints: { ...settings.endpoints, [kind]: { ...endpoint, enabled: event.target.checked } } })} /><i /></label><button className="button-secondary compact" onClick={() => test(kind)} disabled={result === "testing" || !endpoint.enabled}>{result === "testing" ? <><LoaderCircle size={15} className="animate-spin" /><span>Testing</span></> : <><span className="test-label-full">Test connection</span><span className="test-label-short">Test</span></>}</button></div></div>
-                <div className="settings-control-grid">
-                  <label className="field-label settings-control-wide">Base URL<input className="input mt-2" value={endpoint.baseUrl} onChange={(event) => endpointChange(kind, "baseUrl", event.target.value)} /></label>
-                  <label className="field-label">Model<input className="input mt-2" value={endpoint.model} onChange={(event) => endpointChange(kind, "model", event.target.value)} /></label>
-                  <label className="field-label settings-control-full">API key <span className="font-normal text-muted">(optional)</span><span className="relative mt-2 block"><input className="input pr-11" type={showKeys[kind] ? "text" : "password"} value={endpoint.apiKey} placeholder="Not required for local endpoints" onChange={(event) => endpointChange(kind, "apiKey", event.target.value)} /><button className="settings-secret-toggle" onClick={() => setShowKeys((value) => ({ ...value, [kind]: !value[kind] }))} type="button" aria-label={showKeys[kind] ? "Hide API key" : "Show API key"}>{showKeys[kind] ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label>
-                </div>
-                {kind === "llm" && <div className="settings-capabilities"><div><strong>Accepted inputs</strong><small>Controls which linked materials Sparkfire may send to this model.</small></div><div className="settings-capability-options"><label><input type="checkbox" checked disabled /><span><strong>Text</strong><small>Required for chat</small></span></label><label><input type="checkbox" checked={endpoint.capabilities?.includes("image") || false} onChange={(event) => endpointCapabilityChange(kind, "image", event.target.checked)} /><span><strong>Images</strong><small>OpenAI-compatible image input</small></span></label><label><input type="checkbox" checked={endpoint.capabilities?.includes("tools") || false} onChange={(event) => endpointCapabilityChange(kind, "tools", event.target.checked)} /><span><strong>Tool calling</strong><small>Needed for web search; llama.cpp needs --jinja</small></span></label></div></div>}
+                <div className="settings-service-enable-row"><div className="settings-group-identity"><span className={meta.tint}><Icon size={18} /></span><div><h3>Part of the stack</h3><p>{endpoint.enabled ? "Sparkfire uses this service." : "This deployment runs without it."}</p></div></div><div className="settings-group-actions">{result && result !== "testing" && <span className={cn("status-badge", result.ok ? "status-done" : "status-failed")}>{result.ok ? `${result.latencyMs} ms` : result.enabled ? "Offline" : "Not running"}</span>}<button className="button-secondary compact" onClick={() => test(kind)} disabled={result === "testing" || !endpoint.enabled}>{result === "testing" ? <><LoaderCircle size={15} className="animate-spin" /><span>Testing</span></> : <><span className="test-label-full">Test connection</span><span className="test-label-short">Test</span></>}</button></div></div>
                 {result && result !== "testing" && !result.ok && <p className="settings-inline-error">{result.error}</p>}
-                {result && result !== "testing" && result.ok && result.availableModels.length > 0 && !result.availableModels.includes(endpoint.model) && <p className="settings-inline-warning">Connected, but the configured model was not advertised. Available: {result.availableModels.join(", ")}</p>}
-              </div><p className="settings-footnote">Changes take effect after you save. Connection tests use the values currently shown above.</p></div>
+                {result && result !== "testing" && result.ok && result.availableModels.length > 0 && !result.availableModels.includes(endpoint.model) && <p className="settings-inline-warning">Connected, but the service did not advertise {endpoint.model}. Available: {result.availableModels.join(", ")}</p>}
+              </div></div>
+              <div className="settings-section-block"><h3>Model</h3><div className="settings-group settings-value-group">
+                <ReadOnlyRow label="Model" description="Fixed by the stack" value={endpoint.model} />
+                <ReadOnlyRow label="Address" description="Where the stack runs it" value={endpoint.baseUrl || "Not running"} />
+                {kind === "llm" && <ReadOnlyRow label="Accepted inputs" description="What Sparkfire sends to the model" value={(endpoint.capabilities || ["text"]).map((capability) => capabilityLabels[capability]).join(", ")} />}
+              </div><p className="settings-footnote">Sparkfire's models are chosen to share the Spark's memory, so they are not changed here. Change setup under General moves the whole stack to another Spark.</p></div>
             </section>;
           })()}
 
@@ -334,10 +322,14 @@ function ToggleSetting({ label, description, checked, onChange }: { label: strin
   return <label className="settings-value-row"><span><strong>{label}</strong><small>{description}</small></span><span className={cn("settings-toggle", checked && "active")}><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><i /></span></label>;
 }
 
+function ReadOnlyRow({ label, description, value }: { label: string; description: string; value: string }) {
+  return <div className="settings-value-row settings-deployment-row"><span><strong>{label}</strong><small>{description}</small></span><span className="settings-deployment-control"><strong>{value}</strong></span></div>;
+}
+
 function deploymentModeLabel(mode: Settings["setup"]["mode"]) {
   if (mode === "all-in-one") return "One DGX Spark";
   if (mode === "split") return "Split deployment";
-  return "Custom services";
+  return "Not set up";
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {

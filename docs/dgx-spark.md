@@ -1,6 +1,6 @@
 # DGX Spark reference deployment
 
-Sparkfire treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the five specialized models while Sparkfire runs on another host.
+Sparkfire treats inference and the workspace as two independent deployment layers. The reference stack can co-locate both layers on one NVIDIA DGX Spark with 128 GB of unified memory, or the DGX can serve only the models while Sparkfire runs on another host. The models are fixed: one per service, chosen and measured to share the Spark's memory.
 
 ## Deployment paths
 
@@ -33,13 +33,9 @@ cd Sparkfire
 ./scripts/start-sparkfire.sh --model-host DGX-HOSTNAME
 ```
 
-Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores the endpoint selection in its settings. The LLM endpoint is configured separately in Settings. The model host does not receive the application's job database, chat history, or durable workspace files.
+Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores where the stack runs; the services and their models follow from that. The model host does not receive the application's job database, chat history, or durable workspace files.
 
-Ports 8330–8337 (and 8339 with music) bind on the DGX host for this mode. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
-
-### Sparkfire with other providers
-
-No DGX stack is required. Start the workspace with `./scripts/start-sparkfire.sh --configure-later`, then choose **Configure manually** during onboarding. Configure compatible local, remote, or cloud endpoints independently.
+Ports 8330–8337 and 8339 bind on the DGX host for this mode; SearXNG (8338) stays on the Spark's loopback, so a workspace on another machine has no web search. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
 
 ## What the DGX starter does
 
@@ -53,8 +49,8 @@ The script:
 
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds Sparkfire and the thin model API adapters;
-3. downloads five pinned model revisions from their publishers into `data/dgx-models/`;
-4. starts the model servers one at a time and waits for each health endpoint;
+3. downloads the stack's models from their publishers into `data/dgx-models/`, at pinned revisions except Saluki's for now;
+4. starts the model servers one at a time, Saluki first, and waits for each health endpoint;
 5. starts the read-only system monitor; and
 6. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
 
@@ -69,12 +65,14 @@ HF_TOKEN=hf_... ./scripts/start-dgx-spark.sh --accept-model-licenses
 | Port | Service | Model/backend |
 | ---: | --- | --- |
 | 8330 | System status | Lightweight read-only Python API |
-| 8332 | OCR | `baidu/Unlimited-OCR` / vLLM |
+| 8331 | LLM | Underdog Saluki 27B (`saluki-27b`) / llama.cpp `llama-server` b11576 |
+| 8332 | OCR | `PaddlePaddle/PaddleOCR-VL-1.6` / layout adapter + vLLM (8342) |
 | 8333 | Speech recognition | `nvidia/parakeet-tdt-0.6b-v3` / parakeet.cpp v0.5.0 |
 | 8334 | Translation | `tencent/Hy-MT2-1.8B-FP8` / Transformers |
-| 8336 | Image generation | `Tongyi-MAI/Z-Image-Turbo` / Diffusers 0.41.0 |
+| 8336 | Image generation | `Qwen/Qwen-Image-2.1-Turbo` / Diffusers 0.41.0 |
 | 8337 | Video generation | FastH3 (`FastVideo/FastVideo-FastH3-Trim-Comfy`, `FastVideo/FastVideo-FastH3-Comfy`) / ComfyUI 0df64eb |
-| 8339 | Music generation (only with `--music-backend yue2`) | `m-a-p/YuE2-3B`, `m-a-p/YuE2-Vae` / YuE2 v0.1.6 on NGC PyTorch 26.07 |
+| 8338 | Web search | SearXNG, bound to 127.0.0.1 |
+| 8339 | Music generation | `m-a-p/YuE2-3B`, `m-a-p/YuE2-Vae` / YuE2 v0.1.6 on NGC PyTorch 26.07 |
 | 54321 | Sparkfire | Web application and API |
 
 Port 54321 is present only in an all-in-one deployment. The ports and co-residency settings are defined in `compose.dgx.yaml`. The conservative KV-cache budgets, concurrency limits, and sequential startup order are intentional for a 128 GB unified-memory machine.
@@ -86,7 +84,7 @@ kept only as a user-configurable endpoint the app can still talk to).
 
 | Model | Container | Memory | Languages |
 | --- | --- | --- | --- |
-| `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparklingkit-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
+| `nvidia/parakeet-tdt-0.6b-v3` in parakeet.cpp, CC BY 4.0 | `sparkfire-parakeet` | 1.7 GiB (up to about 3.3 GiB while it transcribes) | 25 European |
 
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
 source for the GB10. The adapter accepts WAV only, which is what Sparkfire sends, and serves one request
@@ -116,11 +114,10 @@ endpoint off.
 ### Music generation
 
 Port 8339 serves YuE2 from m-a-p, which turns lyrics and a style into a song with vocals: it writes the song as
-an editable ABC score first, then sings it as 48 kHz stereo FLAC. It is off unless the stack starts with
-`--music-backend yue2`, because the weights are CC BY-NC 4.0: personal users and creators may publish and
-sell their songs, academic use is non-commercial, and companies need a license from m-a-p. With the option,
-the start script builds the service and downloads the model and its decoder at pinned revisions (about
-7.8 GB).
+an editable ABC score first, then sings it as 48 kHz stereo FLAC. It is part of the stack; the weights are
+CC BY-NC 4.0 with a creator permission: personal users and creators may publish and sell their songs,
+academic use is non-commercial, and companies need a license from m-a-p. The start script builds the service
+and downloads the model and its decoder at pinned revisions (about 7.8 GB).
 
 Nothing loads at start. The first song loads the model in about 50 seconds; the weights stay for ten idle
 minutes (`MUSIC_IDLE_UNLOAD_SECONDS`) and are freed at once by `POST /v1/unload`. A loaded model holds about
@@ -179,14 +176,12 @@ In a split deployment, upgrade the workspace on its own server with `git pull` a
 
 Sparkfire and its service adapters are licensed under Apache 2.0. Model weights are separate works and remain governed by the terms published on each model card. Review those terms before downloading or deploying the reference stack.
 
-The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the app, hidden from menus and actions until a grounding endpoint is enabled in Settings, and works once it is; recheck any such model's terms when deploying, because model publishers may update them independently.
+The stack no longer ships a grounding service: LocateAnything-3B (non-commercial license) was removed with its 10.9 GiB of memory. The grounding module stays in the code, hidden from menus and actions, but the stack has no grounding service, so it is not available.
 
-## Using different services
+## Fixed models
 
-The DGX stack is a recommended reference configuration, not a requirement. Sparkfire can connect to other local endpoints, services hosted elsewhere on a trusted network, compatible cloud APIs, or a mixture of these. For those deployments, use `scripts/start-sparkfire.sh --configure-later` or use `compose.yaml`, copy `.env.example` to `.env`, and configure providers in onboarding or under **Settings → Services**.
-
-Saved settings are intentionally retained across restarts and upgrades. To move an existing installation between all-in-one, split, and custom layouts, open **Settings → General → Deployment**. The guided setup updates endpoints without deleting jobs, chats, workflows, or files.
+Sparkfire runs on this stack only: users do not pick models, URLs or keys, and Settings → Services shows them without letting them change. Every start applies the stack wherever it runs, from the start scripts' environment or, without it, the host chosen in setup, so saved settings cannot drift from it. To move an installation between all-in-one and split, open **Settings → General → Deployment**; the guided setup keeps jobs, chats, workflows and files.
 
 ### Upgrading from the six-model stack
 
-`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR and LocateAnything services, which would otherwise keep restarting and hold about 27 GiB. Saved settings are not rewritten, so the LLM still points at port 8331 and grounding at port 8335. Until you repoint or disable those two endpoints in **Settings → Services**, they show as offline and `/api/health` reports `ok: false`. A newly configured LLM endpoint accepts text only; tick **Images** under its accepted inputs when the model has vision, or chat will not send it attached images.
+`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR services, which would otherwise keep restarting and hold memory the stack's budget assumes is free. It downloads and starts the models the stack now uses, Saluki among them, and the app points its services at them on its next start, whatever the settings held. Earlier model files stay in `data/dgx-models` until you delete them.

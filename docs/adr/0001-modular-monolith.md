@@ -4,7 +4,7 @@ Status: Accepted
 
 ## Context
 
-SparklingKit began with three hardcoded processing paths. Translation, grounding, redaction, and further file workflows require independently extensible behavior without making installation or operation more complex.
+The app began with three hardcoded processing paths. Translation, grounding, redaction, and further file workflows require independently extensible behavior without making installation or operation more complex.
 
 ## Decision
 

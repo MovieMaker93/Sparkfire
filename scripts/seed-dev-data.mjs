@@ -185,7 +185,7 @@ async function main() {
   if (force || !(await fs.stat(chatsDir).catch(() => null))) {
     await fs.mkdir(chatsDir, { recursive: true });
     await fs.writeFile(path.join(chatsDir, "chat.json"), `${JSON.stringify({
-      id: "dev-chat-1", title: "Summarize the operations report", createdAt: iso(40), updatedAt: iso(38), model: "qwen36-35b-a3b-nvfp4", temperature: 0.7,
+      id: "dev-chat-1", title: "Summarize the operations report", createdAt: iso(40), updatedAt: iso(38), model: "saluki-27b", temperature: 0.7,
       linkedJobId: "dev-01-pdf-report",
       messages: [
         { id: "m1", role: "user", content: "What changed this quarter?", createdAt: iso(39) },

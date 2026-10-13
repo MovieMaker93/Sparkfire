@@ -5,6 +5,7 @@ import { lookup as mimeLookup } from "mime-types";
 import { DATA_DIR, defaultPrompts, defaultSettings } from "./config.js";
 import { moduleForLegacyJob } from "./modules/registry.js";
 import { ENDPOINT_KINDS } from "../shared/contracts.js";
+import { referenceSettingsForHost, stackDeployment } from "../shared/reference-stack.js";
 import type { Artifact, ArtifactKind, ChatRecord, JobKind, JobManifest, JobStatus, ModuleId, PromptPreset, Settings, WorkflowRun } from "./models.js";
 
 const settingsPath = path.join(DATA_DIR, "config", "settings.json");
@@ -46,7 +47,6 @@ export async function initializeData() {
       delete saved.pdf.skipOcrIfTextLayer;
       changed = true;
     }
-    changed = migrateBundledServiceDefaults(saved) || changed;
     if (changed) await atomicWriteJson(settingsPath, saved);
   }
   if (!(await exists(secretsPath))) {
@@ -57,33 +57,14 @@ export async function initializeData() {
     const file = path.join(DATA_DIR, "config", "prompts", `${prompt.slug}.json`);
     if (!(await exists(file))) await atomicWriteJson(file, prompt);
   }
-  const settings = await readSettings();
+  let settings = await readSettings();
   if (settings.schemaVersion !== 2) throw new Error("Settings migration failed");
+  // The stack's services, models and keys are fixed, so every start applies them wherever the stack runs, whatever
+  // was saved. An install set up by hand, before the stack was fixed, goes through setup in the browser again.
+  const deployment = stackDeployment(settings, defaultSettings);
+  if (deployment) settings = referenceSettingsForHost(settings, deployment.host, deployment.mode, { video: deployment.video });
+  else if (settings.setup.completed) settings = { ...settings, setup: { ...settings.setup, completed: false } };
   await writeSettings(settings);
-}
-
-function migrateBundledServiceDefaults(saved: Partial<Settings>) {
-  if (!saved.endpoints) saved.endpoints = {} as Settings["endpoints"];
-  let changed = false;
-  const move = (kind: keyof Settings["endpoints"], provisionIfEmpty = false) => {
-    const current = saved.endpoints?.[kind];
-    const replacement = defaultSettings.endpoints[kind];
-    if (!replacement.baseUrl) return;
-    const isEmpty = !current?.baseUrl && !current?.model;
-    if (!current || (provisionIfEmpty && isEmpty)) {
-      saved.endpoints![kind] = { ...replacement, apiKey: "" };
-      changed = true;
-    }
-  };
-  move("llm");
-  move("ocr");
-  move("stt");
-  move("translation", true);
-  move("grounding", true);
-  move("image-generation", true);
-  move("video-generation", true);
-  move("music-generation", true);
-  return changed;
 }
 
 export async function readSettings(): Promise<Settings> {
@@ -123,6 +104,14 @@ export async function writeSettings(settings: Settings) {
   await atomicWriteJson(settingsPath, safe);
   await atomicWriteJson(secretsPath, secrets);
   await fs.chmod(secretsPath, 0o600).catch(() => undefined);
+}
+
+/** Saves a change made in Settings. The stack's services, models, monitor and web search are not the user's to change. */
+export async function saveUserSettings(submitted: Settings) {
+  const current = await readSettings();
+  const settings: Settings = { ...submitted, setup: current.setup, systemStatus: current.systemStatus, webSearch: current.webSearch, endpoints: current.endpoints };
+  await writeSettings(settings);
+  return settings;
 }
 
 function slugify(value: string) {
@@ -841,6 +830,8 @@ export async function createChat(linkedJobId?: string): Promise<ChatRecord> {
     model: settings.endpoints.llm.model,
     temperature: 0.7,
     linkedJobId,
+    // New conversations start with web search on; each can turn it off.
+    webSearch: true,
     messages: [],
   };
   if (linkedJobId) {

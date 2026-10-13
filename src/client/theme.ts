@@ -4,7 +4,7 @@ export type ThemePreference = Settings["ui"]["theme"];
 export type ResolvedTheme = "light" | "dark";
 
 /** Mirrors the pre-paint script in index.html, which reads this key before React loads. */
-export const themeStorageKey = "sparklingkit:theme";
+export const themeStorageKey = "sparkfire:theme";
 
 export function resolveTheme(preference: ThemePreference | undefined, prefersDark: boolean): ResolvedTheme {
   if (preference === "light" || preference === "dark") return preference;

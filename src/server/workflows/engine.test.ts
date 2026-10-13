@@ -11,7 +11,7 @@ describe("file-based workflow engine", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-flow-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-flow-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

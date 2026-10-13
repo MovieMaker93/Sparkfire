@@ -9,7 +9,7 @@ describe("stored data deletion", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-delete-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-delete-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

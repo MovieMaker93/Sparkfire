@@ -12,19 +12,16 @@ SKIP_PULL=false
 DEPLOY_APP=true
 REFRESH_IMAGES=false
 FORCE_RECREATE=false
-OCR_BACKEND="${SPARKFIRE_OCR_BACKEND:-${SPARKLINGKIT_OCR_BACKEND:-unlimited-ocr}}"
-ASR_BACKEND="${SPARKFIRE_ASR_BACKEND:-${SPARKLINGKIT_ASR_BACKEND:-parakeet}}"
-IMAGE_BACKEND="${SPARKFIRE_IMAGE_BACKEND:-${SPARKLINGKIT_IMAGE_BACKEND:-z-image}}"
-VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-${SPARKLINGKIT_VIDEO_BACKEND:-fasth3}}"
-SEARCH_BACKEND="${SPARKFIRE_SEARCH_BACKEND:-none}"
-MUSIC_BACKEND="${SPARKFIRE_MUSIC_BACKEND:-none}"
+VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-fasth3}"
 
 usage() {
   cat <<'EOF'
 Usage: ./scripts/start-dgx-spark.sh [start|status|stop] [options]
 
-Set up and run Sparkfire's reference model stack on a 128 GB DGX Spark: OCR, transcription,
-translation, image generation and video generation, and music generation when you turn it on.
+Set up and run Sparkfire's model stack on a 128 GB DGX Spark. Its models are fixed, chosen and measured
+to share the Spark's memory: Saluki 27B (chat), PaddleOCR-VL-1.6 (OCR), Parakeet-TDT-0.6B-v3
+(transcription), Hy-MT2-1.8B-FP8 (translation), Qwen-Image-2.1-Turbo (images), FastH3 (video) and
+YuE2-3B (music), with SearXNG for web search in chat.
 
 Options:
   --accept-model-licenses  Confirm that you reviewed and accept each model's terms
@@ -34,16 +31,8 @@ Options:
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
   --models-only            Run the model services and monitor without Sparkfire
-  --ocr-backend NAME       unlimited-ocr (default) or paddleocr-vl
-  --asr-backend NAME       kept for compatibility: parakeet (the only ASR backend)
-  --image-backend NAME     z-image (default), qwen-image-2.1 or qwen-image-2.1-turbo
   --video-backend NAME     fasth3 (default) or none; FastH3's license does not cover the EU, the UK,
-                           South Korea or the US
-  --search-backend NAME    none (default) or searxng: web search for chat through a local SearXNG;
-                           each conversation still turns it on, and the model needs tool calling
-  --music-backend NAME     none (default) or yue2: songs with vocals from lyrics and a style; YuE2's
-                           weights are CC BY-NC 4.0 (creators may sell their songs, companies need
-                           a license from m-a-p)
+                           South Korea or the US, so leave video out there
   -h, --help               Show this help
 
 Examples:
@@ -52,6 +41,23 @@ Examples:
   ./scripts/start-dgx-spark.sh status
   ./scripts/start-dgx-spark.sh stop
 EOF
+}
+
+# The stack's models are fixed. These options stay so that commands written for earlier versions still run when
+# they name what the stack uses; any other choice is refused.
+check_fixed_backend() {
+  local option="$1" value="$2" fixed
+  case "$option" in
+    --ocr-backend) fixed=paddleocr-vl ;;
+    --asr-backend) fixed=parakeet ;;
+    --image-backend) fixed=qwen-image-2.1-turbo ;;
+    --search-backend) fixed=searxng ;;
+    *) fixed=yue2 ;;
+  esac
+  if [[ "$value" != "$fixed" ]]; then
+    printf '%s %s is not available: the stack always uses %s.\n' "$option" "$value" "$fixed" >&2
+    exit 2
+  fi
 }
 
 while (($#)); do
@@ -81,16 +87,14 @@ while (($#)); do
     --models-only)
       DEPLOY_APP=false
       ;;
-    --ocr-backend|--asr-backend|--image-backend|--video-backend|--search-backend|--music-backend)
+    --video-backend)
       if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
-      case "$1" in
-        --ocr-backend) OCR_BACKEND="$2" ;;
-        --asr-backend) ASR_BACKEND="$2" ;;
-        --video-backend) VIDEO_BACKEND="$2" ;;
-        --search-backend) SEARCH_BACKEND="$2" ;;
-        --music-backend) MUSIC_BACKEND="$2" ;;
-        *) IMAGE_BACKEND="$2" ;;
-      esac
+      VIDEO_BACKEND="$2"
+      shift
+      ;;
+    --ocr-backend|--asr-backend|--image-backend|--search-backend|--music-backend)
+      if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
+      check_fixed_backend "$1" "$2"
       shift
       ;;
     -h|--help)
@@ -106,26 +110,6 @@ while (($#)); do
   shift
 done
 
-case "$OCR_BACKEND" in
-  unlimited-ocr) export OCR_MODEL="Unlimited-OCR" ;;
-  paddleocr-vl) export OCR_MODEL="PaddleOCR-VL-1.6" ;;
-  *) printf 'Unknown OCR backend: %s (use unlimited-ocr or paddleocr-vl)\n' "$OCR_BACKEND" >&2; exit 2 ;;
-esac
-# Parakeet is the only ASR backend; its adapter answers /v1/models before the engine has loaded,
-# so readiness is checked on /health.
-if [[ "$ASR_BACKEND" != "parakeet" ]]; then
-  printf 'Unknown ASR backend: %s (parakeet is the only backend; qwen3-asr was removed)\n' "$ASR_BACKEND" >&2
-  exit 2
-fi
-ASR_SERVICE=parakeet
-ASR_READY_URL="http://127.0.0.1:8333/health"
-export STT_MODEL="Parakeet-TDT-0.6B-v3"
-case "$IMAGE_BACKEND" in
-  z-image) export IMAGE_GENERATION_MODEL="Z-Image-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-26g}" ;;
-  qwen-image-2.1) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
-  qwen-image-2.1-turbo) export IMAGE_GENERATION_MODEL="Qwen-Image-2.1-Turbo" IMAGE_MEM_LIMIT="${IMAGE_MEM_LIMIT:-34g}" ;;
-  *) printf 'Unknown image backend: %s (use z-image, qwen-image-2.1 or qwen-image-2.1-turbo)\n' "$IMAGE_BACKEND" >&2; exit 2 ;;
-esac
 # Without a video service, the app's video endpoint and the monitor's video port stay empty, so neither
 # reports the service as missing.
 case "$VIDEO_BACKEND" in
@@ -133,45 +117,22 @@ case "$VIDEO_BACKEND" in
   none) export SPARKFIRE_VIDEO_BASE_URL="" SPARKFIRE_VIDEO_PORT="" ;;
   *) printf 'Unknown video backend: %s (use fasth3 or none)\n' "$VIDEO_BACKEND" >&2; exit 2 ;;
 esac
-# Web search is opt-in: without it the app's search URL stays empty and Settings shows web search as off.
-case "$SEARCH_BACKEND" in
-  searxng) export SPARKFIRE_SEARCH_BASE_URL="http://searxng:8080" ;;
-  none) export SPARKFIRE_SEARCH_BASE_URL="" ;;
-  *) printf 'Unknown search backend: %s (use none or searxng)\n' "$SEARCH_BACKEND" >&2; exit 2 ;;
-esac
-# Music is opt-in for its non-commercial license: without it the app's music endpoint and the monitor's port
-# stay empty.
-case "$MUSIC_BACKEND" in
-  yue2) export SPARKFIRE_MUSIC_BASE_URL="http://host.docker.internal:8339/v1" SPARKFIRE_MUSIC_PORT="8339" ;;
-  none) export SPARKFIRE_MUSIC_BASE_URL="" SPARKFIRE_MUSIC_PORT="" ;;
-  *) printf 'Unknown music backend: %s (use none or yue2)
-' "$MUSIC_BACKEND" >&2; exit 2 ;;
-esac
-export SPARKFIRE_OCR_BACKEND="$OCR_BACKEND" SPARKFIRE_ASR_BACKEND="$ASR_BACKEND" SPARKFIRE_IMAGE_BACKEND="$IMAGE_BACKEND" SPARKFIRE_VIDEO_BACKEND="$VIDEO_BACKEND" SPARKFIRE_SEARCH_BACKEND="$SEARCH_BACKEND" SPARKFIRE_MUSIC_BACKEND="$MUSIC_BACKEND"
-
 # SearXNG signs its tokens with a secret that stays on this machine (data/ is never committed).
 SEARXNG_SECRET_FILE="data/searxng/secret"
-if [[ "$SEARCH_BACKEND" == "searxng" && ! -s "$SEARXNG_SECRET_FILE" ]]; then
+if [[ ! -s "$SEARXNG_SECRET_FILE" ]]; then
   mkdir -p "$(dirname "$SEARXNG_SECRET_FILE")"
   (umask 077 && head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' >"$SEARXNG_SECRET_FILE")
 fi
-if [[ -s "$SEARXNG_SECRET_FILE" ]]; then
-  SEARXNG_SECRET="$(cat "$SEARXNG_SECRET_FILE")"
-  export SEARXNG_SECRET
-fi
+SEARXNG_SECRET="$(cat "$SEARXNG_SECRET_FILE")"
+export SEARXNG_SECRET
 
-# The project, container and image names keep the SparklingKit-era "sparklingkit" prefix: renaming them would
-# orphan the redis-data volume of existing installs and break the switch script's container checks.
 COMPOSE=(
   docker compose
-  --project-name sparklingkit
+  --project-name sparkfire
   --file compose.yaml
   --file compose.spark.yaml
   --file compose.dgx.yaml
   --file compose.search.yaml
-  # The music service sits in a profile so a plain `docker compose up` leaves it out; the script names its
-  # services explicitly, and the profile lets stop and ps cover it too.
-  --profile music
 )
 
 require_command() {
@@ -194,32 +155,28 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-# Containers of services this stack no longer ships. Compose neither starts nor stops them any more, so one
-# left by an earlier install keeps restarting (unless-stopped) and holding memory the stack's budget assumes
-# is free.
-RETIRED_CONTAINERS=(sparklingkit-qwen36 sparklingkit-qwen3-asr sparklingkit-locateanything)
+# Installs from before the rename to Sparkfire ran under this compose project. Its containers, retired services
+# among them, would keep restarting (unless-stopped) beside the new ones and hold the memory the stack's budget
+# assumes is free, so they and their network are removed. Its Redis volume held only the job queue and is left
+# alone; the app queues unfinished jobs again from data/ when it starts.
+LEGACY_PROJECT=sparklingkit
 
-retire_old_containers() {
-  local action="$1" name
-  for name in "${RETIRED_CONTAINERS[@]}"; do
-    docker container inspect "$name" >/dev/null 2>&1 || continue
-    if [[ "$action" == "remove" ]]; then
-      docker rm -f "$name" >/dev/null
-      printf 'Removed %s: this stack no longer ships that service.\n' "$name"
-    elif [[ "$(docker inspect -f '{{.State.Running}}' "$name")" == "true" ]]; then
-      docker stop "$name" >/dev/null
-      printf 'Stopped %s: this stack no longer ships that service.\n' "$name"
-    fi
-  done
+remove_legacy_containers() {
+  local containers=()
+  mapfile -t containers < <(docker ps -aq --filter "label=com.docker.compose.project=$LEGACY_PROJECT")
+  ((${#containers[@]})) || return 0
+  docker rm -f "${containers[@]}" >/dev/null
+  docker network rm "${LEGACY_PROJECT}_default" >/dev/null 2>&1 || true
+  printf 'Removed %s containers left from before the rename to Sparkfire.\n' "${#containers[@]}"
 }
 
 if [[ "$ACTION" == "stop" ]]; then
-  retire_old_containers stop
+  remove_legacy_containers
   if [[ "$DEPLOY_APP" == "true" ]]; then
     "${COMPOSE[@]}" stop
     printf 'Sparkfire and the DGX model services are stopped. Persistent data was kept.\n'
   else
-    "${COMPOSE[@]}" stop parakeet unlimited-ocr paddleocr-vl paddleocr-vlm hy-mt2 z-image video-generation music-generation searxng dgx-status
+    "${COMPOSE[@]}" stop saluki parakeet paddleocr-vl paddleocr-vlm hy-mt2 image-generation video-generation music-generation searxng dgx-status
     printf 'The DGX model services are stopped. Persistent model data was kept.\n'
   fi
   exit 0
@@ -239,6 +196,7 @@ show_status() {
   "${COMPOSE[@]}" ps
   printf '\nEndpoints\n'
   endpoint_status "System status" "http://127.0.0.1:8330/health"
+  endpoint_status "LLM (Saluki)" "http://127.0.0.1:8331/health"
   endpoint_status "OCR" "http://127.0.0.1:8332/v1/models"
   endpoint_status "Transcription" "http://127.0.0.1:8333/health"
   endpoint_status "Translation" "http://127.0.0.1:8334/health"
@@ -246,12 +204,8 @@ show_status() {
   if [[ "$VIDEO_BACKEND" != "none" ]]; then
     endpoint_status "Video generation" "http://127.0.0.1:8337/health"
   fi
-  if [[ "$MUSIC_BACKEND" != "none" ]]; then
-    endpoint_status "Music generation" "http://127.0.0.1:8339/health"
-  fi
-  if [[ "$SEARCH_BACKEND" == "searxng" ]]; then
-    endpoint_status "Web search" "http://127.0.0.1:8338/healthz"
-  fi
+  endpoint_status "Music generation" "http://127.0.0.1:8339/health"
+  endpoint_status "Web search" "http://127.0.0.1:8338/healthz"
   if [[ "$DEPLOY_APP" == "true" ]]; then
     endpoint_status "Sparkfire" "http://127.0.0.1:54321/api/health"
   fi
@@ -284,12 +238,12 @@ if [[ "$ACCEPT_MODEL_LICENSES" == "true" ]]; then
 elif [[ ! -f "$license_marker" ]]; then
   cat >&2 <<'EOF'
 The model weights are not covered by Sparkfire's Apache 2.0 license.
-Review the publishers' model cards before downloading. In particular,
-Qwen/Qwen-Image-2.1 (--image-backend qwen-image-2.1 or qwen-image-2.1-turbo) uses the Qwen Research License,
-and FastH3 (video generation) uses the MiniMax H3 Community License, which grants use only "worldwide,
-excluding" the European Union, the United Kingdom, South Korea and the United States, and asks that shared
-videos be disclosed as machine-generated. Use --video-backend none where it does not apply.
-YuE2 (--music-backend yue2) uses CC BY-NC 4.0 with a creator permission: personal users and creators may
+Review the publishers' model cards before downloading, Underdog Saluki 27B's (the chat model) among them.
+In particular, Qwen/Qwen-Image-2.1-Turbo (image generation) uses the Qwen Research License, which is
+non-commercial, and FastH3 (video generation) uses the MiniMax H3 Community License, which grants use only
+"worldwide, excluding" the European Union, the United Kingdom, South Korea and the United States, and asks
+that shared videos be disclosed as machine-generated. Use --video-backend none where it does not apply.
+YuE2 (music generation) uses CC BY-NC 4.0 with a creator permission: personal users and creators may
 publish and sell their songs, academic use is non-commercial, and companies need a license from m-a-p.
 EOF
   if [[ -t 0 ]]; then
@@ -309,20 +263,16 @@ fi
 
 if [[ "$SKIP_BUILD" != "true" ]]; then
   printf '\nBuilding Sparkfire and DGX service images...\n'
-  build_targets=(model-downloader "$ASR_SERVICE" hy-mt2 z-image dgx-status)
+  build_targets=(model-downloader saluki parakeet paddleocr-vl hy-mt2 image-generation music-generation dgx-status)
   if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then build_targets+=(video-generation); fi
-  if [[ "$MUSIC_BACKEND" == "yue2" ]]; then build_targets+=(music-generation); fi
-  if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then build_targets+=(paddleocr-vl); fi
   if [[ "$DEPLOY_APP" == "true" ]]; then build_targets+=(app); fi
   if [[ "$REFRESH_IMAGES" == "true" ]]; then
     "${COMPOSE[@]}" --profile tools build --pull "${build_targets[@]}"
   else
     "${COMPOSE[@]}" --profile tools build "${build_targets[@]}"
   fi
-  pull_targets=()
-  if [[ "$OCR_BACKEND" == "unlimited-ocr" ]]; then pull_targets+=(unlimited-ocr); fi
+  pull_targets=(paddleocr-vlm searxng)
   if [[ "$DEPLOY_APP" == "true" ]]; then pull_targets+=(redis); fi
-  if [[ "$SEARCH_BACKEND" == "searxng" ]]; then pull_targets+=(searxng); fi
   if [[ "$SKIP_PULL" != "true" ]]; then "${COMPOSE[@]}" pull "${pull_targets[@]}"; fi
 fi
 
@@ -331,11 +281,12 @@ download_model() {
   local revision="$2"
   local destination="$3"
   local includes=("${@:4}")
-  local completion_marker="$model_root/$destination/.sparklingkit-$revision.complete"
+  local completion_marker="$model_root/$destination/.sparkfire-$revision.complete"
   local include_args=()
   local file
 
-  if [[ -f "$completion_marker" ]]; then
+  # A marker written before the rename to Sparkfire has another prefix; any marker for this revision counts.
+  if compgen -G "$model_root/$destination/.*-$revision.complete" >/dev/null; then
     printf 'Using existing %-34s %s\n' "$repository" "$revision"
     return
   fi
@@ -370,42 +321,31 @@ download_model() {
 
 if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
   printf '\nDownloading pinned model revisions (existing downloads are reused)...\n'
-  if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
-    download_model \
-      "PaddlePaddle/PaddleOCR-VL-1.6" \
-      "c5630abae1d940eafe0697512a0325494b02ab42" \
-      "PaddlePaddle/PaddleOCR-VL-1.6"
-  else
-    download_model \
-      "baidu/Unlimited-OCR" \
-      "27a5997fa0524f9adcf9e2f3d5e7d3f784434fa5" \
-      "baidu/Unlimited-OCR"
-  fi
-    download_model \
-      "mudler/parakeet-cpp-gguf" \
-      "741158ae71e64ef5c89385862c18f777d07a97a1" \
-      "mudler/parakeet-cpp-gguf" \
-      "tdt-0.6b-v3-f16.gguf"
+  # The chat model and its vision add-on. Not pinned yet: Hugging Face could not be reached when this was
+  # written, so this takes the current revision once and reuses it; pin its commit here.
+  download_model \
+    "ConwayResearch/Underdog-Saluki-27B-1.0" \
+    "main" \
+    "ConwayResearch/Underdog-Saluki-27B-1.0" \
+    "Underdog-Saluki-27B-1.0-IQ2-mix.gguf" \
+    "mmproj-Underdog-Saluki-27B-1.0-F16.gguf"
+  download_model \
+    "PaddlePaddle/PaddleOCR-VL-1.6" \
+    "c5630abae1d940eafe0697512a0325494b02ab42" \
+    "PaddlePaddle/PaddleOCR-VL-1.6"
+  download_model \
+    "mudler/parakeet-cpp-gguf" \
+    "741158ae71e64ef5c89385862c18f777d07a97a1" \
+    "mudler/parakeet-cpp-gguf" \
+    "tdt-0.6b-v3-f16.gguf"
   download_model \
     "tencent/Hy-MT2-1.8B-FP8" \
     "b3f6f590920726d69a5504293bd4f36d50e5f681" \
     "tencent/Hy-MT2-1.8B-FP8"
-  if [[ "$IMAGE_BACKEND" == "qwen-image-2.1" ]]; then
-    download_model \
-      "Qwen/Qwen-Image-2.1" \
-      "d26bb61231c349cf6b7896fa83353113880e1ba3" \
-      "Qwen/Qwen-Image-2.1"
-  elif [[ "$IMAGE_BACKEND" == "qwen-image-2.1-turbo" ]]; then
-    download_model \
-      "Qwen/Qwen-Image-2.1-Turbo" \
-      "d65dbc9a7e8f6b5479e33dee6030eaab2a906509" \
-      "Qwen/Qwen-Image-2.1-Turbo"
-  else
-    download_model \
-      "Tongyi-MAI/Z-Image-Turbo" \
-      "f332072aa78be7aecdf3ee76d5c247082da564a6" \
-      "Tongyi-MAI/Z-Image-Turbo"
-  fi
+  download_model \
+    "Qwen/Qwen-Image-2.1-Turbo" \
+    "d65dbc9a7e8f6b5479e33dee6030eaab2a906509" \
+    "Qwen/Qwen-Image-2.1-Turbo"
   if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
     # FastH3 Trim (Fast) with the text encoder and decoders both variants share, then the V2 model (Sharp).
     download_model \
@@ -422,11 +362,9 @@ if [[ "$SKIP_DOWNLOAD" != "true" ]]; then
       "FastVideo/FastVideo-FastH3-Comfy" \
       "diffusion_models/fastvideo_fasth3_8step_v2_pruned_int8_convrot.safetensors"
   fi
-  if [[ "$MUSIC_BACKEND" == "yue2" ]]; then
-    # The song model (score, semantic and acoustic stages) and the audio decoder, about 7.8 GB together.
-    download_model       "m-a-p/YuE2-3B"       "8f24312f187763b9854adeec87e437e2b03bbff1"       "m-a-p/YuE2-3B"
-    download_model       "m-a-p/YuE2-Vae"       "152733a19ad43aa67e367f9b5503ef8075bb5126"       "m-a-p/YuE2-Vae"
-  fi
+  # The song model (score, semantic and acoustic stages) and the audio decoder, about 7.8 GB together.
+  download_model "m-a-p/YuE2-3B" "8f24312f187763b9854adeec87e437e2b03bbff1" "m-a-p/YuE2-3B"
+  download_model "m-a-p/YuE2-Vae" "152733a19ad43aa67e367f9b5503ef8075bb5126" "m-a-p/YuE2-Vae"
 fi
 
 wait_for_endpoint() {
@@ -465,19 +403,17 @@ start_service() {
   wait_for_endpoint "$service" "$label" "$url" "$timeout_seconds"
 }
 
-retire_old_containers remove
+remove_legacy_containers
 printf '\nStarting the models sequentially...\n'
-start_service "$ASR_SERVICE" "Transcription" "$ASR_READY_URL" 600
-if [[ "$OCR_BACKEND" == "paddleocr-vl" ]]; then
-  "${COMPOSE[@]}" stop unlimited-ocr
-  start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600
-  start_service paddleocr-vl "OCR layout adapter" "http://127.0.0.1:8332/health" 900
-else
-  "${COMPOSE[@]}" stop paddleocr-vl paddleocr-vlm
-  start_service unlimited-ocr "OCR" "http://127.0.0.1:8332/v1/models" 600
-fi
+# Saluki first: it loads in seconds with no peak, and holding its 13 GiB before the others start keeps a restart
+# from leaving it without room.
+start_service saluki "LLM (Saluki 27B)" "http://127.0.0.1:8331/health" 600
+# Parakeet's adapter answers /v1/models before the engine has loaded, so readiness is checked on /health.
+start_service parakeet "Transcription" "http://127.0.0.1:8333/health" 600
+start_service paddleocr-vlm "OCR vision-language model" "http://127.0.0.1:8342/v1/models" 600
+start_service paddleocr-vl "OCR layout adapter" "http://127.0.0.1:8332/health" 900
 start_service hy-mt2 "Translation" "http://127.0.0.1:8334/health" 600
-start_service z-image "Image generation ($IMAGE_BACKEND)" "http://127.0.0.1:8336/health" 1800
+start_service image-generation "Image generation (Qwen-Image-2.1-Turbo)" "http://127.0.0.1:8336/health" 1800
 # Video loads nothing until its first job, so it adds no loading peak here.
 if [[ "$VIDEO_BACKEND" == "fasth3" ]]; then
   start_service video-generation "Video generation (FastH3)" "http://127.0.0.1:8337/health" 600
@@ -485,17 +421,9 @@ else
   "${COMPOSE[@]}" stop video-generation
 fi
 # Music loads nothing until its first song either.
-if [[ "$MUSIC_BACKEND" == "yue2" ]]; then
-  start_service music-generation "Music generation (YuE2)" "http://127.0.0.1:8339/health" 300
-else
-  "${COMPOSE[@]}" stop music-generation
-fi
+start_service music-generation "Music generation (YuE2)" "http://127.0.0.1:8339/health" 300
 # SearXNG holds no model (about 200 MB), so it starts after the models without changing their memory order.
-if [[ "$SEARCH_BACKEND" == "searxng" ]]; then
-  start_service searxng "Web search (SearXNG)" "http://127.0.0.1:8338/healthz" 120
-else
-  "${COMPOSE[@]}" stop searxng
-fi
+start_service searxng "Web search (SearXNG)" "http://127.0.0.1:8338/healthz" 120
 start_service dgx-status "System status" "http://127.0.0.1:8330/health" 120
 
 if [[ "$DEPLOY_APP" == "true" ]]; then

@@ -47,6 +47,7 @@ export const api = {
   testWebSearch: (webSearch: Settings["webSearch"]) =>
     request<{ ok: boolean; latencyMs: number; results: number; error?: string }>("/api/web-search/test", { method: "POST", body: JSON.stringify({ webSearch }) }),
   saveSettings: (settings: Settings) => request<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(settings) }),
+  applyStack: (stack: { host: string; mode: "all-in-one" | "split"; video: boolean }) => request<Settings>("/api/setup/stack", { method: "POST", body: JSON.stringify(stack) }),
   modules: () => request<ModuleDescriptor[]>("/api/modules"),
   workflowNodes: () => request<{ services: Array<{ id: string; title: string; accepts: string[]; produces: string[]; terminal?: boolean; configured: boolean; hidden?: boolean }>; artifactKinds: string[] }>("/api/workflow-nodes"),
   workflows: () => request<WorkflowDefinition[]>("/api/workflows"),

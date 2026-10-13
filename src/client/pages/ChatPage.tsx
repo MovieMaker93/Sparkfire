@@ -90,7 +90,8 @@ export function ChatPage() {
     if (!id) {
       setChat(undefined);
       setSettledChatId(undefined);
-      setWebSearch(false);
+      // A new conversation starts with web search on; it is used only where the stack has it.
+      setWebSearch(true);
       return () => { active = false; };
     }
     api.chat(id)

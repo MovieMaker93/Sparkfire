@@ -1,24 +1,42 @@
-import type { EndpointKind, Settings } from "./contracts.js";
+import type { EndpointKind, ModelInputCapability, Settings } from "./contracts.js";
 
+/**
+ * Sparkfire's stack: one fixed model per service, chosen and measured to share a 128 GB DGX Spark
+ * (docs/validation.md). Users do not pick models; every install runs these.
+ */
 export const REFERENCE_SERVICE_CATALOG = {
   systemStatus: { port: 8330, label: "System status" },
-  ocr: { port: 8332, model: "Unlimited-OCR" },
+  // Saluki 27B in llama-server.
+  llm: { port: 8331, model: "saluki-27b" },
+  ocr: { port: 8332, model: "PaddleOCR-VL-1.6" },
   stt: { port: 8333, model: "Parakeet-TDT-0.6B-v3" },
   translation: { port: 8334, model: "Hy-MT2-1.8B-FP8" },
-  imageGeneration: { port: 8336, model: "Z-Image-Turbo" },
+  imageGeneration: { port: 8336, model: "Qwen-Image-2.1-Turbo" },
   videoGeneration: { port: 8337, model: "FastH3" },
   musicGeneration: { port: 8339, model: "YuE2-3B" },
 } as const;
 
-// The endpoint kinds the reference deployment provides. The LLM is not bundled:
-// chat, mind maps and summaries use any OpenAI-compatible endpoint configured in Settings,
-// and neither is grounding (the module stays available through Settings).
-export const REFERENCE_ENDPOINT_KINDS = ["ocr", "stt", "translation", "image-generation"] as const;
-// Video generation is part of the reference stack too, but a deployment may leave it out
-// (start-dgx-spark.sh --video-backend none, where its model license does not apply), so setup
-// does not fail without it. Music generation is opt-in (--music-backend yue2, for its non-commercial weights),
-// so it is turned on only when asked for.
-export const OPTIONAL_REFERENCE_ENDPOINT_KINDS = ["video-generation", "music-generation"] as const;
+/** Saluki reads images through its --mmproj and answers tool calls with llama-server's --jinja. */
+export const REFERENCE_LLM_CAPABILITIES: readonly ModelInputCapability[] = ["text", "image", "tools"];
+
+/** SearXNG as the app reaches it on the stack's compose network (compose.search.yaml). */
+export const STACK_WEB_SEARCH_URL = "http://searxng:8080";
+
+// The services every deployment of the stack runs, which setup checks before it applies. There is no grounding
+// service, so that module stays out of the app.
+export const REFERENCE_ENDPOINT_KINDS = ["llm", "ocr", "stt", "translation", "image-generation", "music-generation"] as const;
+// Video generation can be left out (start-dgx-spark.sh --video-backend none) where FastH3's license does not
+// apply, so setup does not fail without it.
+export const OPTIONAL_REFERENCE_ENDPOINT_KINDS = ["video-generation"] as const;
+
+export type StackMode = "all-in-one" | "split";
+
+/** Where an install's stack runs: the Spark's address, whether the app runs on it, and whether video is part of it. */
+export interface StackDeployment {
+  host: string;
+  mode: StackMode;
+  video: boolean;
+}
 
 export function normalizeReferenceHost(value: string) {
   const trimmed = value.trim();
@@ -31,27 +49,55 @@ export function normalizeReferenceHost(value: string) {
   return parsed.hostname;
 }
 
-export function referenceSettingsForHost(settings: Settings, hostInput: string, mode: Settings["setup"]["mode"], options: { video?: boolean; music?: boolean } = {}): Settings {
+/** The Spark a stack deployment points at, read from its OCR endpoint; undefined before setup has run. */
+export function referenceHost(settings: Partial<Pick<Settings, "setup" | "endpoints">>) {
+  if (settings.setup?.mode !== "all-in-one" && settings.setup?.mode !== "split") return undefined;
+  try {
+    return new URL(settings.endpoints?.ocr?.baseUrl ?? "").hostname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Where the stack runs: what the start scripts put in the environment first, then what setup saved. Undefined for an
+ * install that has not been set up with the stack.
+ */
+export function stackDeployment(saved: Partial<Pick<Settings, "setup" | "endpoints">>, environment: Partial<Pick<Settings, "setup" | "endpoints">>): StackDeployment | undefined {
+  for (const source of [environment, saved]) {
+    const host = referenceHost(source);
+    if (host && (source.setup?.mode === "all-in-one" || source.setup?.mode === "split")) {
+      return { host, mode: source.setup.mode, video: Boolean(source.endpoints?.["video-generation"]?.enabled) };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The settings the stack decides: every service at its fixed model on the Spark, the system monitor and web search.
+ * Nothing set before survives, so a model or key chosen by hand never reaches the stack.
+ */
+export function referenceSettingsForHost(settings: Settings, hostInput: string, mode: StackMode, options: { video?: boolean } = {}): Settings {
   const host = normalizeReferenceHost(hostInput);
-  const origin = host.includes(":") ? `[${host}]` : host;
-  const endpoint = (kind: EndpointKind, port: number, model: string) => ({
-    ...settings.endpoints[kind],
-    baseUrl: `http://${origin}:${port}/v1`,
-    model,
-    enabled: true,
-  });
+  // An IPv6 hostname from the URL parser already has its brackets.
+  const origin = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  const endpoint = (port: number, model: string, enabled = true) => ({ baseUrl: `http://${origin}:${port}/v1`, model, apiKey: "", enabled });
+  const catalog = REFERENCE_SERVICE_CATALOG;
   return {
     ...settings,
-    setup: { completed: true, mode, onboardingVersion: 1, completedAt: new Date().toISOString() },
-    systemStatus: { baseUrl: `http://${origin}:${REFERENCE_SERVICE_CATALOG.systemStatus.port}` },
+    setup: { completed: true, mode, onboardingVersion: 1, completedAt: (settings.setup?.completed && settings.setup.completedAt) || new Date().toISOString() },
+    systemStatus: { baseUrl: `http://${origin}:${catalog.systemStatus.port}` },
+    // SearXNG listens only on the Spark itself, so a workspace on another machine has no web search.
+    webSearch: { enabled: mode === "all-in-one", provider: "searxng", baseUrl: mode === "all-in-one" ? STACK_WEB_SEARCH_URL : "" },
     endpoints: {
-      ...settings.endpoints,
-      ocr: endpoint("ocr", REFERENCE_SERVICE_CATALOG.ocr.port, REFERENCE_SERVICE_CATALOG.ocr.model),
-      stt: endpoint("stt", REFERENCE_SERVICE_CATALOG.stt.port, REFERENCE_SERVICE_CATALOG.stt.model),
-      translation: endpoint("translation", REFERENCE_SERVICE_CATALOG.translation.port, REFERENCE_SERVICE_CATALOG.translation.model),
-      "image-generation": endpoint("image-generation", REFERENCE_SERVICE_CATALOG.imageGeneration.port, REFERENCE_SERVICE_CATALOG.imageGeneration.model),
-      "video-generation": { ...endpoint("video-generation", REFERENCE_SERVICE_CATALOG.videoGeneration.port, REFERENCE_SERVICE_CATALOG.videoGeneration.model), enabled: options.video !== false },
-      "music-generation": { ...endpoint("music-generation", REFERENCE_SERVICE_CATALOG.musicGeneration.port, REFERENCE_SERVICE_CATALOG.musicGeneration.model), enabled: options.music === true },
-    },
+      llm: { ...endpoint(catalog.llm.port, catalog.llm.model), capabilities: [...REFERENCE_LLM_CAPABILITIES] },
+      ocr: endpoint(catalog.ocr.port, catalog.ocr.model),
+      stt: endpoint(catalog.stt.port, catalog.stt.model),
+      translation: endpoint(catalog.translation.port, catalog.translation.model),
+      grounding: { baseUrl: "", model: "", apiKey: "", enabled: false },
+      "image-generation": endpoint(catalog.imageGeneration.port, catalog.imageGeneration.model),
+      "video-generation": endpoint(catalog.videoGeneration.port, catalog.videoGeneration.model, options.video !== false),
+      "music-generation": endpoint(catalog.musicGeneration.port, catalog.musicGeneration.model),
+    } satisfies Record<EndpointKind, Settings["endpoints"][EndpointKind]>,
   };
 }

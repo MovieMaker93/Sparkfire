@@ -1,18 +1,16 @@
-# Web search for chat: a SearXNG instance only the app queries, over the compose network.
-# start-dgx-spark.sh adds this file and starts the service with --search-backend searxng; elsewhere use
-#   docker compose -f compose.yaml -f compose.search.yaml up -d
+# Web search for chat: a SearXNG instance only the app queries, over the compose network. It is part of the
+# stack, so start-dgx-spark.sh always adds this file and starts it.
 # Searching sends what a conversation is about to the search engines SearXNG queries (Google, Bing, ...),
-# without the user's identity. Each conversation still has to turn web search on.
+# without the user's identity. New conversations start with web search on; each can turn it off.
 
 services:
   app:
     environment:
-      # start-dgx-spark.sh --search-backend none sets this empty, so web search stays unconfigured.
-      WEB_SEARCH_BASE_URL: ${SPARKFIRE_SEARCH_BASE_URL-http://searxng:8080}
+      WEB_SEARCH_BASE_URL: http://searxng:8080
 
   searxng:
     image: searxng/searxng:2026.10.4-d48c4b555@sha256:76b0bf285aca014c7191fc4d9234c4bfb358624ac33d8883833d496c059ec072
-    container_name: sparklingkit-searxng
+    container_name: sparkfire-searxng
     restart: unless-stopped
     # Only on this host, for checks with curl; the app reaches it as http://searxng:8080.
     ports:

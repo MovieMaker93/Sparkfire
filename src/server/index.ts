@@ -8,6 +8,7 @@ import multer from "multer";
 import { z } from "zod";
 import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES, WEB_SEARCH_PROVIDERS } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
+import { referenceSettingsForHost } from "../shared/reference-stack.js";
 import { checkEndpoint, imageCapabilities, musicCapabilities, openChatStream, type ChatCompletionMessage, thinkingOptions, videoCapabilities, type ImageCapabilities, type MusicCapabilities, type VideoCapabilities } from "./ai.js";
 import { chatAttachmentPath, MAX_ATTACHMENTS_PER_MESSAGE, readChatAttachment, saveChatAttachment } from "./chat-attachments.js";
 import { chatGeneration, chatStreamDeltas, claimChatGeneration, releaseChatGeneration, type ChatGeneration } from "./chat-generation.js";
@@ -44,6 +45,7 @@ import {
   readJob,
   readSettings,
   renameChat,
+  saveUserSettings,
   renameInputFile,
   renameJob,
   renameOutputFile,
@@ -251,7 +253,18 @@ app.post("/api/web-search/test", async (request, response) => {
 
 app.get("/api/settings", async (_request, response) => response.json(await readSettings()));
 app.put("/api/settings", async (request, response) => {
-  const settings = settingsSchema.parse(request.body) as Settings;
+  response.json(await saveUserSettings(settingsSchema.parse(request.body) as Settings));
+});
+
+// Setup in the browser only says where the stack runs; the services and models follow from that.
+app.post("/api/setup/stack", async (request, response) => {
+  const input = z.object({ host: z.string().max(253), mode: z.enum(["all-in-one", "split"]), video: z.boolean() }).parse(request.body);
+  let settings: Settings;
+  try {
+    settings = referenceSettingsForHost(await readSettings(), input.host, input.mode, { video: input.video });
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+  }
   await writeSettings(settings);
   response.json(settings);
 });

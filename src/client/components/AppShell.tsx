@@ -26,8 +26,8 @@ const services = [
   { kind: "image-generation" as const, label: "Image", fallback: "Not configured", icon: ImageIcon },
   { kind: "video-generation" as const, label: "Video", fallback: "Not configured", icon: Film },
 ];
-const sidebarPreferenceKey = "sparklingkit:sidebar-collapsed";
-const monitorPreferenceKey = "sparklingkit:monitor-expanded";
+const sidebarPreferenceKey = "sparkfire:sidebar-collapsed";
+const monitorPreferenceKey = "sparkfire:monitor-expanded";
 
 type ServiceState = "online" | "disabled" | "offline" | "checking";
 

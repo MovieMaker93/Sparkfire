@@ -88,17 +88,15 @@ if [[ -n "$MODEL_HOST" ]]; then
     printf 'Use a hostname or IPv4 address without a scheme, port, or path.\n' >&2
     exit 2
   fi
+  # Where the stack runs; its models are fixed by the app.
   export SYSTEM_STATUS_BASE_URL="http://$MODEL_HOST:8330"
+  export LLM_BASE_URL="http://$MODEL_HOST:8331/v1"
   export OCR_BASE_URL="http://$MODEL_HOST:8332/v1"
-  export OCR_MODEL="Unlimited-OCR"
   export STT_BASE_URL="http://$MODEL_HOST:8333/v1"
-  export STT_MODEL="Parakeet-TDT-0.6B-v3"
   export TRANSLATION_BASE_URL="http://$MODEL_HOST:8334/v1"
-  export TRANSLATION_MODEL="Hy-MT2-1.8B-FP8"
   export IMAGE_GENERATION_BASE_URL="http://$MODEL_HOST:8336/v1"
-  export IMAGE_GENERATION_MODEL="Z-Image-Turbo"
   export VIDEO_GENERATION_BASE_URL="http://$MODEL_HOST:8337/v1"
-  export VIDEO_GENERATION_MODEL="FastH3"
+  export MUSIC_GENERATION_BASE_URL="http://$MODEL_HOST:8339/v1"
   export SPARKFIRE_SETUP_COMPLETE="true"
   export SPARKFIRE_DEPLOYMENT_MODE="split"
 else
@@ -107,22 +105,32 @@ else
   export OCR_BASE_URL=""
   export STT_BASE_URL=""
   export TRANSLATION_BASE_URL=""
-  export GROUNDING_BASE_URL=""
   export IMAGE_GENERATION_BASE_URL=""
   export VIDEO_GENERATION_BASE_URL=""
+  export MUSIC_GENERATION_BASE_URL=""
   export SPARKFIRE_SETUP_COMPLETE="false"
   export SPARKFIRE_DEPLOYMENT_MODE="custom"
 fi
 
-# Same compose project name as start-dgx-spark.sh, so an existing install keeps its redis-data volume.
-docker compose --project-name sparklingkit up -d --build redis app
+# Installs from before the rename to Sparkfire ran under this compose project; its containers would hold the
+# workspace port, so they and their network are removed. Its Redis volume, only the job queue, is left alone.
+LEGACY_PROJECT=sparklingkit
+mapfile -t legacy_containers < <(docker ps -aq --filter "label=com.docker.compose.project=$LEGACY_PROJECT")
+if ((${#legacy_containers[@]})); then
+  docker rm -f "${legacy_containers[@]}" >/dev/null
+  docker network rm "${LEGACY_PROJECT}_default" >/dev/null 2>&1 || true
+  printf 'Removed %s containers left from before the rename to Sparkfire.\n' "${#legacy_containers[@]}"
+fi
+
+# Same compose project name as start-dgx-spark.sh, so both scripts manage the same containers.
+docker compose --project-name sparkfire up -d --build redis app
 
 started_at="$(date +%s)"
 printf 'Waiting for Sparkfire'
 while ! curl --fail --silent --max-time 3 http://127.0.0.1:54321/api/health >/dev/null 2>&1; do
   if (( $(date +%s) - started_at >= 180 )); then
     printf '\nSparkfire did not become ready within 180 seconds.\n' >&2
-    docker compose --project-name sparklingkit logs --tail 120 app >&2
+    docker compose --project-name sparkfire logs --tail 120 app >&2
     exit 1
   fi
   printf '.'

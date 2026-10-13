@@ -15,7 +15,7 @@ describe("word-timed transcripts", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-word-timed-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-word-timed-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });

@@ -8,7 +8,7 @@ describe("linked chat context", () => {
   const previousDataDir = process.env.DATA_DIR;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparklingkit-chat-context-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "sparkfire-chat-context-"));
     process.env.DATA_DIR = root;
     vi.resetModules();
   });
