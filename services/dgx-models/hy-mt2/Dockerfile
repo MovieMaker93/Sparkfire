@@ -18,7 +18,7 @@ RUN PIP_CONSTRAINT= python3 -m pip install --no-cache-dir --upgrade \
     "fastapi==0.124.4" \
     "uvicorn[standard]==0.38.0" \
     "python-multipart==0.0.20" \
-    "hf-xet>=1.1.0" \
+    "hf-xet==1.6.0" \
     && PIP_CONSTRAINT= python3 -m pip install --no-cache-dir --no-deps \
     "compressed-tensors==0.17.0"
 
