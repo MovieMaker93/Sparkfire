@@ -192,8 +192,8 @@ Rules for this layer:
   (for example `.theme-choice` for segmented controls); never hard-code colours or one-off radii. Every UI
   change must work in the dark and light themes and at 1440 and 375 px wide, with no horizontal scroll.
 - **Brand.** The mark is one path, `brandMarkPath` in `src/client/brand.ts`; draw it with `BrandMark` in the
-  app. `src/client/public/` holds the favicon (the same path) and the PNG icons rendered from it: change
-  them together.
+  app. `src/client/public/` holds the favicon (the same path) and the PNG icons rendered from it, and
+  `scripts/media/tour-intro.png` and `tour-outro.png` show it on the README tour: change them together.
 - **Tests sit next to the code** (`*.test.ts`, vitest). Behaviour changes need tests. Python adapters use
   `unittest` and must run without a GPU or model weights.
 - **Line endings are LF.**

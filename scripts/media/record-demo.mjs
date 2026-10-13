@@ -35,7 +35,8 @@ const browser = await chromium.launch();
 await mkdir(OUT, { recursive: true });
 
 async function clip(name, scene) {
-  const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark" });
+  // Recorded at 2x, so the MP4s scaled down from these frames keep their text sharp.
+  const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark", deviceScaleFactor: 2 });
   await context.addInitScript(CURSOR);
   const page = await context.newPage();
   const dir = path.join(OUT, name);
@@ -55,7 +56,7 @@ async function clip(name, scene) {
     writes.push(writeFile(path.join(dir, file), Buffer.from(data, "base64")));
     cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
   });
-  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: VIEWPORT.width, maxHeight: VIEWPORT.height });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: VIEWPORT.width * 2, maxHeight: VIEWPORT.height * 2 });
   await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2);
   try {
     await scene(page, mark);

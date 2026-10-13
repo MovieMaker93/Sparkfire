@@ -14,8 +14,9 @@ them, and its own monitor and SearXNG.
 | `test_status_proxy.py` | Checks that the status proxy only ever forwards the status route; CI runs it |
 | `populate-demo.sh` | Fills the demo copy with real jobs on the real models (OCR, transcription, images, a video, translation, mind map), plus a song, a workflow run and a prompt preset result |
 | `demo-workflow.json` | The *Scan and translate* workflow that `populate-demo.sh` creates and runs, for the Workflows stills |
-| `record-demo.mjs` | Playwright: Chromium's own screencast frames for each clip, with a visible pointer, plus screenshots, the moments spent waiting for a model, and the README's stills. Playwright's built-in video recording is not used, because it compresses to about 1 Mbit/s and blurs text |
-| `make-media.mjs` | ffmpeg: plays the frames back at their recorded times, fast-forwards the waits, writes an MP4 (1440 × 900) and an animated WebP (1280 px, 15 fps) per clip, turns each still into a WebP, and stitches the tour |
+| `record-demo.mjs` | Playwright: Chromium's own screencast frames for each clip at 2x, with a visible pointer, plus screenshots, the moments spent waiting for a model, and the README's stills. Playwright's built-in video recording is not used, because it compresses to about 1 Mbit/s and blurs text |
+| `make-media.mjs` | ffmpeg: plays the frames back at their recorded times, fast-forwards the waits, writes an MP4 (1440 × 900) and an animated WebP (1280 px, 15 fps) per clip, turns each still into a WebP, and stitches the tour (an MP4 at 1920 × 1200) |
+| `tour-intro.png`, `tour-outro.png` | The logo cards the tour opens and closes on (1920 × 1200): the brand mark from `src/client/brand.ts` in Bricolage Grotesque and Geist. Change them with the brand |
 
 ## Steps
 
@@ -72,7 +73,7 @@ Scenes wait for real model output, so the timings depend on the models running. 
 first video through the API before it types its own, so the recording shows the second one *Waiting for the
 GPU*; it renders two videos and waits up to 15 minutes. The web search scene asks
 about something current, so its sources and answer change from one recording to the next. To change
-the tour, edit `TOUR` in `make-media.mjs`. The README loads every WebP, so keep the tour around 4 MB, each
+the tour, edit `TOUR` in `make-media.mjs`. The README loads every WebP, so keep the tour around 4–5 MB, each
 clip under 2 MB and each still under 1 MB; a clip with a generated video in it is the largest, because its frames all change.
 
 Generated videos can come back with a made-up broadcaster logo in a corner when the prompt reads like a
