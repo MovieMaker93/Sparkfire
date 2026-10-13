@@ -99,6 +99,9 @@ async function shot(page, name) {
 const STILL_CONTEXTS = {
   phone: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   monitor: { deviceScaleFactor: 2 },
+  // The graphs fit four nodes into the canvas at about half size; at 2x their labels stay legible full size.
+  "workflow-editor": { deviceScaleFactor: 2 },
+  "workflow-run": { deviceScaleFactor: 2 },
 };
 
 async function still(name, scene) {
@@ -321,6 +324,8 @@ const stills = {
       const out = document.querySelector(".translation-pane.output textarea");
       return out instanceof HTMLTextAreaElement && out.value.trim().length > 0 && out.getAttribute("aria-busy") === "false";
     }, null, { timeout: 120_000 });
+    // Filling leaves the source scrolled to its end; show both texts from their first line.
+    await page.locator(".translation-pane textarea").evaluateAll((areas) => areas.forEach((area) => { area.blur(); area.scrollTop = 0; }));
     await pause(800);
     await shot(page, "translate");
   },
