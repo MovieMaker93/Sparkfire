@@ -17,9 +17,9 @@ Every source and every result stays an ordinary file with its history, so one re
 > [!NOTE]
 > Based on [SparklingKit](https://github.com/stevibe/SparklingKit) by Steven Lei (Apache 2.0). Sparkfire is maintained by [MovieMaker93](https://github.com/MovieMaker93) and is not affiliated with or endorsed by the SparklingKit project. See [what Sparkfire changes](#what-sparkfire-changes).
 
-[![A tour of Sparkfire running real models on a DGX Spark: the workbench, OCR, image and video generation, chat with web search, chat with a file, and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
+[![A tour of Sparkfire running real models on a DGX Spark, between two Sparkfire logo cards: the workbench, OCR, image and video generation, chat with web search, chat with a file, and a mind map (click for the MP4)](.github/media/tour.webp)](.github/media/tour.mp4)
 
-[Watch the tour as MP4](.github/media/tour.mp4) · recorded on one DGX Spark with the real models; only the waits are fast-forwarded.
+[Watch the tour as MP4](.github/media/tour.mp4) (1920 × 1200) · recorded on one DGX Spark with the real models; only the waits are fast-forwarded.
 
 * * *
 

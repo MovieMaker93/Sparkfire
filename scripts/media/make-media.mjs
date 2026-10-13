@@ -1,18 +1,21 @@
 // Turns the recordings from record-demo.mjs into README media: one MP4 and one animated WebP per clip, a WebP
-// per still, and a short tour of the highlights. Waits for a model are fast-forwarded from the logged events.
+// per still, and a short tour of the highlights between the logo cards. Waits for a model are fast-forwarded from
+// the logged events.
 //
 //   node make-media.mjs <recordings dir> <output dir>        (needs ffmpeg with libx264 and libwebp)
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const [input = "out", output = "media"] = process.argv.slice(2);
 mkdirSync(output, { recursive: true });
 
 // How fast each kind of logged span plays back.
 const SPEED = { wait: 8, stream: 2.5 };
-// The MP4s keep the recording's full 1440 × 900; the animated WebPs that play inline are a little smaller.
-const MP4_CRF = "18";
+// The clips are recorded at 2x and every MP4 is scaled to 1920 × 1200; the tour is the one people share, so it gets
+// a higher quality. The animated WebPs that play inline are 1280 px wide, more than the README column shows.
+const MP4 = { clip: { size: "1920:1200", crf: "18" }, tour: { size: "1920:1200", crf: "14" } };
 const WEBP = { width: 1280, fps: 15, quality: "78" };
 // The steps between the frames and the final files are kept almost lossless, so text is encoded only once.
 const INTERMEDIATE = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "6", "-pix_fmt", "yuv420p"];
@@ -27,8 +30,8 @@ const TOUR = [
   ["video", -8, -1.5],
   ["websearch", 1.5, 10.5],
   ["websearch", 17, 23.5],
-  ["chat", 3, 11],
-  ["mindmap", 1.5, 5.5],
+  ["chat", 3, 10],
+  ["mindmap", 1.5, 5],
 ];
 
 function ffmpeg(args) {
@@ -79,9 +82,9 @@ function speedFilter(events, total) {
   return `${chains.join(";")};${pieces.map((_, index) => `[p${index}]`).join("")}concat=n=${pieces.length}:v=1:a=0,fps=30[v]`;
 }
 
-function encodeMp4(source, target) {
-  ffmpeg(["-i", source, "-c:v", "libx264", "-preset", "slow", "-crf", MP4_CRF, "-pix_fmt", "yuv420p",
-    "-movflags", "+faststart", "-an", target]);
+function encodeMp4(source, target, { size, crf }) {
+  ffmpeg(["-i", source, "-vf", `scale=${size}:flags=lanczos`, "-c:v", "libx264", "-preset", "slow", "-tune", "animation",
+    "-crf", crf, "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", target]);
 }
 
 function encodeWebp(source, target) {
@@ -104,7 +107,7 @@ for (const name of ["workbench", "ocr", "transcript", "image", "video", "websear
     : [];
   edited[name] = path.join(input, `${name}.edited.mkv`);
   ffmpeg(["-i", source, "-filter_complex", speedFilter(events, duration(source)), "-map", "[v]", ...INTERMEDIATE, edited[name]]);
-  encodeMp4(edited[name], path.join(output, `${name}.mp4`));
+  encodeMp4(edited[name], path.join(output, `${name}.mp4`), MP4.clip);
   encodeWebp(edited[name], path.join(output, `${name}.webp`));
   console.log(`${name}: ${duration(edited[name]).toFixed(1)} s, MP4 ${megabytes(path.join(output, `${name}.mp4`))}, WebP ${megabytes(path.join(output, `${name}.webp`))}`);
 }
@@ -129,11 +132,23 @@ const parts = TOUR.filter(([name]) => edited[name]).map(([name, start, end], ind
   const to = end === null ? total : end < 0 ? total + end : Math.min(end, total);
   return { file, chain: `[${index}:v]trim=start=${from.toFixed(2)}:end=${to.toFixed(2)},setpts=PTS-STARTPTS[t${index}]` };
 });
+// The tour opens and closes on the logo cards next to this script, faded into the highlights.
+const CARDS = { intro: 2.5, outro: 4, fade: 0.5 };
+const card = (name) => path.join(path.dirname(fileURLToPath(import.meta.url)), `tour-${name}.png`);
 if (parts.length) {
-  const tour = path.join(input, "tour.edited.mkv");
+  const cut = path.join(input, "tour.cut.mkv");
   const filter = `${parts.map((part) => part.chain).join(";")};${parts.map((_, index) => `[t${index}]`).join("")}concat=n=${parts.length}:v=1:a=0[v]`;
-  ffmpeg([...parts.flatMap((part) => ["-i", part.file]), "-filter_complex", filter, "-map", "[v]", ...INTERMEDIATE, tour]);
-  encodeMp4(tour, path.join(output, "tour.mp4"));
+  ffmpeg([...parts.flatMap((part) => ["-i", part.file]), "-filter_complex", filter, "-map", "[v]", ...INTERMEDIATE, cut]);
+  const tour = path.join(input, "tour.edited.mkv");
+  const frame = `scale=${MP4.tour.size}:flags=lanczos,format=yuv420p,setsar=1,fps=30,settb=AVTB`;
+  const outroAt = CARDS.intro + duration(cut) - 2 * CARDS.fade;
+  ffmpeg(["-loop", "1", "-framerate", "30", "-t", String(CARDS.intro), "-i", card("intro"), "-i", cut,
+    "-loop", "1", "-framerate", "30", "-t", String(CARDS.outro), "-i", card("outro"), "-filter_complex",
+    `[0]${frame}[a];[1]${frame}[b];[2]${frame}[c];` +
+    `[a][b]xfade=transition=fade:duration=${CARDS.fade}:offset=${CARDS.intro - CARDS.fade}[ab];` +
+    `[ab][c]xfade=transition=fade:duration=${CARDS.fade}:offset=${outroAt.toFixed(3)}[v]`,
+    "-map", "[v]", ...INTERMEDIATE, tour]);
+  encodeMp4(tour, path.join(output, "tour.mp4"), MP4.tour);
   encodeWebp(tour, path.join(output, "tour.webp"));
   console.log(`tour: ${duration(tour).toFixed(1)} s, MP4 ${megabytes(path.join(output, "tour.mp4"))}, WebP ${megabytes(path.join(output, "tour.webp"))}`);
 }
