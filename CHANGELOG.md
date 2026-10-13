@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.2.0...v0.3.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* SPARKLINGKIT_* environment variables are no longer read, the containers and images are renamed, scripts/start-sparklingkit.sh is removed, and preferences kept in the browser reset once.
+* models, endpoints and API keys can no longer be chosen. Settings saves ignore the services, the *_MODEL and *_API_KEY variables are ignored, the removed start options refuse other values, and workspaces configured by hand go through setup again.
+
+### Features
+
+* guard heavy jobs and start-up against running out of memory ([9a5e8d3](https://github.com/MovieMaker93/Sparkfire/commit/9a5e8d3373810c7fbf10e3ca3b6a3dcf12f1dd92))
+* **llm:** make Saluki 27B the default language model ([bd5145e](https://github.com/MovieMaker93/Sparkfire/commit/bd5145e61d2d9560e34a8a90e6297ede04095d01))
+* make Sparkfire a fixed model stack with Saluki ([7571cb2](https://github.com/MovieMaker93/Sparkfire/commit/7571cb2a08c415fb53cea0070197d240c662771d))
+
+
+### Bug fixes
+
+* **dgx:** describe the fixed stack in start-sparkfire.sh's messages ([9bfedc2](https://github.com/MovieMaker93/Sparkfire/commit/9bfedc265a632af2a84df0b4d00df91f47a8b79e))
+* **dgx:** stop pointing the memory check at spark-switch.sh ([d8b3f5f](https://github.com/MovieMaker93/Sparkfire/commit/d8b3f5febbaa26f87e815afd406660b8fb05d521))
+* **media:** keep the demo copy's own monitor and SearXNG ([e8befcc](https://github.com/MovieMaker93/Sparkfire/commit/e8befcce1bfb37186337e0f3a1bf31a9715b2f68))
+* **mindmap:** ask for mind maps with thinking off ([0a83557](https://github.com/MovieMaker93/Sparkfire/commit/0a835576c39f6b71a136e416ffe4337e0688d58d))
+
+
+### Documentation
+
+* add a contributing guide ([39ef825](https://github.com/MovieMaker93/Sparkfire/commit/39ef825b8cbb3294f0b5bfe3aab70ed434c08e90))
+* bring the docs up to date with the fixed stack ([eac44fe](https://github.com/MovieMaker93/Sparkfire/commit/eac44feb99b6c861fa063e71e42b588c3b2a8d71))
+
+
+### Code refactoring
+
+* rename everything from sparklingkit to sparkfire ([80a961b](https://github.com/MovieMaker93/Sparkfire/commit/80a961b823df055e8b698a886b20d54531cb0e04))
+
 ## [0.2.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.1.0...v0.2.0) (2026-10-12)
 
 
