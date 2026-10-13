@@ -321,6 +321,35 @@ was only ever estimated. The 92.4 GiB peak belongs to the pass that ran before H
 Known issues): the LLM spent its whole 8192-token budget on a reasoning trace while every translation
 request hung.
 
+## Fresh install (2026-10-13)
+
+A from-scratch install on a DGX Spark, done as the README's Quick start says: the previous install's
+containers, images and model files removed and the Docker build cache pruned, then `git clone` and
+`./scripts/start-dgx-spark.sh --accept-model-licenses` with the default video backend (FastH3) and no
+Hugging Face token.
+
+- **Commit installed:** `c4604f5` (0.3.0).
+- **Wall time:** 20 minutes from the start of the script to `Sparkfire is ready`, building every image
+  and downloading every model; `status` then showed all ten endpoints `ready`, video and music included.
+- **Disk:** 106 GB, from 259 GB to 153 GB free.
+- **Idle memory after start:** 51 GiB used and 70 GiB available (`free -g`), within the README's figure of
+  about 29 GiB for the stack plus 13–21.5 GiB for Saluki. GPU memory per process (`nvidia-smi`):
+
+| Container | GPU |
+| --- | --- |
+| `sparkfire-image-generation` | 17.5 GiB |
+| `sparkfire-saluki` | 12.7 GiB |
+| `sparkfire-paddleocr-vlm` | 5.4 GiB |
+| `sparkfire-hy-mt2` | 2.1 GiB |
+| `sparkfire-parakeet` | 1.5 GiB |
+| `sparkfire-video-generation` (idle, no weights loaded) | 0.2 GiB |
+| `sparkfire-music-generation` (idle, no weights loaded) | — |
+
+- **Problems:** the install itself needed no fix. Two problems turned up around it:
+  - The services chip had no row for music, so it read "6/6 online" while YuE2 ran; fixed in `7ae427f`.
+  - `scripts/media/populate-demo.sh` was committed without its executable bit, so the media README's
+    step 2 stopped with *Permission denied*; fixed in `61d590e`.
+
 ## Known issues
 
 - **The stock LLM could crash on long generations** (historical: Saluki in llama.cpp replaced it, and the
