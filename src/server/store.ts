@@ -62,7 +62,7 @@ export async function initializeData() {
   // The stack's services, models and keys are fixed, so every start applies them wherever the stack runs, whatever
   // was saved. An install set up by hand, before the stack was fixed, goes through setup in the browser again.
   const deployment = stackDeployment(settings, defaultSettings);
-  if (deployment) settings = referenceSettingsForHost(settings, deployment.host, deployment.mode, { video: deployment.video });
+  if (deployment) settings = referenceSettingsForHost(settings, deployment.host, deployment.mode, deployment);
   else if (settings.setup.completed) settings = { ...settings, setup: { ...settings.setup, completed: false } };
   await writeSettings(settings);
 }

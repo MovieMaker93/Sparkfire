@@ -98,8 +98,9 @@ Without a Spark, give the API a stack address so it skips setup (the services th
 - **The stack is fixed.** Every service has one model (`REFERENCE_SERVICE_CATALOG` in
   `src/shared/reference-stack.ts`); users do not pick models, URLs or keys. Every start applies the stack
   (`referenceSettingsForHost`) wherever it runs: the environment from the start scripts first, then what setup
-  saved (`stackDeployment`). `PUT /api/settings` keeps the stack's fields (`saveUserSettings`), and setup in the
-  browser only sends the host (`POST /api/setup/stack`). An install not on the stack goes through setup again.
+  saved (`stackDeployment`). The environment can also name where the system monitor and SearXNG answer, as the
+  README's demo copy does with its own. `PUT /api/settings` keeps the stack's fields (`saveUserSettings`), and setup
+  in the browser only sends the host (`POST /api/setup/stack`). An install not on the stack goes through setup again.
 - **Settings.** `data/config/settings.json` holds the rest: appearance, time zone, processing limits. Saved
   values win on later starts, so upgrades never overwrite them.
 - **Model calls** live in `src/server/ai.ts`. Every request carries its own `AbortSignal` timeout. A global
