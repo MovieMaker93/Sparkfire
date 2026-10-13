@@ -32,11 +32,14 @@ const CURSOR = `
   });`;
 
 const browser = await chromium.launch();
+// The screencast sends frames at CSS size unless Chromium itself renders at 2x, whatever the context's
+// deviceScaleFactor says, so the clips get their own browser launched with the flag (and the context set to match).
+const CLIP_SCALE = 2;
+const clipBrowser = await chromium.launch({ args: [`--force-device-scale-factor=${CLIP_SCALE}`] });
 await mkdir(OUT, { recursive: true });
 
 async function clip(name, scene) {
-  // Recorded at 2x, so the MP4s scaled down from these frames keep their text sharp.
-  const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark", deviceScaleFactor: 2 });
+  const context = await clipBrowser.newContext({ viewport: VIEWPORT, colorScheme: "dark", deviceScaleFactor: CLIP_SCALE });
   await context.addInitScript(CURSOR);
   const page = await context.newPage();
   const dir = path.join(OUT, name);
@@ -56,7 +59,7 @@ async function clip(name, scene) {
     writes.push(writeFile(path.join(dir, file), Buffer.from(data, "base64")));
     cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
   });
-  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: VIEWPORT.width * 2, maxHeight: VIEWPORT.height * 2 });
+  await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: VIEWPORT.width * CLIP_SCALE, maxHeight: VIEWPORT.height * CLIP_SCALE });
   await page.mouse.move(VIEWPORT.width / 2, VIEWPORT.height / 2);
   try {
     await scene(page, mark);
@@ -404,4 +407,4 @@ for (const name of wanted) {
     console.error(`${clips[name] ? "clip" : "still"} ${name} failed: ${error.message.split("\n")[0]}`);
   }
 }
-await browser.close();
+await Promise.all([browser.close(), clipBrowser.close()]);
