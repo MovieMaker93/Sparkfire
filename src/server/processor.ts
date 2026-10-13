@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { asrProfile, chatCompletion, ocrPage, transcribeAudio, type OcrBlock, type TimedWord, type TranscriptSegment } from "./ai.js";
-import { jobEvents, publishJob } from "./events.js";
+import { publishJob } from "./events.js";
 import { extractAudio, normalizeAudio, rasterizePdf, splitAudio, srtTimestamp, vttTimestamp } from "./media.js";
 import { executeWorkflow } from "./modules/executors.js";
 import { joinChunkWords, toCues, toParagraphs, toSentences } from "./transcript-timing.js";
@@ -548,4 +548,3 @@ export async function processRun(jobId: string, runId: string | undefined, signa
   }
 }
 
-void jobEvents;
