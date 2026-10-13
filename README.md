@@ -135,7 +135,6 @@ cd Sparkfire
 | Stop everything (data and models are kept) | `./scripts/start-dgx-spark.sh stop` |
 | Leave video out | run the start script again with `--video-backend none` |
 | Update | `git pull`, then run the start script again with the same options |
-| Share the Spark with another LLM | `./scripts/spark-switch.sh sparkfire` and `./scripts/spark-switch.sh llm` (see [docs/fork.md](docs/fork.md#sharing-the-spark-with-another-llm)) |
 
 ### The chat model
 
@@ -394,7 +393,7 @@ Sparkfire started as a fork of SparklingKit 0.1.5 and is now its own project. Co
 | **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control with the reasoning shown live; answers that keep going when you leave the page; web search with cited sources |
 | **Models** | A fixed stack: Saluki 27B for chat, PaddleOCR-VL-1.6 for OCR, Parakeet-TDT-0.6B-v3 for speech, Qwen-Image-2.1-Turbo for images, FastH3 for video with sound, YuE2 for songs; seed and step controls. No grounding model |
-| **Operations** | One-command install; `spark-switch.sh` to share the Spark with another LLM; long model calls no longer cut off after 300 seconds |
+| **Operations** | One-command install; long model calls no longer cut off after 300 seconds |
 | **Quality** | CI, CodeQL, dependency, secret and container scanning, Dependabot, and releases from Conventional Commits |
 
 Details in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md](docs/validation.md), next steps in the [roadmap](docs/fork.md#roadmap), and instructions for coding agents in [AGENTS.md](AGENTS.md).

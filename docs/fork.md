@@ -265,19 +265,6 @@ the license line, because YuE2's weights are non-commercial.
 - **License.** Code Apache 2.0; weights CC BY-NC 4.0 with a creator permission: personal users and creators
   may publish and monetize their songs, academic use is non-commercial, companies need a license from m-a-p.
 
-## Sharing the Spark with another LLM
-
-`scripts/spark-switch.sh` swaps between an always-on LLM container and Sparkfire's stack. It checks
-that the LLM is idle, asks for confirmation, waits for memory to free up, and waits for health:
-
-```bash
-./scripts/spark-switch.sh status
-./scripts/spark-switch.sh sparkfire
-./scripts/spark-switch.sh llm
-```
-
-Configure it with `scripts/spark-switch.env` (see `spark-switch.env.example`).
-
 ## Development
 
 ```bash

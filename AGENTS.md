@@ -48,7 +48,6 @@ comes from.
 | `compose.dgx.yaml` | The model services of the reference stack |
 | `compose.search.yaml`, `services/searxng/` | SearXNG for chat web search |
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
-| `scripts/spark-switch.sh` | Swaps the Spark between Sparkfire and another always-on LLM container |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
 | `docs/` | Architecture, deployment, DGX operations, workflows, what Sparkfire changes, validation results |
 
@@ -236,8 +235,7 @@ bump or `CHANGELOG.md` by hand: release-please owns both.
 The DGX Spark is often shared with other workloads. Before starting or stopping anything there:
 
 - Check what is running (`docker ps`, `free -g`, `nvidia-smi`) and leave other people's containers alone.
-- Ask before stopping a service you did not start. `scripts/spark-switch.sh` checks that the other LLM is
-  idle and asks before swapping.
+- Ask before stopping a service you did not start.
 - Watch for restart loops: a crashed model service restarts automatically and may fail to fit in memory
   while the others run. Stop it and start it again with room rather than letting it loop.
 
