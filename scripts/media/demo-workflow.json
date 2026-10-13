@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "scan-and-translate",
+  "revision": 1,
+  "name": "Scan and translate",
+  "description": "Read a scanned document and translate it into Italian.",
+  "enabled": true,
+  "nodes": [
+    { "id": "input", "type": "input", "position": { "x": 40, "y": 200 }, "config": { "accepts": ["source-image", "source-pdf"], "multiple": true, "maximumFiles": 20 } },
+    { "id": "ocr", "type": "module", "position": { "x": 330, "y": 200 }, "config": { "moduleId": "ocr", "workflowId": "auto", "params": {}, "storeResult": true } },
+    { "id": "translate", "type": "module", "position": { "x": 620, "y": 200 }, "config": { "moduleId": "translation", "workflowId": "auto", "params": { "sourceLanguage": "auto-detect", "targetLanguage": "Italian" } } },
+    { "id": "save", "type": "save", "position": { "x": 910, "y": 200 }, "config": { "mode": "input", "fileName": "translated.md" } }
+  ],
+  "edges": [
+    { "id": "input-ocr", "from": { "nodeId": "input", "portId": "files" }, "to": { "nodeId": "ocr", "portId": "input" }, "artifactKinds": ["source-image", "source-pdf"] },
+    { "id": "ocr-translate", "from": { "nodeId": "ocr", "portId": "output" }, "to": { "nodeId": "translate", "portId": "input" }, "artifactKinds": ["document"] },
+    { "id": "translate-save", "from": { "nodeId": "translate", "portId": "output" }, "to": { "nodeId": "save", "portId": "input" }, "artifactKinds": ["translation"] }
+  ],
+  "ui": { "viewport": { "x": 0, "y": 0, "zoom": 1 } }
+}

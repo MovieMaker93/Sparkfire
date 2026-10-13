@@ -1,11 +1,12 @@
-// Records the README demo clips and screenshots against a running Sparkfire with real models.
+// Records the README demo clips and stills against a running Sparkfire with real models.
 //
-//   node record-demo.mjs [clip ...]      (BASE_URL, ASSETS, JOBS and OUT override the defaults below)
+//   node record-demo.mjs [scene ...]     (BASE_URL, ASSETS, JOBS and OUT override the defaults below)
 //
 // Each clip is its own browser session, saved as Chromium's own screencast frames with their times
 // (<clip>/frames.json); make-media.mjs turns them into video. Moments spent waiting for a model are logged in
-// <clip>.events.json, and make-media.mjs fast-forwards them. Run it against a demo copy of the app with demo
-// data only (see scripts/media/README.md): everything on screen ends up in the README.
+// <clip>.events.json, and make-media.mjs fast-forwards them. Stills are single screenshots (<still>.png) for the
+// README sections without a clip. Run it against a demo copy of the app with demo data only (see
+// scripts/media/README.md): everything on screen ends up in the README.
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -16,6 +17,7 @@ const ASSETS = process.env.ASSETS || "work";
 const jobs = JSON.parse(await readFile(process.env.JOBS || path.join(ASSETS, "jobs.json"), "utf8"));
 const VIEWPORT = { width: 1440, height: 900 };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const TRANSLATE_TEXT = "The Harbor Point feasibility study recommends a phased approach. The first phase turns the old ferry terminal into a public market that opens in spring 2028; the second adds forty affordable homes and a seawall that protects the waterfront from storm surges.";
 
 // Headless recordings show no pointer, so draw one that follows the mouse and pulses on click.
 const CURSOR = `
@@ -91,6 +93,23 @@ async function api(route, body) {
 
 async function shot(page, name) {
   await page.screenshot({ path: path.join(OUT, `${name}.png`) });
+}
+
+// Stills are single screenshots for the README, each in its own browser session without a screencast.
+const STILL_CONTEXTS = {
+  phone: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  monitor: { deviceScaleFactor: 2 },
+};
+
+async function still(name, scene) {
+  const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: "dark", ...STILL_CONTEXTS[name] });
+  const page = await context.newPage();
+  try {
+    await scene(page);
+    console.log(`captured ${name}`);
+  } finally {
+    await context.close();
+  }
 }
 
 const clips = {
@@ -288,12 +307,95 @@ const clips = {
   },
 };
 
-const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(clips);
+const outputItem = (page, name) => page.locator(".file-tree-item").filter({ has: page.locator("strong", { hasText: name }) });
+
+const stills = {
+  // Text translation into Italian, with the live preview filled in.
+  async translate(page) {
+    await page.goto(`${BASE_URL}/tools/translation`);
+    await page.getByRole("combobox", { name: "To language" }).click();
+    await page.getByLabel("Search languages").fill("Italian");
+    await page.getByRole("option", { name: /^Italian/ }).click();
+    await page.getByPlaceholder("Enter text").fill(TRANSLATE_TEXT);
+    await page.waitForFunction(() => {
+      const out = document.querySelector(".translation-pane.output textarea");
+      return out instanceof HTMLTextAreaElement && out.value.trim().length > 0 && out.getAttribute("aria-busy") === "false";
+    }, null, { timeout: 120_000 });
+    await pause(800);
+    await shot(page, "translate");
+  },
+
+  // The finished song: its player, the files it came with and the license line.
+  async song(page) {
+    await page.goto(`${BASE_URL}/jobs/${jobs.song}`);
+    await glide(page, outputItem(page, /^Song$/));
+    await page.locator(".source-media-preview audio").first().waitFor();
+    await page.locator(".generated-disclosure").first().waitFor();
+    await pause(1200);
+    await shot(page, "song");
+  },
+
+  // The Executive summary preset's result on the OCR job.
+  async preset(page) {
+    await page.goto(`${BASE_URL}/jobs/${jobs.ocr}`);
+    await glide(page, outputItem(page, /^Executive Summary$/));
+    await page.locator(".preview-content :is(h1, h2, p)").first().waitFor();
+    await pause(1200);
+    await shot(page, "preset");
+  },
+
+  // The demo workflow in the node editor, fitted to the canvas.
+  async "workflow-editor"(page) {
+    await page.goto(`${BASE_URL}/workflows/${jobs.workflow}`);
+    await page.locator(".workflow-canvas .workflow-node").nth(3).waitFor();
+    await page.locator(".workflow-canvas .react-flow__controls-fitview").click();
+    await pause(1000);
+    await shot(page, "workflow-editor");
+  },
+
+  // The finished workflow run on its job page, every node done.
+  async "workflow-run"(page) {
+    await page.goto(`${BASE_URL}/jobs/${jobs.workflowRun}`);
+    await page.locator(".job-workflow-record").click();
+    await page.locator(".workflow-status-graph .workflow-status-node").nth(3).waitFor();
+    await pause(1200);
+    await shot(page, "workflow-run");
+  },
+
+  // The sidebar's Spark monitor opened, above the services chip.
+  async monitor(page) {
+    await page.goto(`${BASE_URL}/`);
+    await page.locator(".spark-monitor-summary").click();
+    await page.locator(".spark-monitor-details").waitFor();
+    await pause(800);
+    await page.locator(".sidebar-status").screenshot({ path: path.join(OUT, "monitor.png") });
+  },
+
+  // The deployment setup page. Nothing is clicked: verifying would probe the stack from the demo copy.
+  async setup(page) {
+    await page.goto(`${BASE_URL}/setup`);
+    await page.getByRole("heading", { name: "Connect your AI services" }).waitFor();
+    await pause(1000);
+    await shot(page, "setup");
+  },
+
+  // The Workbench on a phone, with the tab bar.
+  async phone(page) {
+    await page.goto(`${BASE_URL}/`);
+    await page.getByRole("navigation", { name: "Primary navigation" }).waitFor();
+    await pause(2500);
+    await shot(page, "phone");
+  },
+};
+
+const wanted = process.argv.slice(2).length ? process.argv.slice(2) : [...Object.keys(clips), ...Object.keys(stills)];
 for (const name of wanted) {
   try {
-    await clip(name, clips[name]);
+    if (clips[name]) await clip(name, clips[name]);
+    else if (stills[name]) await still(name, stills[name]);
+    else console.error(`unknown scene ${name}`);
   } catch (error) {
-    console.error(`clip ${name} failed: ${error.message.split("\n")[0]}`);
+    console.error(`${clips[name] ? "clip" : "still"} ${name} failed: ${error.message.split("\n")[0]}`);
   }
 }
 await browser.close();
