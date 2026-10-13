@@ -4,7 +4,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, AudioLines, CloudUpload, FileText, Film, FolderOpen, GitBranch, Image as ImageIcon, Languages, MessageCircle, Network, Play, Save, ScanSearch, ScanText, Search, Trash2, X } from "lucide-react";
 import { api, uploadJob, uploadTranslationJob } from "../api";
 import { cn, ConfirmDialog, displayTitle, formatBytes, JobIcon, jobLabel, JobThumb, Progress, StatusBadge, timeAgo } from "../components/ui";
-import { savedTranslationPreferences, translationLanguages, translationPreferenceKey, type TranslationPreferences } from "../translation";
+import { savedTranslationPreferences, translationLanguages, translationPreferenceKey, waitForTranslation, type TranslationPreferences } from "../translation";
+import { getModuleContract, moduleWorkflowForArtifact } from "../../shared/module-router";
+import type { ArtifactKind } from "../../shared/contracts";
 import type { Job, JobKind, ModuleDescriptor, ModuleId, WorkflowDefinition } from "../types";
 import { useGlobalSearch } from "../components/GlobalSearch";
 import { sizeForQuality, useImageCapabilities } from "../image-capabilities";
@@ -43,23 +45,25 @@ function fileExtension(file: FileLike) {
   return file.name.toLowerCase().split(".").pop() || "";
 }
 
-function fileFamily(file: FileLike) {
+function fileArtifactKind(file: FileLike): ArtifactKind | undefined {
   const extension = fileExtension(file);
-  if (file.type.startsWith("audio/") || ["mp3", "wav", "m4a", "aac", "flac", "ogg", "opus"].includes(extension)) return "recording";
-  if (file.type.startsWith("video/") || ["mp4", "mov", "mkv", "webm", "avi", "m4v"].includes(extension)) return "recording";
-  if (file.type === "application/pdf" || extension === "pdf") return "pdf";
-  if (file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff"].includes(extension)) return "image";
+  if (file.type.startsWith("audio/") || ["mp3", "wav", "m4a", "aac", "flac", "ogg", "opus"].includes(extension)) return "source-audio";
+  if (file.type.startsWith("video/") || ["mp4", "mov", "mkv", "webm", "avi", "m4v"].includes(extension)) return "source-video";
+  if (file.type === "application/pdf" || extension === "pdf") return "source-pdf";
+  if (file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "bmp", "tif", "tiff"].includes(extension)) return "source-image";
   if (textExtensions.has(extension)) return "text";
-  return "unsupported";
+  return undefined;
 }
 
 export function compatibleFileActions(files: FileLike[]): FileAction[] {
   if (!files.length) return [];
-  const families = files.map(fileFamily);
-  if (families.every((family) => family === "recording")) return ["transcription"];
-  if (families.every((family) => family === "image") || families.every((family) => family === "pdf")) return ["ocr"];
-  if (files.length === 1 && families[0] === "text") return ["translation"];
-  return [];
+  const kinds = files.map(fileArtifactKind);
+  return fileActions.map((action) => action.id).filter((moduleId) => {
+    const handoff = getModuleContract(moduleId)?.handoff;
+    if (handoff?.mode !== "workflow" || files.length > handoff.maxInputs) return false;
+    const workflows = kinds.map((kind) => kind && moduleWorkflowForArtifact(moduleId, kind));
+    return Boolean(workflows[0]) && workflows.every((workflowId) => workflowId === workflows[0]);
+  });
 }
 
 function rememberLanguages(preferences: TranslationPreferences) {
@@ -67,22 +71,6 @@ function rememberLanguages(preferences: TranslationPreferences) {
     ...preferences,
     recent: [...new Set([preferences.target, ...(preferences.source === "auto-detect" ? [] : [preferences.source]), ...preferences.recent])].slice(0, 4),
   };
-}
-
-async function completedTranslation(jobId: string) {
-  for (let attempt = 0; attempt < 1200; attempt += 1) {
-    const job = await api.job(jobId);
-    if (["done", "done_with_warnings"].includes(job.status)) {
-      const output = job.outputFiles.find((file) => file.startsWith("translation."));
-      if (!output) throw new Error("The translation completed without a text result");
-      const response = await fetch(`/api/jobs/${job.id}/files/${output.split("/").map(encodeURIComponent).join("/")}`);
-      if (!response.ok) throw new Error("Could not load the translated text");
-      return { job, text: (await response.text()).trim() };
-    }
-    if (["failed", "cancelled"].includes(job.status)) throw new Error(job.error || `Translation ${job.status}`);
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
-  }
-  throw new Error("Translation is still running. Open its job to follow it.");
 }
 
 export function Dashboard() {
@@ -163,7 +151,7 @@ export function Dashboard() {
     };
   }, [sourceText, translationPreferences.source, translationPreferences.target, translationReady]);
   const availableFileActions = useMemo(() => compatibleFileActions(files), [files]);
-  const selectedKind: JobKind = fileAction === "transcription" ? "audio" : fileAction === "translation" ? "text" : files.every((file) => fileFamily(file) === "pdf") ? "pdf" : "image";
+  const selectedKind: JobKind = fileAction === "transcription" ? "audio" : fileAction === "translation" ? "text" : files.every((file) => fileArtifactKind(file) === "source-pdf") ? "pdf" : "image";
   const totalSize = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const onDrop = useCallback((accepted: File[]) => {
     if (!accepted.length) return;
@@ -220,7 +208,7 @@ export function Dashboard() {
     try {
       const created = await api.createTextTranslationJob(sourceText.trim(), translationPreferences.source, translationPreferences.target);
       setTranslationPreferences((current) => rememberLanguages(current));
-      const completed = await completedTranslation(created.id);
+      const completed = await waitForTranslation(created.id);
       setTranslatedText(completed.text);
       setJobs((current) => [completed.job, ...current.filter((job) => job.id !== completed.job.id)]);
       toast.success("Translation saved", "Added to Recent work.");

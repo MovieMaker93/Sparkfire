@@ -3,6 +3,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Check, CheckCircle2, Clock3, FileImage, FileText, Film, GitBranch, LoaderCircle, Mic2, Music, Network, Pencil, Trash2, TriangleAlert, XCircle } from "lucide-react";
 import { thumbnailUrl } from "../api";
+import { useFocusTrap } from "../focus-trap";
 import type { Artifact, Job, JobKind, JobStatus, ModuleId } from "../types";
 
 export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
@@ -71,10 +72,13 @@ export function ConfirmDialog({
   const titleId = useId();
   const descriptionId = useId();
   const confirmButton = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const cancelHandler = useRef(onCancel);
   const busyState = useRef(busy);
   cancelHandler.current = onCancel;
   busyState.current = busy;
+
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -88,7 +92,7 @@ export function ConfirmDialog({
 
   if (!open) return null;
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onCancel()}>
-    <div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
+    <div ref={dialogRef} className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
       <span className="confirm-dialog-icon"><Trash2 size={21} /></span>
       <div className="confirm-dialog-copy"><h2 id={titleId}>{title}</h2><div id={descriptionId}>{description}</div></div>
       {error && <p className="confirm-dialog-error">{error}</p>}
@@ -122,10 +126,13 @@ export function RenameDialog({
 }) {
   const titleId = useId();
   const input = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLFormElement>(null);
   const cancelHandler = useRef(onCancel);
   const busyState = useRef(busy);
   cancelHandler.current = onCancel;
   busyState.current = busy;
+
+  useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -139,7 +146,7 @@ export function RenameDialog({
 
   if (!open) return null;
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !busy && onCancel()}>
-    <form className="rename-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onSubmit={(event) => { event.preventDefault(); onConfirm(); }}>
+    <form ref={dialogRef} className="rename-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} onSubmit={(event) => { event.preventDefault(); onConfirm(); }}>
       <span className="rename-dialog-icon"><Pencil size={20} /></span>
       <div className="rename-dialog-copy"><h2 id={titleId}>{title}</h2><label className="field-label">{label}<input ref={input} className="input mt-2" value={value} onChange={(event) => onChange(event.target.value)} maxLength={180} /></label>{helper && <p>{helper}</p>}</div>
       {error && <p className="confirm-dialog-error">{error}</p>}

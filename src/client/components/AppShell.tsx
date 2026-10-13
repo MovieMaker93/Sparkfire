@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { AudioLines, BrainCircuit, ChevronUp, Film, GitBranch, Image as ImageIcon, Images, Languages, LayoutGrid, MessageCircle, Music, Network, PanelLeftClose, PanelLeftOpen, ScanSearch, ScanText, Search, Settings } from "lucide-react";
+import { AudioLines, BrainCircuit, ChevronUp, Film, GitBranch, Image as ImageIcon, Images, Languages, LayoutGrid, MessageCircle, Music, Network, PanelLeftClose, PanelLeftOpen, ScanSearch, ScanText, Search, Settings, TriangleAlert } from "lucide-react";
 import { api } from "../api";
 import { settingsUpdatedEvent } from "../settings-events";
 import type { Health, ModuleDescriptor, Settings as AppSettings, SparkStatus } from "../types";
@@ -101,6 +101,7 @@ function ProductFooter({ currentVersion, latest }: { currentVersion?: string; la
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<Health>();
+  const [serverReachable, setServerReachable] = useState(true);
   const [sparkStatus, setSparkStatus] = useState<SparkStatus>();
   const [systemStatusBaseUrl, setSystemStatusBaseUrl] = useState<string>();
   const [modules, setModules] = useState<ModuleDescriptor[]>([]);
@@ -116,11 +117,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    const refresh = () => api.health().then((value) => active && setHealth(value)).catch(() => active && setHealth(undefined));
+    const refresh = () => api.health()
+      .then((value) => { if (active) { setHealth(value); setServerReachable(true); } })
+      .catch(() => { if (active) { setHealth(undefined); setServerReachable(false); } });
     refresh();
-    const timer = window.setInterval(refresh, 30_000);
+    // Checked more often while the server is not answering, so the notice clears soon after it is back.
+    const timer = window.setInterval(refresh, serverReachable ? 30_000 : 5_000);
     return () => { active = false; window.clearInterval(timer); };
-  }, []);
+  }, [serverReachable]);
   useEffect(() => {
     let active = true;
     const applySettings = (settings: AppSettings) => {
@@ -185,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <NavLink to="/" end title="Workbench" aria-label="Workbench" className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><LayoutGrid size={19} strokeWidth={1.8} /><span>Workbench</span></NavLink>
           <NavLink to="/workflows" title="Workflows" aria-label="Workflows" className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><GitBranch size={19} strokeWidth={1.8} /><span>Workflows</span></NavLink>
           <NavLink to="/gallery" title="Gallery" aria-label="Gallery" className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><Images size={19} strokeWidth={1.8} /><span>Gallery</span></NavLink>
-          <p className="nav-label nav-label-tools">Tools</p>
+          <p className="nav-label nav-label-tools">Modules</p>
           <div className="module-nav-list">{modules.filter((module) => !module.hidden).map((module) => {
             const Icon = moduleIcons[module.icon];
             return <NavLink key={module.id} to={module.route} title={module.title} aria-label={module.title} className={({ isActive }) => `nav-link ${isActive ? "nav-link-active" : ""}`}><Icon size={19} strokeWidth={1.8} /><span>{module.title}</span>{module.implementation === "planned" && <small>Planned</small>}</NavLink>;
@@ -211,7 +215,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ProductFooter currentVersion={health?.version} latest={latest} />
         </div>
       </aside>
-      <main className="main-content">{children}<div className="mobile-product-footer"><ProductFooter currentVersion={health?.version} latest={latest} /></div></main>
+      <main className="main-content">{!serverReachable && <div className="warning-card connection-banner" role="status"><TriangleAlert size={18} /><div><strong>Can't reach the Sparkfire server</strong><p>Retrying every few seconds. What you see may be out of date.</p></div></div>}{children}<div className="mobile-product-footer"><ProductFooter currentVersion={health?.version} latest={latest} /></div></main>
       <nav className="mobile-tabbar" aria-label="Primary navigation">
         {mobileNav.slice(0, 2).map(({ to, label, icon: Icon, exact }) => <NavLink key={to} to={to} end={exact} className={({ isActive }) => isActive ? "active" : ""}><Icon size={20} strokeWidth={1.9} /><span>{label}</span></NavLink>)}
         <button type="button" onClick={() => openSearch()} aria-label="Search"><Search size={20} strokeWidth={1.9} /><span>Search</span></button>
