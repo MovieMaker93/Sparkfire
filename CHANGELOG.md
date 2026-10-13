@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.1](https://github.com/MovieMaker93/Sparkfire/compare/v0.3.0...v0.3.1) (2026-10-13)
+
+
+### Bug fixes
+
+* serve user files safely, validate inputs, surface lost connections ([d4624c6](https://github.com/MovieMaker93/Sparkfire/commit/d4624c6762160ea2fe5e1a09129b0203263d654e))
+* **server:** serve user files inert, validate inputs and keep the worker alive ([2f4f645](https://github.com/MovieMaker93/Sparkfire/commit/2f4f645258cdd926489eb8f15f00519d771760e2))
+* **ui:** trap dialog focus, show lost connections and use only tokens ([df749e2](https://github.com/MovieMaker93/Sparkfire/commit/df749e2ca6cfb89847db99162ad08c20dcd6aec7))
+
+
+### Documentation
+
+* document the environment and add troubleshooting ([bd30766](https://github.com/MovieMaker93/Sparkfire/commit/bd3076663a423311b85b0a7f1e1000af7024168d))
+* **readme:** drop the line on where the README layout came from ([04b8239](https://github.com/MovieMaker93/Sparkfire/commit/04b8239d7e6bdfeed9d61976df828b4abea3944f))
+* **readme:** drop the line on where the README layout came from ([29d8dfc](https://github.com/MovieMaker93/Sparkfire/commit/29d8dfc6c9866be5cc392c71bab89bc157459eba))
+
 ## [0.3.0](https://github.com/MovieMaker93/Sparkfire/compare/v0.2.0...v0.3.0) (2026-10-13)
 
 
