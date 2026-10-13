@@ -1,5 +1,5 @@
-// Turns the recordings from record-demo.mjs into README media: one MP4 and one animated WebP per clip, plus
-// a short tour of the highlights. Waits for a model are fast-forwarded from the logged events.
+// Turns the recordings from record-demo.mjs into README media: one MP4 and one animated WebP per clip, a WebP
+// per still, and a short tour of the highlights. Waits for a model are fast-forwarded from the logged events.
 //
 //   node make-media.mjs <recordings dir> <output dir>        (needs ffmpeg with libx264 and libwebp)
 import { spawnSync } from "node:child_process";
@@ -107,6 +107,18 @@ for (const name of ["workbench", "ocr", "transcript", "image", "video", "websear
   encodeMp4(edited[name], path.join(output, `${name}.mp4`));
   encodeWebp(edited[name], path.join(output, `${name}.webp`));
   console.log(`${name}: ${duration(edited[name]).toFixed(1)} s, MP4 ${megabytes(path.join(output, `${name}.mp4`))}, WebP ${megabytes(path.join(output, `${name}.webp`))}`);
+}
+
+// The stills from record-demo.mjs. Lossless WebP keeps their text sharp; a still that would pass 1 MB is encoded
+// lossy instead, so the README stays light.
+const STILLS = ["translate", "song", "preset", "workflow-editor", "workflow-run", "monitor", "setup", "phone"];
+for (const name of STILLS) {
+  const source = path.join(input, `${name}.png`);
+  if (!existsSync(source)) continue;
+  const target = path.join(output, `${name}.webp`);
+  ffmpeg(["-i", source, "-c:v", "libwebp", "-lossless", "1", "-compression_level", "6", target]);
+  if (readFileSync(target).length > 1e6) ffmpeg(["-i", source, "-c:v", "libwebp", "-quality", "90", "-compression_level", "6", target]);
+  console.log(`${name}: WebP ${megabytes(target)}`);
 }
 
 // The tour stitches highlights of the processed clips together.

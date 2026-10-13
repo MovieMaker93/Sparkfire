@@ -164,11 +164,9 @@ only video can be left out, where its license does not apply.
 
 Parakeet TDT 0.6B v3 is the default speech model, run by [parakeet.cpp](https://github.com/mudler/parakeet.cpp)
 (MIT) from the f16 GGUF in `mudler/parakeet-cpp-gguf`. The weights are NVIDIA's, under CC BY 4.0, which allows
-commercial use with credit. It replaced this stack's earlier Qwen3-ASR backend: 1.7 GiB instead of
-16.5 GiB, 10 to 16 times faster through the app on long files, and as accurate on short clips (3.6%
-against 3.7% word error rate in English, 3.9% against 4.4% in Italian). Its limit is language: 25
-European languages against Qwen3-ASR's 52. Qwen3-ASR was removed from the stack; the app keeps its request
-profile for that model id.
+commercial use with credit. It takes 1.7 GiB, transcribes long files about 145 times faster than realtime
+through the app, and scores 3.6% word error rate in English and 3.9% in Italian on short clips. Its limit is
+language: 25 European languages.
 
 - **Service.**
   - `sparkfire-parakeet` (image `sparkfire/parakeet:parakeet.cpp-v0.5.0`) builds the engine from

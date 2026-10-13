@@ -9,6 +9,14 @@ wait_for() {
   until status=$(curl -s "$api/jobs/$id" | jq -r .status); [[ "$status" =~ ^(done|done_with_warnings|failed|cancelled)$ ]]; do sleep 4; done
   printf '%-14s %s %s\n' "$2" "$status" "$id"
 }
+wait_file() {
+  local id="$1" file="$2" job
+  until job=$(curl -s "$api/jobs/$id"); jq -e --arg f "$file" '(.status | test("^done")) and (.outputFiles | index($f) != null)' <<<"$job" >/dev/null; do
+    if jq -e '.status == "failed" or .status == "cancelled"' <<<"$job" >/dev/null; then printf '%-14s failed %s\n' "$3" "$id"; return 1; fi
+    sleep 4
+  done
+  printf '%-14s %s %s\n' "$3" "done" "$id"
+}
 image() {
   jq -n --arg p "$1" --arg s "${2:-1024x1024}" '{prompt: $p, size: $s, seed: 7}' \
     | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/text-to-image/jobs" | jq -r .id
@@ -25,7 +33,28 @@ cup=$(image "Studio photo of a ceramic coffee cup with latte art on a walnut tab
 video=$(curl -s -F 'prompt=A steaming cup of coffee on a cafe table by a rainy window, slow push-in, warm evening light' \
   -F 'sound=rain on the glass, quiet cafe chatter' -F size=864x480 -F duration=5 -F seed=7 \
   "$api/modules/text-to-video/jobs" | jq -r .id)
+# A short song for the Make songs still; YuE2 takes about as long as the song plays.
+lyrics=$(cat <<'EOF'
+[Verse]
+Lanterns on the harbor wall
+Fishing boats come home before the fall
+Salt and rain on the window pane
+We will build this town again
+
+[Chorus]
+Hold the light, hold the line
+Every tide will turn in time
+Hold the light, don't let go
+Harbor Point will bring us home
+EOF
+)
+song=$(jq -n --arg l "$lyrics" --arg s "warm indie folk, gentle female vocal, acoustic guitar, soft piano, brushed drums, 92 bpm" '{lyrics: $l, style: $s, seed: 7}' \
+  | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/text-to-music/jobs" | jq -r .id)
+# The workflow for the Workflows stills, run once on the report.
+workflow=$(curl -sf -H 'Content-Type: application/json' --data-binary @../demo-workflow.json "$api/workflows" | jq -er 'select(.validation.valid) | .definition.id')
+workflow_run=$(curl -sf -F files=@harbor-point-feasibility.pdf "$api/workflows/$workflow/runs" | jq -r .job.id)
 wait_for "$ocr" ocr; wait_for "$asr" transcription
+curl -sf -X POST "$api/jobs/$ocr/presets/executive-summary" >/dev/null
 wait_for "$wind" image; wait_for "$books" image; wait_for "$island" image; wait_for "$cup" image
 
 # Translation and a mind map from the OCR'd report.
@@ -34,7 +63,8 @@ translation=$(jq -n --arg t "$(printf '%s' "$text" | head -c 1500)" '{text: $t, 
   | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/translation/text" | jq -r .id)
 mindmap=$(jq -n --arg t "$text" '{subject: $t, depth: 3, breadth: 5}' \
   | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/mindmap/jobs" | jq -r .id)
-wait_for "$translation" translation; wait_for "$mindmap" mindmap; wait_for "$video" video
+wait_for "$translation" translation; wait_for "$mindmap" mindmap; wait_file "$ocr" summary.executive-summary.md preset; wait_for "$workflow_run" workflow; wait_for "$video" video; wait_for "$song" song
 jq -n --arg ocr "$ocr" --arg asr "$asr" --arg wind "$wind" --arg books "$books" --arg island "$island" --arg cup "$cup" \
-  --arg video "$video" --arg translation "$translation" --arg mindmap "$mindmap" '$ARGS.named' > jobs.json
+  --arg video "$video" --arg translation "$translation" --arg mindmap "$mindmap" \
+  --arg song "$song" --arg workflow "$workflow" --arg workflowRun "$workflow_run" '$ARGS.named' > jobs.json
 cat jobs.json

@@ -53,8 +53,7 @@ The script:
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds Sparkfire and the thin model API adapters;
 3. downloads the stack's models from their publishers into `data/dgx-models/`, at pinned revisions except Saluki's for now;
-4. removes the containers left from before the rename to Sparkfire, retired services among them (the Qwen3.6
-   LLM, Qwen3-ASR, LocateAnything, Unlimited-OCR);
+4. removes the containers left from before the rename to Sparkfire, retired services among them;
 5. on a fresh start, checks that about 64 GiB are free, which the stack needs while its models load, and stops otherwise (`--skip-memory-check` overrides it);
 6. starts the model servers one at a time, Saluki first, and waits for each health endpoint;
 7. starts SearXNG and the read-only system monitor; and
@@ -85,7 +84,7 @@ Port 54321 is present only in an all-in-one deployment. The ports and co-residen
 
 ### Speech recognition backend
 
-Port 8333 serves Parakeet; it replaced the earlier Qwen3-ASR backend (16.5 GiB, 52 languages).
+Port 8333 serves Parakeet, the stack's only speech model.
 
 | Model | Container | Memory | Languages |
 | --- | --- | --- | --- |
@@ -94,8 +93,7 @@ Port 8333 serves Parakeet; it replaced the earlier Qwen3-ASR backend (16.5 GiB, 
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
 source for the GB10. The adapter accepts WAV only, which is what Sparkfire sends, and serves one request
 at a time. Parakeet returns word timestamps, from which
-Sparkfire builds one transcript line per sentence and subtitle-sized cues; Qwen3-ASR gave one line per
-chunk.
+Sparkfire builds one transcript line per sentence and subtitle-sized cues.
 
 ### Video generation
 
@@ -194,4 +192,4 @@ Sparkfire runs on this stack only: users do not pick models, URLs or keys, and S
 
 ### Upgrading from the six-model stack
 
-`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR services, which would otherwise keep restarting and hold memory the stack's budget assumes is free. It downloads and starts the models the stack now uses, Saluki among them, and the app points its services at them on its next start, whatever the settings held. Their images and earlier model files stay on disk until you delete them.
+`./scripts/start-dgx-spark.sh` removes the containers of retired services, which would otherwise keep restarting and hold memory the stack's budget assumes is free. It downloads and starts the models the stack now uses, Saluki among them, and the app points its services at them on its next start, whatever the settings held. Their images and earlier model files stay on disk until you delete them.

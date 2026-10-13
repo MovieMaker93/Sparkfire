@@ -21,10 +21,11 @@ const services = [
   { kind: "ocr" as const, label: "OCR", fallback: "Document recognition", icon: ScanText },
   { kind: "llm" as const, label: "LLM", fallback: "Language model", icon: BrainCircuit },
   { kind: "translation" as const, label: "Translation", fallback: "Not configured", icon: Languages },
-  // The stack ships no grounding service, so its row shows only once an endpoint is enabled.
+  // The stack ships no grounding service, and music can be left out, so their rows show only once an endpoint is enabled.
   { kind: "grounding" as const, label: "Grounding", fallback: "Not configured", icon: ScanSearch, optional: true },
   { kind: "image-generation" as const, label: "Image", fallback: "Not configured", icon: ImageIcon },
   { kind: "video-generation" as const, label: "Video", fallback: "Not configured", icon: Film },
+  { kind: "music-generation" as const, label: "Music", fallback: "Not configured", icon: Music, optional: true },
 ];
 const sidebarPreferenceKey = "sparkfire:sidebar-collapsed";
 const monitorPreferenceKey = "sparkfire:monitor-expanded";
