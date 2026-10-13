@@ -203,7 +203,8 @@ limit for offering 10 s at every size, so the service offers 5, 8 and 10 s.
 The decision gate of the plan was a peak of +40 GiB above idle. Fast stays under it at 480p and passes it
 by 1–8 GiB at 720p, 768p and longer clips; Sharp passes it by up to 17 GiB. With Saluki loaded the worst
 case, Sharp at 1344x768 for 10 s, used 106.6 of 121 GiB, so the stack still has about 14 GiB for a second
-job and the system. The app runs two jobs at a time, and no job type besides video adds more than a few GiB.
+job and the system. The app runs two jobs at a time besides video and music, which take turns in their own
+GPU lane, and no other job type adds more than a few GiB.
 
 ## Music generation: YuE2-3B
 
@@ -315,14 +316,15 @@ measured with every service loaded and idle.
 Parakeet's peak, about 1.8 GiB of GPU memory and 1.5 GiB of RAM, was measured during the 16.8-minute
 transcription through the app with the 30 s chunk target. The 2026-10-10 load pass ran with Saluki as the
 LLM (started by hand) and the mind map requested directly with thinking off, so its figures describe the
-Saluki configuration, now the default, not the retired Qwen3.6 LLM; the busy peak of Qwen3.6 plus Parakeet remains the
-README's estimate. The 92.4 GiB peak belongs to the pass that ran before Hy-MT2's wedge was found (see
+Saluki configuration, the stack's LLM now, not the retired Qwen3.6 LLM; the busy peak of Qwen3.6 plus Parakeet
+was only ever estimated. The 92.4 GiB peak belongs to the pass that ran before Hy-MT2's wedge was found (see
 Known issues): the LLM spent its whole 8192-token budget on a reasoning trace while every translation
 request hung.
 
 ## Known issues
 
-- **The stock LLM can crash on long generations.**
+- **The stock LLM could crash on long generations** (historical: Saluki in llama.cpp replaced it, and the
+  start script removes this container on upgrade).
   - vLLM 0.24 serving Qwen3.6-35B-A3B NVFP4 with MTP speculative decoding and `--async-scheduling` failed
     with `CUDA error: an illegal memory access` about 6,100 tokens into a long answer.
   - Docker then restarted it while the other services were resident. Its loading peak (about 42 GB of GPU
@@ -330,8 +332,9 @@ request hung.
     host processes with it, in a restart loop.
   - **Workaround:** stop the LLM service, then start it again before the other services, or with the image
     service stopped.
-  - **Fixes under consideration:** a bounded restart policy, testing without `--async-scheduling`, or a
-    llama.cpp LLM backend such as Saluki, which has no loading peak.
+  - **What followed:** Qwen3.6 left the stack. Saluki in llama.cpp, which has no loading peak, replaced it
+    and starts before the other services; a bounded restart policy is on the roadmap
+    ([fork.md](fork.md#roadmap)).
 - **Parakeet occasionally skips a stretch of speech.** parakeet.cpp sometimes emits nothing for several
   seconds of clear speech, always in the same place for the same audio window, at every chunk length tested.
   - With 60 s chunks it skipped two sentences of about 7 s each in the English long file built with exact
@@ -367,8 +370,8 @@ request hung.
 
 One GPU window with the whole stack resident (Parakeet ASR, PaddleOCR-VL, Qwen-Image-2.1-Turbo,
 LocateAnything, Hy-MT2; idle about 71 GiB of 121). The bench scripts and raw logs stay on the Spark,
-outside the repository. Decides the runtime and checkpoints for the planned `text-to-video` module, whose
-design lands with it.
+outside the repository. Decided the runtime and checkpoints of the `text-to-video` module, which was
+planned then and has shipped since.
 
 **Runtime bake-off.**
 

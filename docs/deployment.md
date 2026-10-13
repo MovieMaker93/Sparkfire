@@ -1,7 +1,7 @@
 # Application deployment and upgrades
 
 Sparkfire is installed from a clone of this repository. The workspace is one Docker Compose application,
-the app and Redis; AI services are configured after the web panel starts and are never bundled into the
+the app and Redis; the AI services are the model stack's own containers and are never bundled into the
 application image. On a DGX Spark, `scripts/start-dgx-spark.sh` runs the workspace and the reference model
 stack together (see [DGX Spark](dgx-spark.md)).
 
@@ -17,7 +17,12 @@ cd Sparkfire
 The script builds the app image, starts Redis and the app, and waits until `/api/health` answers. The
 services always run Sparkfire's fixed models: every start points them at the stack, wherever it runs, and
 keeps the rest of `data/config/settings.json`. Without the script, `cp .env.example .env`, set the stack's
-addresses or leave them empty for setup in the browser, and run `docker compose up -d --build`.
+addresses or leave them empty for setup in the browser, and run `docker compose up -d --build`; for chat web
+search, set `SEARXNG_SECRET` in `.env` to a long random string (`openssl rand -hex 32`) and add
+`-f compose.yaml -f compose.search.yaml`. The start scripts run Compose as the project `sparkfire`, and a plain
+`docker compose up` takes its project name from the folder, which matches for a clone named `Sparkfire`. In a
+folder with another name, add `--project-name sparkfire`; otherwise the two would each get their own Redis
+volume and clash on port 54321.
 
 Each release also publishes a multi-platform image (`linux/amd64`, `linux/arm64`) with an SBOM and
 provenance, `ghcr.io/moviemaker93/sparkfire:<version>`, for people who keep their own Compose file.
@@ -35,7 +40,7 @@ proxy and never expose port 54321 to the public internet. Change the host port w
 git pull
 ./scripts/start-dgx-spark.sh --accept-model-licenses [--video-backend none if you installed with it]
 # or, for the workspace only:
-./scripts/start-sparkfire.sh
+./scripts/start-sparkfire.sh --model-host <spark-host>   # or --configure-later, as you installed it
 ```
 
 The start scripts rebuild what changed and recreate the containers; `data/` and the Redis volume are left

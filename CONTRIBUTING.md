@@ -22,7 +22,7 @@ how the system works; read it before a larger change.
 
 ## Set up
 
-You need Node.js 22 or newer, npm, Docker (for Redis), `ffmpeg` and `poppler-utils`.
+You need Node.js 22.12 or newer (Vite 7's minimum; CI uses Node 24), npm, Docker (for Redis), `ffmpeg` and `poppler-utils`.
 
 ```bash
 npm install
@@ -58,8 +58,8 @@ python3 -m venv .venv && .venv/bin/pip install fastapi uvicorn python-multipart 
 cd services/dgx-models/video && ../../../.venv/bin/python -m unittest
 ```
 
-Pull requests also run CodeQL, `npm audit`, dependency review, a secret scan, Trivy and hadolint. When a
-check fails, fix the cause rather than loosening the check.
+Pull requests also run CodeQL, `npm audit`, a secret scan, Trivy and hadolint, plus dependency review in
+organization-owned repositories. When a check fails, fix the cause rather than loosening the check.
 
 ## Make the change
 

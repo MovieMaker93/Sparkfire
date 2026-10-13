@@ -35,7 +35,10 @@ cd Sparkfire
 
 Or start it with `--configure-later`, select **Run models remotely** in the browser, and enter the DGX hostname or trusted-network IP reachable from the application container. Sparkfire configures the reference ports, verifies the bundled AI services (video generation is optional, so a stack started without it still verifies), then stores where the stack runs; the services and their models follow from that. The model host does not receive the application's job database, chat history, or durable workspace files.
 
-Ports 8330–8337 and 8339 bind on the DGX host for this mode; SearXNG (8338) stays on the Spark's loopback, so a workspace on another machine has no web search. Restrict them to the application server or a trusted private network; the reference adapters are not intended to be exposed directly to the public internet.
+Ports 8330–8334, 8336, 8337 and 8339 bind on the DGX host for this mode; the internal engines (8342, 8343,
+8347) and SearXNG (8338) listen on 127.0.0.1 only, so a workspace on another machine has no web search.
+Restrict the open ports to the application server or a trusted private network; the reference adapters are not
+intended to be exposed directly to the public internet.
 
 ## What the DGX starter does
 
@@ -50,10 +53,12 @@ The script:
 1. verifies Linux ARM64, Docker Compose and NVIDIA GPU access;
 2. builds Sparkfire and the thin model API adapters;
 3. downloads the stack's models from their publishers into `data/dgx-models/`, at pinned revisions except Saluki's for now;
-4. on a fresh start, checks that about 64 GiB are free, which the stack needs while its models load, and stops otherwise (`--skip-memory-check` overrides it);
-5. starts the model servers one at a time, Saluki first, and waits for each health endpoint;
-6. starts the read-only system monitor; and
-7. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
+4. removes the containers left from before the rename to Sparkfire, retired services among them (the Qwen3.6
+   LLM, Qwen3-ASR, LocateAnything, Unlimited-OCR);
+5. on a fresh start, checks that about 64 GiB are free, which the stack needs while its models load, and stops otherwise (`--skip-memory-check` overrides it);
+6. starts the model servers one at a time, Saluki first, and waits for each health endpoint;
+7. starts SearXNG and the read-only system monitor; and
+8. for an all-in-one deployment, starts Redis and Sparkfire before reporting the workspace URL.
 
 The first run downloads a substantial amount of model data and builds several ARM64 CUDA images. Later runs reuse both the model files and Docker cache. Set `HF_TOKEN` in the command environment if Hugging Face authentication is required:
 
@@ -80,8 +85,7 @@ Port 54321 is present only in an all-in-one deployment. The ports and co-residen
 
 ### Speech recognition backend
 
-Port 8333 serves Parakeet; it replaced the earlier Qwen3-ASR backend (16.5 GiB, 52 languages,
-kept only as a user-configurable endpoint the app can still talk to).
+Port 8333 serves Parakeet; it replaced the earlier Qwen3-ASR backend (16.5 GiB, 52 languages).
 
 | Model | Container | Memory | Languages |
 | --- | --- | --- | --- |
@@ -90,13 +94,8 @@ kept only as a user-configurable endpoint the app can still talk to).
 Parakeet downloads one 1.4 GB GGUF file at a pinned revision, and its image builds parakeet.cpp from pinned
 source for the GB10. The adapter accepts WAV only, which is what Sparkfire sends, and serves one request
 at a time. Parakeet returns word timestamps, from which
-Sparkfire builds one transcript line per sentence and subtitle-sized cues; Qwen3-ASR gives one line per
+Sparkfire builds one transcript line per sentence and subtitle-sized cues; Qwen3-ASR gave one line per
 chunk.
-
-Saved Sparkfire settings are never rewritten. After switching the speech service on an existing install,
-choose `Parakeet-TDT-0.6B-v3` (or `Qwen3-ASR-1.7B`) under **Settings → Services → Speech to text**. Until then,
-transcription still works, with minute-long lines. The same holds in split mode, where
-`scripts/start-sparkfire.sh` assumes the Parakeet id.
 
 ### Video generation
 
@@ -104,7 +103,11 @@ Port 8337 serves FastH3, FastVideo's distill of MiniMax H3, which makes video wi
 FastAPI adapter starts a pinned ComfyUI on 127.0.0.1:8347 and drives it over its HTTP API. Nothing loads at
 start: the first job loads the weights, and they are freed after ten idle minutes
 (`VIDEO_IDLE_UNLOAD_SECONDS`) or before a job that needs the other variant. Both variants, Fast and Sharp,
-and their shared text encoder and decoders download at pinned revisions, about 53 GB in all.
+and their shared text encoder and decoders download at pinned revisions, about 53 GB in all. Videos take
+turns with songs in the app's GPU lane, so a second video waits for the first instead of loading beside it.
+Before a job the adapter checks free memory against what that job was measured to need, and answers 503 with
+`Retry-After` when it is short; the app then waits and asks again (see the README's
+[Heavy jobs take turns](../README.md#heavy-jobs-take-turns)).
 
 The MiniMax H3 Community License covers use "worldwide, excluding" the European Union, the United Kingdom,
 South Korea and the United States, and asks that shared outputs be disclosed as machine-generated; every MP4
@@ -131,15 +134,16 @@ identical to YuE2's own path.
 ## Operations
 
 Update the checkout rather than replacing tracked files, then run the start script again with the options you
-installed with:
+installed with. The script does not remember them: without `--video-backend none` it builds, downloads and
+starts video again.
 
 ```bash
 git pull
 
 # Start and reuse existing models and image layers
-./scripts/start-dgx-spark.sh
+./scripts/start-dgx-spark.sh --accept-model-licenses [--video-backend none if you installed with it]
 
-# Inspect containers and all service endpoints
+# Inspect containers and all service endpoints (repeat --video-backend none if you installed with it)
 ./scripts/start-dgx-spark.sh status
 
 # Stop containers without deleting models, jobs, or Redis data
@@ -158,20 +162,25 @@ Advanced options:
 ```bash
 ./scripts/start-dgx-spark.sh --skip-download
 ./scripts/start-dgx-spark.sh --skip-build
+./scripts/start-dgx-spark.sh --skip-pull
 ./scripts/start-dgx-spark.sh --refresh-images
+./scripts/start-dgx-spark.sh --force-recreate
+./scripts/start-dgx-spark.sh --skip-memory-check
 ```
 
 Persistent files stay beneath `data/`:
 
 - `data/dgx-models/` — pinned publisher model snapshots;
 - `data/dgx-runtime/` — model runtime caches;
-- `data/dgx-outputs/` — native service outputs; and
+- `data/dgx-outputs/` — native service outputs;
+- `data/searxng/secret` — SearXNG's secret, generated on the first start; and
 - the existing Sparkfire data directories — jobs, chats, workflows, uploads, settings, and generated artifacts.
 
 Docker volumes retain Redis queue state. The stop command does not remove any persistent data.
 
 In a split deployment, upgrade the workspace on its own server with `git pull` and
-`./scripts/start-sparkfire.sh`. Neither script downloads the model weights again.
+`./scripts/start-sparkfire.sh --model-host DGX-HOSTNAME` (or `--configure-later`, as you installed it; the
+script needs one of the two). Neither script downloads the model weights again.
 
 ## Model terms
 
@@ -185,4 +194,4 @@ Sparkfire runs on this stack only: users do not pick models, URLs or keys, and S
 
 ### Upgrading from the six-model stack
 
-`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR services, which would otherwise keep restarting and hold memory the stack's budget assumes is free. It downloads and starts the models the stack now uses, Saluki among them, and the app points its services at them on its next start, whatever the settings held. Earlier model files stay in `data/dgx-models` until you delete them.
+`./scripts/start-dgx-spark.sh` removes the containers of the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR services, which would otherwise keep restarting and hold memory the stack's budget assumes is free. It downloads and starts the models the stack now uses, Saluki among them, and the app points its services at them on its next start, whatever the settings held. Their images and earlier model files stay on disk until you delete them.

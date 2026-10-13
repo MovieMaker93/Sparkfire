@@ -39,7 +39,8 @@ comes from.
 | `src/server/chat-generation.ts` | One answer per chat, run by the server, with its tool-call loop |
 | `src/server/web-search.ts`, `page-fetch.ts` | Chat web search: the SearXNG provider, the tools, and SSRF-safe page reading |
 | `src/server/thumbnails.ts` | Cached WebP previews and the gallery listing |
-| `src/server/queue.ts` | BullMQ queue and worker |
+| `src/server/queue.ts` | BullMQ queues (general and heavy) and their workers |
+| `src/server/gpu-lane.ts` | The GPU lane: heavy runs one at a time, freeing the previous heavy service first |
 | `src/shared/` | Types and rules shared by client and server: `contracts.ts`, `module-router.ts`, `workflows.ts` |
 | `src/client/` | React pages, components, API client, and `styles.css` (all colours are `--sk-*` tokens) |
 | `services/dgx-models/` | Model service containers and adapters (Python/FastAPI): llama-server for Saluki, image generation, video generation (ComfyUI), music generation (YuE2), PaddleOCR-VL, Parakeet ASR, translation, downloader |
@@ -51,10 +52,11 @@ comes from.
 | `scripts/start-dgx-spark.sh` | Builds, downloads (pinned revisions) and starts the whole stack in a memory-safe order |
 | `scripts/seed-dev-data.mjs` | Sample jobs, media and a chat for UI work |
 | `docs/` | Architecture, deployment, DGX operations, workflows, what Sparkfire changes, validation results |
+| `GLOSSARY.md` | The project's terms (module, service, job, artifact, run, GPU lane, …); use them in docs and interface text |
 
 ## Setup and commands
 
-Requirements: Node.js 22 or newer (the Docker image uses Node 24), npm, Docker, and Redis for running the
+Requirements: Node.js 22.12 or newer (Vite 7's minimum; CI and the Docker image use Node 24), npm, Docker, and Redis for running the
 app. `ffmpeg` and `poppler-utils` (`pdftotext`, `pdftoppm`) are needed for media, PDF and thumbnail paths;
 the app image includes them.
 
@@ -211,7 +213,7 @@ All of it lives in `.github/`:
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
 | `ci.yml` | pushes to `main`, pull requests | Type check, unit tests, production build; Python adapter tests; ShellCheck; Docker builds of the app and the small service images |
-| `security.yml` | pushes, pull requests, weekly | CodeQL (TypeScript, Python, workflows); `npm audit` on production dependencies; dependency review on PRs; gitleaks secret scan; Trivy on lockfiles, requirements and Dockerfiles; hadolint |
+| `security.yml` | pushes, pull requests, weekly | CodeQL (TypeScript, Python, workflows); `npm audit` on production dependencies; dependency review on PRs (organization-owned repositories only); gitleaks secret scan; Trivy on lockfiles, requirements and Dockerfiles; hadolint |
 | `pr-title.yml` | pull requests | Checks the title is a Conventional Commit |
 | `fork-release.yml` | pushes to `main` | release-please keeps a release PR with the next version and `CHANGELOG.md`; merging it tags the release, publishes `ghcr.io/<owner>/sparkfire` (amd64 and arm64, with SBOM and provenance) and attaches the DGX stack bundle |
 
