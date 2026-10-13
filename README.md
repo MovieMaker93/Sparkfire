@@ -37,7 +37,7 @@ Every source and every result stays an ordinary file with its history, so one re
 
 Every use case below has its own model, and they all run on the same Spark at the same time: a recording can be transcribed while an image renders and a conversation gets its answer. Only heavy jobs, videos and songs, take turns ([Heavy jobs take turns](#heavy-jobs-take-turns)).
 
-Each clip is the real app on a DGX Spark with demo files. Only the time spent waiting for a model is fast-forwarded. Click a clip for the full-quality MP4.
+Each clip and screenshot is the real app on a DGX Spark with demo files. Only the time spent waiting for a model is fast-forwarded. Click a clip for the full-quality MP4.
 
 ### The Workbench
 
@@ -63,6 +63,8 @@ Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per s
 
 Hy-MT2-1.8B-FP8 translates between 38 languages. Paste text and the translation follows as you type; the live preview covers the first 2,000 characters, and **Save** starts a job that translates the whole text and keeps it. Documents, transcripts and dropped text files translate into a new document in the same job, linked to the original.
 
+![Translating a paragraph into Italian as it is typed, with the live preview beside it](.github/media/translate.webp)
+
 ### Create
 
 #### Generate images
@@ -84,6 +86,8 @@ FastH3 is the 8-step distill of MiniMax's [MiniMax H3](https://huggingface.co/Mi
 Write lyrics, mark the parts with `[Verse]`, `[Chorus]` and `[Bridge]`, describe the style (genre, voice, instruments, tempo), and YuE2 sings it as a song with its own accompaniment: 48 kHz stereo, in English, Italian, Mandarin and other languages. It writes the song as an editable score first (melody and chords in ABC notation), and the score stays with the song. Hand the score back with **Continue with → Make a song** to sing the same melody in another style, or after editing a note. The lyrics can come from any text result too: a transcript, an OCR page, a translation. Once the model is loaded a song takes about as long as it plays, so a three-minute song takes three to four minutes; songs take turns with videos ([Heavy jobs take turns](#heavy-jobs-take-turns)).
 
 YuE2's weights are non-commercial with a creator permission: you may publish and sell the songs you make, but a company needs a license from the authors ([model licenses](#model-licenses)). [YuE2](https://github.com/multimodal-art-projection/YuE) is made by the Multimodal Art Projection team (m-a-p).
+
+![A finished song on its job page: the player, the song and its score in the file list, and the license line](.github/media/song.webp)
 
 ### Ask and research
 
@@ -111,17 +115,28 @@ Turn a typed topic, a document, a transcript or an image into an interactive map
 
 Run a saved instruction on a finished job's text. **Run a preset** on the job page sends it to the language model and saves the answer in the job as `summary.<preset>.md`. Sparkfire comes with Meeting minutes, Clean document and Executive summary; edit them or add your own in **Settings → Prompts**.
 
+![The Executive summary preset's result on the recognised report's job page](.github/media/preset.webp)
+
 ### Automate
 
 #### Workflows
 
 Connect the same modules in a node editor and run the result again on a new file. Inputs are typed by artifact kind. The nodes are **Select**, **If** and **Switch** branches, **Merge** (all or any), **Save to file**, **End** and **Fail**, plus a node for every module, video, music, LLM prompts and **Create chat** included. Enabled workflows appear on the Workbench and under **Continue with**. Definitions are JSON files, each workflow run keeps a snapshot of the workflow it ran, and the run view shows which nodes ran, were skipped or failed. A video or song node waits in the GPU lane like any heavy job, but its workflow run keeps one of the queue's workers while it waits ([Heavy jobs take turns](#heavy-jobs-take-turns)). See [Workflow design and JSON contracts](docs/workflows.md).
 
+![The Scan and translate workflow in the node editor: input, OCR, translation and Save](.github/media/workflow-editor.webp)
+
+![A finished run of the workflow on its job page, every node done](.github/media/workflow-run.webp)
+
 ### Interface
 
 Pick dark, light or system in **Settings → General**; the whole interface follows, at any screen width, with a tab bar on phones. The sidebar shows the AI services' status and a compact Spark monitor.
 
 [![Switching the interface between dark and light in Settings (click for the MP4)](.github/media/theme.webp)](.github/media/theme.mp4)
+
+<p>
+  <img src=".github/media/phone.webp" width="300" alt="The Workbench on a phone, with the tab bar at the bottom">
+  <img src=".github/media/monitor.webp" width="300" alt="The sidebar's Spark monitor opened: memory, GPU, CUDA allocations and models online, above the AI services chip">
+</p>
 
 * * *
 
@@ -172,6 +187,8 @@ Sparkfire has two layers that can run apart: the **models** (the stack and its s
 | **Split** | DGX Spark | another server | `./scripts/start-dgx-spark.sh --models-only --accept-model-licenses` on the Spark, then `./scripts/start-sparkfire.sh --model-host <spark-host>` on the server |
 
 With `./scripts/start-sparkfire.sh --configure-later`, the first visit asks where the stack runs: **Run models locally** or **Run models remotely** (it checks the stack's ports 8330–8339 on the Spark; video on 8337 is optional). Reopen it from **Settings → General → Deployment**; it keeps your jobs, chats, workflows and files. In split mode, keep the Spark's ports 8330–8339 behind a firewall, LAN or VPN.
+
+![The deployment setup page: run the models on this machine or on a Spark elsewhere](.github/media/setup.webp)
 
 Each release also publishes a multi-platform image, `ghcr.io/moviemaker93/sparkfire`, for your own Compose file. To build from source instead:
 
