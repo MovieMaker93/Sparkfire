@@ -55,7 +55,7 @@ Drop a PDF or a scan and get Markdown that keeps headings, tables and reading or
 
 #### Transcribe recordings
 
-Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. On long files it runs 10 to 16 times faster than Qwen3-ASR, the model it replaced, in 1.7 GiB instead of 16.5 GiB. It covers 25 European languages.
+Parakeet-TDT-0.6B-v3 turns audio and video into a transcript with one line per sentence, and into subtitles (SRT and WebVTT) cut to a readable size from its word timestamps. Click a line and the player jumps there. It needs 1.7 GiB and transcribes long files about 145 times faster than realtime. It covers 25 European languages.
 
 [![A transcript with one timed line per sentence; clicking a line moves the audio player (click for the MP4)](.github/media/transcript.webp)](.github/media/transcript.mp4)
 
@@ -203,7 +203,7 @@ git pull
 
 The script rebuilds what changed and leaves `data/` alone. Every start points the services at the stack's models, so no setting needs changing after an upgrade, whatever was chosen before.
 
-- **From the six-model stack or an earlier model set:** the start script removes the retired Qwen3.6 LLM, Qwen3-ASR, LocateAnything and Unlimited-OCR containers, and downloads the models the stack now uses. Earlier model files stay in `data/dgx-models` until you delete them; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
+- **From the six-model stack or an earlier model set:** the start script removes the retired services' containers and downloads the models the stack now uses. Earlier model files stay in `data/dgx-models` until you delete them; see [Upgrading from the six-model stack](docs/dgx-spark.md#upgrading-from-the-six-model-stack).
 - **An install configured by hand:** the stack replaces services set up in Settings or with **Configure manually**, which is gone. A workspace that is not on the stack goes through setup in the browser again.
 - **From an install made before the rename to Sparkfire:** point your checkout at this repository and run the start script again. It removes the old containers and starts the `sparkfire-` ones, reusing your jobs, settings and downloaded models; only `SPARKFIRE_*` variables in `.env` are read.
 
@@ -262,7 +262,7 @@ Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it 
 | A video job (on top of the above) | +35–39 GiB for Fast at 480p, +41–48 GiB for Fast at 720p or longer, +44–57 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
 | A song (on top of the above) | about +20 GiB at its peak, short or long; about 15 GiB stays loaded until 10 minutes without a song |
 
-These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack. The older 84–96 GiB figures in that file were measured with the Qwen3.6 LLM and Qwen3-ASR resident, before Sparkfire removed them.
+These are the measured figures from [docs/validation.md](docs/validation.md) minus the removed Qwen3.6 LLM (31 GiB) and LocateAnything (10.9 GiB); the Parakeet idle figure was measured on the full stack. The older 84–96 GiB figures in that file were measured with the Qwen3.6 LLM and an earlier speech model resident, before Sparkfire removed them.
 
 Saluki's row was measured on its own next to the stack (docs/validation.md). Measured together with Saluki, the largest video job (Sharp, 1344 × 768, 10 s) brought the Spark to 106.6 of 121 GiB.
 

@@ -113,8 +113,8 @@ Without a Spark, give the API a stack address so it skips setup (the services th
   profile remains for its id.
 - **Speech** picks its request from the model id (`asrProfile`): with a Parakeet id the app asks for word
   timestamps and `src/server/transcript-timing.ts` builds one transcript line per sentence and subtitle cues
-  (at most 7 s and 84 characters) from them, and the chunk target is capped at 30 s. Any other id keeps
-  Qwen3-ASR's plain request and one line per chunk. The Parakeet adapter takes WAV only.
+  (at most 7 s and 84 characters) from them, and the chunk target is capped at 30 s. Any other id gets the
+  plain request and one line per chunk. The Parakeet adapter takes WAV only.
 - **Image generation** asks the service for `/v1/capabilities` (sizes, default and maximum steps) and
   validates requests against it.
 - **Music generation** reads `/v1/capabilities` (lyrics and style limits, the license line) and gets a
