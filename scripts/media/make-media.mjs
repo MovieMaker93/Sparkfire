@@ -13,9 +13,9 @@ mkdirSync(output, { recursive: true });
 
 // How fast each kind of logged span plays back.
 const SPEED = { wait: 8, stream: 2.5 };
-// The clips are recorded at 2x. Their MP4s are scaled to 1440 × 900; the tour is the one people share, so it gets
-// 1920 × 1200 and a higher quality. The animated WebPs that play inline are 1280 px wide.
-const MP4 = { clip: { size: "1440:900", crf: "18" }, tour: { size: "1920:1200", crf: "14" } };
+// The clips are recorded at 2x and every MP4 is scaled to 1920 × 1200; the tour is the one people share, so it gets
+// a higher quality. The animated WebPs that play inline are 1280 px wide, more than the README column shows.
+const MP4 = { clip: { size: "1920:1200", crf: "18" }, tour: { size: "1920:1200", crf: "14" } };
 const WEBP = { width: 1280, fps: 15, quality: "78" };
 // The steps between the frames and the final files are kept almost lossless, so text is encoded only once.
 const INTERMEDIATE = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "6", "-pix_fmt", "yuv420p"];
