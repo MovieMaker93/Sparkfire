@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2](https://github.com/MovieMaker93/Sparkfire/compare/v0.3.1...v0.3.2) (2026-10-13)
+
+
+### Documentation
+
+* **media:** re-record the README clips on a fresh install ([88443e8](https://github.com/MovieMaker93/Sparkfire/commit/88443e8b474be5a89de31045cea41b544e8b7b4b))
+* **media:** refresh the README clips and add screenshots ([3fb33e8](https://github.com/MovieMaker93/Sparkfire/commit/3fb33e8746fc3aa793936df8b3f8f22f8b64a557))
+* **readme:** show screenshots of translation, songs, presets, workflows, phone, monitor and setup ([25bfcc6](https://github.com/MovieMaker93/Sparkfire/commit/25bfcc6aa532dd687da81cad80dc2e822e457f79))
+* **validation:** record a fresh install on a DGX Spark ([ea5e581](https://github.com/MovieMaker93/Sparkfire/commit/ea5e581f59293f03a28a040a488a959af51664f6))
+
 ## [0.3.1](https://github.com/MovieMaker93/Sparkfire/compare/v0.3.0...v0.3.1) (2026-10-13)
 
 
