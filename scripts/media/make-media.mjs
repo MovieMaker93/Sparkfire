@@ -30,8 +30,8 @@ const TOUR = [
   ["video", -8, -1.5],
   ["websearch", 1.5, 10.5],
   ["websearch", 17, 23.5],
-  ["chat", 3, 11],
-  ["mindmap", 1.5, 5.5],
+  ["chat", 3, 10],
+  ["mindmap", 1.5, 5],
 ];
 
 function ffmpeg(args) {
