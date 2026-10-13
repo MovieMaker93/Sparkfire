@@ -43,7 +43,8 @@ it. Measured results are in [`validation.md`](validation.md).
 - **Fixed models.** Settings → Services shows each service of the stack, its model and where it runs, with a
   connection test, but nothing there can be edited, and onboarding has no **Configure manually**: it only asks
   whether the stack runs on this machine or another one.
-- **Workbench.** A "Running now" strip, readable titles for UUID-named uploads, filter pills on one row,
+- **Workbench.** A "Running now" strip that also says why a queued job waits, readable titles for UUID-named
+  uploads, filter tabs on one row,
   thumbnails in Recent, and a "Create a video" tile in place of "Find something in an image", which needs
   a grounding service the stack does not run.
 - **Links.** The footer, the "Update available" check (this repository's GitHub releases, not upstream's
@@ -166,8 +167,8 @@ Parakeet TDT 0.6B v3 is the default speech model, run by [parakeet.cpp](https://
 commercial use with credit. It replaced this stack's earlier Qwen3-ASR backend: 1.7 GiB instead of
 16.5 GiB, 10 to 16 times faster through the app on long files, and as accurate on short clips (3.6%
 against 3.7% word error rate in English, 3.9% against 4.4% in Italian). Its limit is language: 25
-European languages against Qwen3-ASR's 52; Qwen3-ASR was removed from the stack, but the app still
-speaks its API for a user-configured endpoint.
+European languages against Qwen3-ASR's 52. Qwen3-ASR was removed from the stack; the app keeps its request
+profile for that model id.
 
 - **Service.**
   - `sparkfire-parakeet` (image `sparkfire/parakeet:parakeet.cpp-v0.5.0`) builds the engine from
@@ -175,8 +176,7 @@ speaks its API for a user-configured endpoint.
     The adapter starts the engine on 127.0.0.1:8343 and exits if it dies, so Docker restarts the container.
   - The engine serves one request at a time, and the adapter queues them. It accepts WAV only, which is
     what the app sends (16 kHz chunks); anything else gets a 400.
-  - Both speech backends use :8333, so the start script stops the one you did not choose. It downloads only
-    the chosen model, and only the one GGUF file of its repository, at a pinned revision.
+  - The start script downloads only the one GGUF file of its repository, at a pinned revision.
 - **Sentences.** Sparkfire picks the speech request from the model id. For Parakeet it asks for word
   timestamps and builds the output from them (`src/server/transcript-timing.ts`):
   - One transcript line per sentence, saved as `segments` in `transcript.json` next to the `words`. A
@@ -191,11 +191,8 @@ speaks its API for a user-configured endpoint.
   chunks is cut by word times, so no word appears twice.
 - **Known issue.** parakeet.cpp occasionally drops a stretch of speech for a given audio window. See
   [`validation.md`](validation.md#known-issues).
-- **Updating an existing install.** Saved settings are never rewritten. After the start script switches the
-  service, choose `Parakeet-TDT-0.6B-v3` under Settings → Services → Speech to text. Until then,
-  transcription still works, with minute-long lines.
-- **Split mode.** `scripts/start-sparkfire.sh` with a model host seeds the Parakeet id, as do the
-  other bundled model ids.
+- **Updating an existing install.** Every start points the speech service at Parakeet, whatever the settings
+  held, in split mode too.
 - **System monitor.** `services/dgx-status` reads `ASR_MODEL_NAME` (default `Parakeet-TDT-0.6B-v3`) to
   label the engine's GPU process.
 
@@ -224,9 +221,11 @@ page and in the Gallery, and can be a workflow node.
     the variant's peak (Fast 48 GiB, Sharp 57 GiB) less its weights when that variant is already loaded (34 and
     44 GiB), plus 2 GiB. Short of it, it answers 503 with `Retry-After`, and the app waits and asks again.
   - The app runs heavy GPU jobs one at a time (`gpuLane` in the module contract, `src/server/gpu-lane.ts`),
-    on their own queue so they never take the workers that OCR, chat and translation use. A second video
-    waits, shown as "Waiting for the GPU", instead of loading next to the first. The same lane will take
-    music generation, and switching between the two frees the other service's weights first.
+    on their own queue so they never take the workers that OCR, transcription, translation and images use
+    (chat does not use the queue). A second video waits, shown as "Waiting for the GPU", instead of loading
+    next to the first. A video node in a workflow waits in the same lane, but inside its workflow run's
+    general worker ([ADR 0003](adr/0003-heavy-gpu-lane.md)). Music generation takes the same lane, and
+    switching between the two frees the other service's weights first.
   - Identical requests (prompt, seed and settings) return ComfyUI's cached result at once.
 - **Disclosure.** The MiniMax H3 license asks that shared outputs be disclosed as machine-generated. Every
   MP4 carries the comment "AI-generated with MiniMax H3 (FastH3)", and the job page and the form show it.
@@ -282,6 +281,7 @@ npm run dev
   - the image, PaddleOCR, Parakeet and video adapters, without a GPU
   - OCR and speech profiles, sentence and cue building, thumbnails, the gallery and the viewer helpers
   - chat thinking options, stream parsing, attachments, and answers that continue without the page
+  - web search and page reads, the GPU lane, and the per-job lock on job manifests
 - **Validated on a DGX Spark:** PaddleOCR-VL-1.6, Parakeet TDT 0.6B v3, Qwen-Image 2.1 and its Turbo
   version, FastH3 video through the service, and the memory of the full stack. Results and known issues are in [`validation.md`](validation.md).
 

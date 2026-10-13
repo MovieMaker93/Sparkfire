@@ -14,11 +14,6 @@ image() {
     | curl -s -H 'Content-Type: application/json' --data-binary @- "$api/modules/text-to-image/jobs" | jq -r .id
 }
 
-# Declare Saluki's image input and tool calling, which chat attachments and web search need: a fresh demo seeds
-# them, but settings saved before Saluki became the default do not have them.
-curl -s "$api/settings" | jq '.endpoints.llm.capabilities = ["text", "image", "tools"]' \
-  | curl -s -X PUT -H 'Content-Type: application/json' --data-binary @- "$api/settings" > /dev/null
-
 ocr=$(curl -s -F files=@harbor-point-feasibility.pdf -F moduleId=ocr "$api/jobs" | jq -r .id)
 asr=$(curl -s -F files=@reading.wav -F moduleId=transcription "$api/jobs" | jq -r .id)
 wind=$(image "Aerial photo of an offshore wind farm at golden hour, twelve white turbines in a calm sea, a small harbor town with a lighthouse in the distance")

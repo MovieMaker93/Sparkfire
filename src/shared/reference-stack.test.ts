@@ -63,8 +63,24 @@ describe("reference stack settings", () => {
   it("finds where the stack runs in the environment first, then in what setup saved", () => {
     const saved = referenceSettingsForHost(structuredClone(defaultSettings), "192.0.2.10", "split", { video: false });
     const environment = referenceSettingsForHost(structuredClone(defaultSettings), "host.docker.internal", "all-in-one");
-    expect(stackDeployment(saved, environment)).toEqual({ host: "host.docker.internal", mode: "all-in-one", video: true });
+    expect(stackDeployment(saved, environment)).toEqual({ host: "host.docker.internal", mode: "all-in-one", video: true, systemStatusUrl: "http://host.docker.internal:8330", webSearchUrl: "http://searxng:8080" });
     expect(stackDeployment(saved, defaultSettings)).toEqual({ host: "192.0.2.10", mode: "split", video: false });
     expect(stackDeployment(defaultSettings, defaultSettings)).toBeUndefined();
+  });
+
+  it("lets the environment say where the monitor and SearXNG answer, as the README's demo copy does", () => {
+    const environment = {
+      ...referenceSettingsForHost(structuredClone(defaultSettings), "127.0.0.1", "all-in-one"),
+      systemStatus: { baseUrl: "http://127.0.0.1:8399" },
+      webSearch: { enabled: true, provider: "searxng" as const, baseUrl: "http://127.0.0.1:8398" },
+    };
+    const deployment = stackDeployment(defaultSettings, environment);
+    expect(deployment).toEqual({ host: "127.0.0.1", mode: "all-in-one", video: true, systemStatusUrl: "http://127.0.0.1:8399", webSearchUrl: "http://127.0.0.1:8398" });
+    const applied = referenceSettingsForHost(structuredClone(defaultSettings), deployment!.host, deployment!.mode, deployment);
+    expect(applied.systemStatus.baseUrl).toBe("http://127.0.0.1:8399");
+    expect(applied.webSearch).toEqual({ enabled: true, provider: "searxng", baseUrl: "http://127.0.0.1:8398" });
+    expect(applied.endpoints.llm.baseUrl).toBe("http://127.0.0.1:8331/v1");
+    // Without the app beside SearXNG, web search stays off whatever the environment names.
+    expect(referenceSettingsForHost(structuredClone(defaultSettings), "192.0.2.10", "split", { webSearchUrl: "http://127.0.0.1:8398" }).webSearch).toEqual({ enabled: false, provider: "searxng", baseUrl: "" });
   });
 });

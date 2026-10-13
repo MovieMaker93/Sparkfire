@@ -36,6 +36,12 @@ export interface StackDeployment {
   host: string;
   mode: StackMode;
   video: boolean;
+  /**
+   * Where the system monitor and SearXNG answer, when the environment names them. The README's demo copy runs its own
+   * on other ports, so recordings never show the Spark's host name; the start scripts name the stack's own.
+   */
+  systemStatusUrl?: string;
+  webSearchUrl?: string;
 }
 
 export function normalizeReferenceHost(value: string) {
@@ -63,11 +69,19 @@ export function referenceHost(settings: Partial<Pick<Settings, "setup" | "endpoi
  * Where the stack runs: what the start scripts put in the environment first, then what setup saved. Undefined for an
  * install that has not been set up with the stack.
  */
-export function stackDeployment(saved: Partial<Pick<Settings, "setup" | "endpoints">>, environment: Partial<Pick<Settings, "setup" | "endpoints">>): StackDeployment | undefined {
+export function stackDeployment(saved: Partial<Pick<Settings, "setup" | "endpoints">>, environment: Partial<Pick<Settings, "setup" | "endpoints" | "systemStatus" | "webSearch">>): StackDeployment | undefined {
+  const systemStatusUrl = environment.systemStatus?.baseUrl?.trim();
+  const webSearchUrl = environment.webSearch?.baseUrl?.trim();
   for (const source of [environment, saved]) {
     const host = referenceHost(source);
     if (host && (source.setup?.mode === "all-in-one" || source.setup?.mode === "split")) {
-      return { host, mode: source.setup.mode, video: Boolean(source.endpoints?.["video-generation"]?.enabled) };
+      return {
+        host,
+        mode: source.setup.mode,
+        video: Boolean(source.endpoints?.["video-generation"]?.enabled),
+        ...(systemStatusUrl ? { systemStatusUrl } : {}),
+        ...(webSearchUrl ? { webSearchUrl } : {}),
+      };
     }
   }
   return undefined;
@@ -77,7 +91,7 @@ export function stackDeployment(saved: Partial<Pick<Settings, "setup" | "endpoin
  * The settings the stack decides: every service at its fixed model on the Spark, the system monitor and web search.
  * Nothing set before survives, so a model or key chosen by hand never reaches the stack.
  */
-export function referenceSettingsForHost(settings: Settings, hostInput: string, mode: StackMode, options: { video?: boolean } = {}): Settings {
+export function referenceSettingsForHost(settings: Settings, hostInput: string, mode: StackMode, options: Partial<Omit<StackDeployment, "host" | "mode">> = {}): Settings {
   const host = normalizeReferenceHost(hostInput);
   // An IPv6 hostname from the URL parser already has its brackets.
   const origin = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
@@ -86,9 +100,9 @@ export function referenceSettingsForHost(settings: Settings, hostInput: string, 
   return {
     ...settings,
     setup: { completed: true, mode, onboardingVersion: 1, completedAt: (settings.setup?.completed && settings.setup.completedAt) || new Date().toISOString() },
-    systemStatus: { baseUrl: `http://${origin}:${catalog.systemStatus.port}` },
+    systemStatus: { baseUrl: options.systemStatusUrl || `http://${origin}:${catalog.systemStatus.port}` },
     // SearXNG listens only on the Spark itself, so a workspace on another machine has no web search.
-    webSearch: { enabled: mode === "all-in-one", provider: "searxng", baseUrl: mode === "all-in-one" ? STACK_WEB_SEARCH_URL : "" },
+    webSearch: { enabled: mode === "all-in-one", provider: "searxng", baseUrl: mode === "all-in-one" ? options.webSearchUrl || STACK_WEB_SEARCH_URL : "" },
     endpoints: {
       llm: { ...endpoint(catalog.llm.port, catalog.llm.model), capabilities: [...REFERENCE_LLM_CAPABILITIES] },
       ocr: endpoint(catalog.ocr.port, catalog.ocr.model),

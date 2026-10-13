@@ -14,8 +14,8 @@ Usage: ./scripts/start-sparkfire.sh [options]
 Start the Sparkfire application without installing models on this machine.
 
 Options:
-  --model-host HOST   Connect a fresh installation to the six-model DGX stack
-  --configure-later  Start without endpoints and use the first-run setup screen
+  --model-host HOST   Use the model stack on the DGX Spark at HOST
+  --configure-later  Start without a stack address and set it up in the browser
   -h, --help         Show this help
 
 Examples:
@@ -79,8 +79,8 @@ fi
 EXISTING_SETTINGS=false
 if [[ -f "$PROJECT_DIR/data/config/settings.json" ]]; then
   EXISTING_SETTINGS=true
-  printf 'Existing Sparkfire settings were found and will be preserved.\n'
-  printf 'Use Settings -> General -> Deployment after startup to change saved endpoints.\n\n'
+  printf 'Existing Sparkfire settings were found and will be kept; the services follow the stack.\n'
+  printf 'Use Settings -> General -> Deployment after startup to change where the stack runs.\n\n'
 fi
 
 if [[ -n "$MODEL_HOST" ]]; then

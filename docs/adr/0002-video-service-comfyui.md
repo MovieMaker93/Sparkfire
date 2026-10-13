@@ -32,7 +32,15 @@ headlessly over its HTTP API, ran them at 32 to 35 GiB above the idle stack (`do
 
 ## Consequences
 
-- This is the one service whose runtime is not diffusers, vLLM or a native engine; ComfyUI updates need a
-  new measurement on the Spark before the pin moves.
+- This is the one service whose runtime is not diffusers, Transformers, vLLM or a native engine; ComfyUI
+  updates need a new measurement on the Spark before the pin moves.
 - The graphs depend on ComfyUI node names and inputs, so the adapter tests pin their shape.
 - ComfyUI caches identical graphs: the same prompt, seed and settings return the earlier video at once.
+
+## Later notes
+
+- 2026-10-11: measured through the finished service, a video job adds 35 to 57 GiB above the idle stack
+  (Fast at 480p up to Sharp at 1344 × 768 for 10 s), more than the 32 to 35 GiB of the first bake-off
+  (`docs/validation.md`).
+- 2026-10-12: videos take turns in the app's GPU lane, so two never load at once
+  ([ADR 0003](0003-heavy-gpu-lane.md)).
