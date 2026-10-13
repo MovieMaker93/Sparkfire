@@ -37,6 +37,7 @@ export function JobPage() {
   const [previewMode, setPreviewMode] = useState<PreviewMode>("rendered");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [error, setError] = useState("");
+  const [liveUpdatesLost, setLiveUpdatesLost] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -61,6 +62,7 @@ export function JobPage() {
   const workflowViewSelected = searchParams.get("view") === "workflow" && !requestedArtifactId;
 
   useEffect(() => {
+    setLiveUpdatesLost(false);
     setLinkedChats([]);
     setFlowRun(undefined);
     api.job(id).then(setJob).catch((value) => setError(value.message));
@@ -70,6 +72,7 @@ export function JobPage() {
     api.chats().then((chats) => setLinkedChats(linkedChatsForJob(chats, id))).catch(() => undefined);
     const events = new EventSource(`/api/jobs/${id}/events`);
     events.onmessage = (event) => setJob(JSON.parse(event.data) as Job);
+    events.onerror = () => { if (events.readyState === EventSource.CLOSED) setLiveUpdatesLost(true); };
     return () => events.close();
   }, [id]);
 
@@ -87,6 +90,7 @@ export function JobPage() {
       setFlowRun(next);
       if (["succeeded", "failed", "cancelled"].includes(next.status)) events.close();
     };
+    events.onerror = () => { if (events.readyState === EventSource.CLOSED) setLiveUpdatesLost(true); };
     return () => events.close();
   }, [id, flowRun?.id]);
 
@@ -321,6 +325,7 @@ export function JobPage() {
     </header>
 
     {error && <div className="error-card job-alert"><TriangleAlert size={19} /><div><strong>Action failed</strong><p>{error}</p></div></div>}
+    {liveUpdatesLost && <div className="warning-card job-alert" role="status"><TriangleAlert size={19} /><div><strong>Live updates stopped</strong><p>This page no longer receives progress. Reload it to see the latest state.</p></div></div>}
     {job.error && <div className="error-card job-alert"><TriangleAlert size={19} /><div><strong>Processing failed</strong><p>{job.error}</p></div></div>}
     {!!job.warnings.length && <div className="warning-card job-alert"><TriangleAlert size={19} /><div><strong>Completed with warnings</strong>{job.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div></div>}
 

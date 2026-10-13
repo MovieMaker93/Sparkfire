@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Columns2, Download, ExternalLink, Images, Play, X } from "lucide-react";
 import { api, thumbnailUrl } from "../api";
+import { useFocusTrap } from "../focus-trap";
 import { cn, displayTitle, timeAgo } from "../components/ui";
 import type { GalleryItem } from "../types";
 
@@ -43,6 +44,10 @@ export function GalleryPage() {
   const [comparing, setComparing] = useState(false);
   const [picked, setPicked] = useState<GalleryItem[]>([]);
   const [open, setOpen] = useState<GalleryItem>();
+  const lightboxRef = useRef<HTMLDivElement>(null);
+  const compareRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(lightboxRef, Boolean(open));
+  useFocusTrap(compareRef, picked.length === 2);
 
   useEffect(() => {
     let active = true;
@@ -97,7 +102,7 @@ export function GalleryPage() {
       })}
     </div>}
     {open && <div className="modal-backdrop gallery-lightbox" onMouseDown={(event) => event.target === event.currentTarget && setOpen(undefined)}>
-      <div className="gallery-lightbox-card" role="dialog" aria-modal="true" aria-label={itemTitle(open)}>
+      <div ref={lightboxRef} className="gallery-lightbox-card" role="dialog" aria-modal="true" aria-label={itemTitle(open)}>
         <ItemMedia item={open} />
         <aside>
           <button type="button" className="icon-button gallery-close" onClick={() => setOpen(undefined)} aria-label="Close"><X size={18} /></button>
@@ -110,7 +115,7 @@ export function GalleryPage() {
       </div>
     </div>}
     {picked.length === 2 && <div className="modal-backdrop gallery-compare" onMouseDown={(event) => event.target === event.currentTarget && setPicked([])}>
-      <div className="gallery-compare-card" role="dialog" aria-modal="true" aria-label="Compare results">
+      <div ref={compareRef} className="gallery-compare-card" role="dialog" aria-modal="true" aria-label="Compare results">
         <header><strong>Compare</strong><button type="button" className="icon-button" onClick={() => setPicked([])} aria-label="Close comparison"><X size={18} /></button></header>
         <div className="gallery-compare-grid">{picked.map((item) => <section key={itemKey(item)}><ItemMedia item={item} compare /><ImageDetails item={item} /></section>)}</div>
       </div>

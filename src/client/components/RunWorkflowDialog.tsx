@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileStack, Play, Upload, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { startWorkflow } from "../api";
+import { useFocusTrap } from "../focus-trap";
 import type { ArtifactKind, WorkflowDefinition } from "../../shared/contracts";
 import { workflowInputKinds } from "../../shared/workflows";
 
@@ -45,6 +46,16 @@ export function RunWorkflowDialog({ definition, onClose }: { definition: Workflo
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   async function run() {
     if (!files.length && !text.trim()) return;
@@ -60,7 +71,7 @@ export function RunWorkflowDialog({ definition, onClose }: { definition: Workflo
   }
 
   return <div className="workflow-run-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="workflow-run-dialog" role="dialog" aria-modal="true" aria-labelledby="run-workflow-title">
+    <section ref={dialogRef} className="workflow-run-dialog" role="dialog" aria-modal="true" aria-labelledby="run-workflow-title">
       <header><div><h2 id="run-workflow-title">Run {definition.name}</h2><p>Add the input this workflow should process.</p></div><button onClick={onClose} aria-label="Close"><X size={20} /></button></header>
       <div className="workflow-run-content">
         {filesAccepted && <label className="workflow-file-input"><Upload size={25} /><span><strong>{files.length ? files.length === 1 ? files[0].name : `${files.length} files selected` : "Choose files"}</strong><small>{workflowInputSummary(definition)}</small></span><input type="file" accept={fileAccept} multiple={inputNode.config.multiple !== false} onChange={(event) => { setFiles([...event.target.files || []]); if (event.target.files?.length) setText(""); }} /></label>}

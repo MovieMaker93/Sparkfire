@@ -5,7 +5,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } 
 import { api, thumbnailUrl, uploadGroundingJob, uploadJob, uploadVideoJob } from "../api";
 import { cn, JobIcon, StatusBadge, timeAgo } from "../components/ui";
 import { moduleWorkflowForArtifact } from "../../shared/module-router";
-import { savedTranslationPreferences, translationLanguages, translationPreferenceKey } from "../translation";
+import { savedTranslationPreferences, translationLanguages, translationPreferenceKey, waitForTranslation } from "../translation";
 import type { Job, JobKind, ModuleDescriptor, ModuleId } from "../types";
 import { useGlobalSearch } from "../components/GlobalSearch";
 import { useImageCapabilities } from "../image-capabilities";
@@ -53,7 +53,7 @@ function useModules() {
 export function ModulesPage() {
   const { modules, error } = useModules();
   return <div className="page-wrap content-page modules-page">
-    <header className="workspace-heading"><div><h1>Tools for daily work</h1><p>Start with a file, then carry its results into the next task without uploading it again.</p></div></header>
+    <header className="workspace-heading"><div><h1>Modules for daily work</h1><p>Start with a file, then carry its results into the next task without uploading it again.</p></div></header>
     {error && <div className="error-card">{error}</div>}
     {!modules.length && !error ? <div className="module-grid">{Array.from({ length: 5 }, (_, index) => <div className="skeleton module-card-skeleton" key={index} />)}</div> : <div className="module-grid">
       {modules.filter((module) => !module.hidden).map((module) => {
@@ -277,22 +277,10 @@ export function ModulePage() {
       const created = await api.createTextTranslationJob(sourceText.trim(), sourceLanguage, targetLanguage);
       setTranslationJobId(created.id);
       rememberLanguages();
-      for (let attempt = 0; attempt < 1200; attempt += 1) {
-        const current = await api.job(created.id);
-        if (["done", "done_with_warnings"].includes(current.status)) {
-          const output = current.outputFiles.find((file) => file.startsWith("translation."));
-          if (!output) throw new Error("The translation completed without a text result");
-          const response = await fetch(`/api/jobs/${current.id}/files/${output.split("/").map(encodeURIComponent).join("/")}`);
-          if (!response.ok) throw new Error("Could not load the translated text");
-          setTranslatedText((await response.text()).trim());
-          setJobs((items) => [current, ...items.filter((job) => job.id !== current.id)]);
-          toast.success("Translation saved", "Added to translation history.");
-          return;
-        }
-        if (["failed", "cancelled"].includes(current.status)) throw new Error(current.error || `Translation ${current.status}`);
-        await new Promise((resolve) => window.setTimeout(resolve, 500));
-      }
-      throw new Error("Translation is still running. Open its job from History to follow it.");
+      const { job: current, text } = await waitForTranslation(created.id);
+      setTranslatedText(text);
+      setJobs((items) => [current, ...items.filter((job) => job.id !== current.id)]);
+      toast.success("Translation saved", "Added to translation history.");
     } catch (value) {
       setTranslationError(value instanceof Error ? value.message : String(value));
     } finally {
@@ -528,7 +516,7 @@ export function ModulePage() {
     </section> : module.id === "mindmap" ? <section className="module-form-card mindmap-form">
       <div className="module-form-heading translation-form-heading"><div><h2>Build an interactive mind map</h2><p>Start with an idea or organize an existing result into branches you can explore.</p></div><div className="module-mode-tabs" role="tablist"><button className={mindMapMode === "topic" ? "active" : ""} onClick={() => { setMindMapMode("topic"); setSelectedArtifact(""); }}>Topic</button><button className={mindMapMode === "result" ? "active" : ""} onClick={() => setMindMapMode("result")}>Existing result</button></div></div>
       {!module.configured && <div className="module-setup-note"><span>The LLM service is not configured yet.</span><Link to="/settings" state={{ backgroundLocation: location }}>Configure service</Link></div>}
-      {mindMapMode === "result" && <><label className="field-label">Source result<SearchSelect className="module-search-select" value={selectedArtifact} onChange={setSelectedArtifact} options={compatibleArtifacts.map(({ job, artifact, value }) => ({ value, label: `${job.title} — ${artifact.name}`, keywords: `${artifact.mimeType} ${artifact.kind}` }))} placeholder="Choose a document, result, or image" searchPlaceholder="Search source results" emptyMessage="No compatible results" ariaLabel="Mind map source result" /></label>{!compatibleArtifacts.length && <p className="module-form-empty">Complete another tool first, then turn its result into a mind map.</p>}</>}
+      {mindMapMode === "result" && <><label className="field-label">Source result<SearchSelect className="module-search-select" value={selectedArtifact} onChange={setSelectedArtifact} options={compatibleArtifacts.map(({ job, artifact, value }) => ({ value, label: `${job.title} — ${artifact.name}`, keywords: `${artifact.mimeType} ${artifact.kind}` }))} placeholder="Choose a document, result, or image" searchPlaceholder="Search source results" emptyMessage="No compatible results" ariaLabel="Mind map source result" /></label>{!compatibleArtifacts.length && <p className="module-form-empty">Complete another module first, then turn its result into a mind map.</p>}</>}
       <label className="field-label">{mindMapMode === "topic" ? "Topic or source notes" : "Focus (optional)"}<textarea className="input mt-2 mindmap-source-input" value={mindMapSubject} onChange={(event) => setMindMapSubject(event.target.value)} placeholder={mindMapMode === "topic" ? "Paste notes, describe a project, or enter a topic to explore…" : "For example: focus on decisions, dependencies, and next actions"} maxLength={500000} /></label>
       <div className="mindmap-options"><label className="field-label">Levels<SearchSelect className="module-search-select" value={mindMapDepth} onChange={setMindMapDepth} options={[{ value: "3", label: "3 levels · concise" }, { value: "4", label: "4 levels · balanced" }, { value: "5", label: "5 levels · detailed" }, { value: "6", label: "6 levels · deep" }]} searchPlaceholder="Search depth" ariaLabel="Mind map levels" /></label><label className="field-label">Branches per node<SearchSelect className="module-search-select" value={mindMapBreadth} onChange={setMindMapBreadth} options={[{ value: "3", label: "Up to 3 · focused" }, { value: "5", label: "Up to 5 · balanced" }, { value: "7", label: "Up to 7 · broad" }]} searchPlaceholder="Search breadth" ariaLabel="Mind map branches" /></label></div>
       <div className="module-form-actions"><button className="button-primary" onClick={() => void createMindMap()} disabled={uploading || !module.configured || (mindMapMode === "topic" ? !mindMapSubject.trim() : !selectedArtifactEntry)}>{uploading ? "Starting…" : <><Network size={18} />Create mind map</>}</button></div>

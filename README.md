@@ -28,7 +28,7 @@ Every source and every result stays an ordinary file with its history, so one re
 - [Features](#features): [the Workbench](#the-workbench) · [documents and recordings](#documents-and-recordings) · [create](#create) · [ask and research](#ask-and-research) · [automate](#automate) · [interface](#interface)
 - [Quick start](#quick-start) · [The chat model](#the-chat-model) · [Other ways to run it](#other-ways-to-run-it) · [Upgrading](#upgrading)
 - [Models and memory](#models-and-memory) · [Heavy jobs take turns](#heavy-jobs-take-turns) · [Video: choices and trade-offs](#video-choices-and-trade-offs)
-- [Configuration](#configuration) · [How it works](#how-it-works) · [Security and privacy](#security-and-privacy)
+- [Configuration](#configuration) · [How it works](#how-it-works) · [Security and privacy](#security-and-privacy) · [Troubleshooting](#troubleshooting)
 - [What Sparkfire changes](#what-sparkfire-changes) · [Contributing](#contributing) · [License](#license) · [Acknowledgements](#acknowledgements)
 
 * * *
@@ -327,6 +327,22 @@ Per job, the form sets Fast or Sharp, the size, the length, the sound, the music
 - **Uploads.** Up to 8 GiB per file and 100 files at a time.
 - **System monitor.** The DGX start script runs a small read-only service that shows unified memory, CUDA allocations, GPU use and temperature in the sidebar.
 
+### Environment
+
+The start scripts set these; set them in `.env` only when you run Compose yourself.
+
+| Variable | What it does |
+| --- | --- |
+| `LLM_BASE_URL`, `OCR_BASE_URL`, `STT_BASE_URL`, `TRANSLATION_BASE_URL`, `IMAGE_GENERATION_BASE_URL`, `VIDEO_GENERATION_BASE_URL`, `MUSIC_GENERATION_BASE_URL` | Where each service of the stack answers. Leave them empty to set up the stack in the browser; the models are fixed whatever is set |
+| `SYSTEM_STATUS_BASE_URL`, `WEB_SEARCH_BASE_URL` | Where the system monitor and SearXNG answer |
+| `SPARKFIRE_DEPLOYMENT_MODE` | `all-in-one`, `split` or `custom` (the default) |
+| `SPARKFIRE_SETUP_COMPLETE` | `true` or `false` overrides whether setup is done; otherwise it is done when any service URL is set |
+| `SPARKFIRE_PORT` | Host port Compose publishes the app on (54321) |
+| `SEARXNG_SECRET` | Secret for SearXNG with `compose.search.yaml` |
+| `WORKER_ENABLED` | `false` keeps the job worker off, for interface work on seeded data |
+| `REDIS_URL`, `DATA_DIR`, `PORT` | Queue connection, the data folder and the port inside the container |
+| `HF_TOKEN` | For `start-dgx-spark.sh`: authenticated, faster model downloads |
+
 ## How it works
 
 Sparkfire is a TypeScript modular monolith: one Node.js process serves the React client, the Express API and the BullMQ worker.
@@ -345,7 +361,7 @@ Express API ───────────► model services (OpenAI-compatib
           └── conversations, their attachments and answers
 ```
 
-- A **module** is a capability you use: OCR, transcription, translation, text to image, text to video, text to music, mind map, chat.
+- A **module** is a capability you use: OCR, transcription, translation, text to image, text to video, text to music, mind map, chat. Grounding is also a module in the code, but it stays hidden because the stack has no grounding service.
 - A **service** is the model behind it, one fixed model per service in the stack.
 - A **job** is a folder holding sources, artifacts and runs; a **run** is one pass of a module over the job's artifacts.
 - An **artifact** is a typed file with a stable identity and lineage, which is what lets one result feed the next (**Continue with**).
@@ -386,7 +402,6 @@ Back up `data/` (the weights in `dgx-models/` can be downloaded again) to keep c
 | Artifacts and runs | `GET /api/jobs/:id/artifacts`, `GET/POST /api/jobs/:id/runs`, `GET /api/jobs/:id/thumbnails/:artifactId` |
 | Gallery | `GET /api/gallery` |
 | Translation | preview, pasted-text and uploaded-document routes under `/api/modules/translation` |
-| Grounding | `POST /api/modules/grounding/jobs` |
 | Image generation | `GET /api/modules/text-to-image/capabilities`, `POST /api/modules/text-to-image/jobs` |
 | Video generation | `GET /api/modules/text-to-video/capabilities`, `POST /api/modules/text-to-video/jobs` |
 | Music generation | `GET /api/modules/text-to-music/capabilities`, `POST /api/modules/text-to-music/jobs` |
@@ -403,7 +418,18 @@ Sparkfire assumes a trusted user on a trusted network. It has no built-in authen
 
 Uploaded content goes to the stack's services on your Spark, so a deployment is as private as the Spark and the network around it. With web search on in a conversation, which new conversations start with, the model's search queries go to the engines behind SearXNG and the pages it reads are fetched from the server; page reads never reach private network addresses.
 
-Grounding overlays are previews, not redaction. A rectangle drawn over an image or over selectable PDF text does not remove what is underneath.
+## Troubleshooting
+
+| Symptom | What to do |
+| --- | --- |
+| A service shows offline in the sidebar | `./scripts/start-dgx-spark.sh status` lists the containers and endpoints. Read the service's log with `docker logs --tail 120 sparkfire-<service>` (for example `sparkfire-saluki`), then use its connection test in **Settings → Services** |
+| A model service keeps restarting | It probably does not fit in memory beside the others. Check `free -g` and `nvidia-smi`, stop it with `docker stop sparkfire-<service>`, and run the start script again when there is room; it starts the services in a memory-safe order |
+| The start script stops at the memory check | A fresh start wants 64 GiB free. Stop what else runs on the Spark, or pass `--skip-memory-check` if you know the stack fits |
+| A video or song shows *Waiting for memory* | Something else holds the memory it needs. It retries for up to 30 minutes; free memory on the Spark or cancel the job |
+| Jobs stay *Waiting for a worker* | The worker runs in the app container: check that `WORKER_ENABLED` is not `false` and read `docker logs --tail 120 sparkfire-app-1`. A job that failed with *Queue unavailable* could not reach Redis: check `sparkfire-redis-1` with `docker ps` |
+| The page says *Can't reach the Sparkfire server* | The app is not answering: `docker ps` for `sparkfire-app-1`, then its log |
+| Chat has no **Web** switch | Web search runs only all in one, because SearXNG listens on the Spark itself |
+| A model download fails or is slow | Run the start script with `HF_TOKEN=hf_...` set |
 
 ## What Sparkfire changes
 
@@ -411,7 +437,7 @@ Sparkfire started as a fork of SparklingKit 0.1.5 and is now its own project. Co
 
 | Area | What you get |
 | --- | --- |
-| **Interface** | Light, dark and system themes in warm charcoal and paper with an ember accent, Geist and Bricolage Grotesque type; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench; tools whose service is not configured stay out of the way |
+| **Interface** | Light, dark and system themes in warm charcoal and paper with an ember accent, Geist and Bricolage Grotesque type; one AI-services chip and a compact Spark monitor; a "Running now" strip and readable titles on the Workbench; modules whose service is not configured stay out of the way |
 | **Gallery** | Every image and generated video with thumbnails, filters by source and model, a lightbox and a side-by-side compare |
 | **Job pages** | Transcript lines, one per sentence, that seek the player; image zoom with a before/after slider, a document outline, and run history |
 | **Chat** | Attach images, PDFs and text files; a thinking control with the reasoning shown live; answers that keep going when you leave the page; web search with cited sources |

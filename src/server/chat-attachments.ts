@@ -5,7 +5,7 @@ import { DATA_DIR } from "./config.js";
 import { rasterizePdf, runCommand } from "./media.js";
 import { MAX_CHAT_ATTACHMENTS } from "../shared/contracts.js";
 import type { ChatAttachment } from "./models.js";
-import { assertSafeName } from "./store.js";
+import { assertSafeName, atomicWriteJson } from "./store.js";
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = MAX_CHAT_ATTACHMENTS;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -68,7 +68,7 @@ export async function saveChatAttachment(chatId: string, file: UploadedFile, acc
     await fs.rm(original, { force: true });
     throw error;
   }
-  await fs.writeFile(attachmentFile(chatId, id, ".json"), `${JSON.stringify({ ...attachment, storedName: path.basename(original) })}\n`, "utf8");
+  await atomicWriteJson(attachmentFile(chatId, id, ".json"), { ...attachment, storedName: path.basename(original) });
   return attachment;
 }
 

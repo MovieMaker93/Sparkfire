@@ -1,11 +1,11 @@
-FROM node:24-bookworm-slim AS build
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:24-bookworm-slim
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
 ARG APP_VERSION=development
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg poppler-utils curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app

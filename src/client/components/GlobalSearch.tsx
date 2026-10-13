@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, File, FolderKanban, Image as ImageIcon, MessageCircle, Search, Shapes, X } from "lucide-react";
 import { api } from "../api";
+import { useFocusTrap } from "../focus-trap";
 import type { ModuleId, SearchResponse, SearchResult, SearchScope } from "../types";
 import { cn, timeAgo } from "./ui";
 
@@ -60,8 +61,10 @@ function GlobalSearchDialog({ request, onClose }: { request: SearchOpenOptions; 
   const [activeIndex, setActiveIndex] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const resultsElement = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const scope = request.scope || "all";
+  useFocusTrap(dialogRef);
 
   useEffect(() => {
     input.current?.focus();
@@ -91,7 +94,7 @@ function GlobalSearchDialog({ request, onClose }: { request: SearchOpenOptions; 
   const grouped = useMemo(() => [
     { id: "work" as const, label: query ? "Work" : "Recent work", items: results.filter((result) => result.group === "work") },
     { id: "conversations" as const, label: "Conversations", items: results.filter((result) => result.group === "conversations") },
-    { id: "tools" as const, label: "Tools", items: results.filter((result) => result.group === "tools") },
+    { id: "tools" as const, label: "Modules", items: results.filter((result) => result.group === "tools") },
   ].filter((group) => group.items.length), [query, results]);
   const resultIndex = new Map(results.map((result, index) => [result.id, index]));
 
@@ -114,17 +117,17 @@ function GlobalSearchDialog({ request, onClose }: { request: SearchOpenOptions; 
     }
   }
 
-  const title = request.title || (scope === "work" ? "Search work" : scope === "chats" ? "Search conversations" : scope === "tools" ? "Search tools" : "Search Sparkfire");
+  const title = request.title || (scope === "work" ? "Search work" : scope === "chats" ? "Search conversations" : scope === "tools" ? "Search modules" : "Search Sparkfire");
   return <div className="global-search-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title">
+    <section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title">
       <header className="global-search-header">
         <Search size={21} />
-        <div><h2 id="global-search-title">{title}</h2><input ref={input} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="Search jobs, files, conversations, and tools" aria-label={title} aria-controls="global-search-results" aria-activedescendant={results[activeIndex] ? `search-result-${activeIndex}` : undefined} /></div>
+        <div><h2 id="global-search-title">{title}</h2><input ref={input} value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleInputKeyDown} placeholder="Search jobs, files, conversations, and modules" aria-label={title} aria-controls="global-search-results" aria-activedescendant={results[activeIndex] ? `search-result-${activeIndex}` : undefined} /></div>
         {loading && <span className="spinner dark global-search-spinner" aria-label="Searching" />}
         <button className="global-search-close" onClick={onClose} aria-label="Close search"><X size={20} /></button>
       </header>
       <div className="global-search-results" id="global-search-results" ref={resultsElement} role="listbox">
-        {error ? <div className="global-search-empty"><strong>Search unavailable</strong><p>{error}</p></div> : !loading && !results.length ? <div className="global-search-empty"><Search size={28} /><strong>No results</strong><p>Try a file name, job title, conversation, or tool.</p></div> : grouped.map((group) => <section className="global-search-group" key={group.id}><h3>{group.label}</h3>{group.items.map((result) => {
+        {error ? <div className="global-search-empty"><strong>Search unavailable</strong><p>{error}</p></div> : !loading && !results.length ? <div className="global-search-empty"><Search size={28} /><strong>No results</strong><p>Try a file name, job title, conversation, or module.</p></div> : grouped.map((group) => <section className="global-search-group" key={group.id}><h3>{group.label}</h3>{group.items.map((result) => {
           const index = resultIndex.get(result.id) || 0;
           return <button id={`search-result-${index}`} data-result-index={index} role="option" aria-selected={activeIndex === index} className={cn("global-search-result", activeIndex === index && "active")} onMouseMove={() => setActiveIndex(index)} onClick={() => choose(result)} key={result.id}>
             <span className={cn("global-search-result-icon", `type-${result.type}`)}><ResultIcon result={result} /></span>

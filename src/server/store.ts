@@ -215,10 +215,6 @@ function syncOutputArtifacts(job: JobManifest, outputFiles: string[], runId?: st
   return [...job.artifacts.filter((artifact) => artifact.role === "source"), ...generated];
 }
 
-function runStatus(status: JobStatus): WorkflowRun["status"] {
-  return status;
-}
-
 function normalizeJobManifest(raw: Partial<JobManifest> & Pick<JobManifest, "id" | "type" | "status" | "createdAt" | "updatedAt" | "title" | "progress" | "stage" | "inputs" | "outputFiles" | "warnings" | "params">): JobManifest {
   const mapping = moduleForLegacyJob(raw.type);
   const moduleId = raw.moduleId || mapping.moduleId;
@@ -234,7 +230,7 @@ function normalizeJobManifest(raw: Partial<JobManifest> & Pick<JobManifest, "id"
       id: "initial",
       moduleId,
       workflowId,
-      status: runStatus(raw.status),
+      status: raw.status,
       progress: raw.progress,
       stage: raw.stage,
       createdAt: raw.createdAt,

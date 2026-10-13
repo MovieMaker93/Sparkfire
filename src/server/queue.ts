@@ -23,13 +23,14 @@ const connection = new Redis(REDIS_URL, {
 });
 
 let lastRedisErrorLog = 0;
-connection.on("error", (error: Error) => {
+function logRedisError(label: string, error: Error) {
   const now = Date.now();
   if (process.env.NODE_ENV !== "test" && now - lastRedisErrorLog > 30_000) {
-    console.error(`[redis] ${error.message}`);
+    console.error(`[${label}] ${error.message}`);
     lastRedisErrorLog = now;
   }
-});
+}
+connection.on("error", (error: Error) => logRedisError("redis", error));
 
 const queueOptions = {
   connection,
@@ -79,13 +80,7 @@ export async function startWorker() {
     lazyConnect: true,
     connectTimeout: 3000,
   });
-  workerConnection.on("error", (error: Error) => {
-    const now = Date.now();
-    if (process.env.NODE_ENV !== "test" && now - lastRedisErrorLog > 30_000) {
-      console.error(`[redis worker] ${error.message}`);
-      lastRedisErrorLog = now;
-    }
-  });
+  workerConnection.on("error", (error: Error) => logRedisError("redis worker", error));
   const processItem = async (queueJob: { data: WorkItem }) => {
     const { jobId } = queueJob.data;
     const key = activeKey(queueJob.data);
@@ -110,6 +105,7 @@ export async function startWorker() {
   heavyWorker = new Worker<WorkItem>("sparkfire-heavy", processItem, { connection: workerConnection, concurrency: HEAVY_QUEUE_WORKERS });
   for (const started of [worker, heavyWorker]) {
     started.on("failed", (job, error) => console.error(`[worker] ${job?.id || "unknown"}: ${error.message}`));
+    started.on("error", (error) => logRedisError("worker", error));
   }
   try {
     const unfinishedFlows = await listUnfinishedFlowRuns();
@@ -208,10 +204,6 @@ async function stopMatchingWork(jobId: string, runId?: string) {
   }
   await abortActive();
   return stopped;
-}
-
-export async function cancelQueuedJob(jobId: string) {
-  return stopJobWork(jobId);
 }
 
 export async function pingRedis() {

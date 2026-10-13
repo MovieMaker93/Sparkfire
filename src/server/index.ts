@@ -6,6 +6,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cors from "cors";
 import multer from "multer";
 import { z } from "zod";
+import { lookup as mimeLookup } from "mime-types";
 import { CHAT_EFFORTS, ENDPOINT_KINDS, MODEL_INPUT_CAPABILITIES, MODULE_IDS, SEARCH_SCOPES, WEB_SEARCH_PROVIDERS } from "../shared/contracts.js";
 import { getModuleContract, moduleWorkflowForArtifact } from "../shared/module-router.js";
 import { referenceSettingsForHost } from "../shared/reference-stack.js";
@@ -23,6 +24,7 @@ import { checkWebSearch, searchProvider, webSearchAvailable, webSearchNote, WebT
 import { ensureThumbnail, galleryItems, thumbnailWidth } from "./thumbnails.js";
 import { workflowRouter } from "./workflows/routes.js";
 import { closeQueue, enqueueJob, enqueuePreset, enqueueWorkflowRun, pingRedis, startWorker, stopJobWork, stopRunWork } from "./queue.js";
+import { sendUserFile } from "./user-files.js";
 import {
   createChat,
   createFileTranslationJob,
@@ -201,7 +203,18 @@ const gallerySchema = z.object({
   source: z.enum(["all", "generated", "uploaded"]).default("all"),
   model: z.string().max(200).optional(),
   offset: z.coerce.number().int().min(0).default(0),
-  limit: z.coerce.number().int().min(1).max(200).default(60),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+const jobListSchema = z.object({
+  status: z.string().max(40).optional(),
+  type: z.string().max(40).optional(),
+  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+const jobUploadSchema = z.object({
+  type: z.enum(["audio", "image", "pdf"]).optional(),
+  moduleId: z.enum(MODULE_IDS).optional(),
+  params: z.string().max(100_000).optional(),
 });
 const searchQuerySchema = z.object({
   q: z.string().max(200).default(""),
@@ -472,26 +485,23 @@ app.put("/api/prompts/:slug", async (request, response) => {
 });
 
 app.get("/api/jobs", async (request, response) => {
+  const query = jobListSchema.parse(request.query);
   let jobs = await listJobs();
-  if (request.query.status) jobs = jobs.filter((job) => job.status === request.query.status);
-  if (request.query.type) jobs = jobs.filter((job) => job.type === request.query.type);
-  const offset = Math.max(0, Number(request.query.offset || 0));
-  const limit = Math.min(100, Math.max(1, Number(request.query.limit || 50)));
-  response.json({ jobs: jobs.slice(offset, offset + limit), total: jobs.length });
+  if (query.status) jobs = jobs.filter((job) => job.status === query.status);
+  if (query.type) jobs = jobs.filter((job) => job.type === query.type);
+  response.json({ jobs: jobs.slice(query.offset, query.offset + query.limit), total: jobs.length });
 });
 
 app.post("/api/jobs", upload.array("files"), async (request, response) => {
   const files = (request.files || []) as Express.Multer.File[];
   try {
+    const body = jobUploadSchema.parse(request.body ?? {});
     const inferred = inferJobKind(files);
-    const type = (request.body.type || inferred) as JobKind;
-    const requestedModule = request.body.moduleId as string | undefined;
-    if (requestedModule && !(MODULE_IDS as readonly string[]).includes(requestedModule)) throw new Error("Unsupported module");
-    if (requestedModule === "transcription" && type !== "audio") throw new Error("Transcription accepts audio and video files");
-    if (requestedModule === "ocr" && type === "audio") throw new Error("OCR accepts image and PDF files");
-    if (!["audio", "image", "pdf"].includes(type)) throw new Error("Unsupported job type");
-    if (!inferred) throw new Error("Upload audio, video, image, or PDF files");
-    const job = await createJob(type, files, request.body.params ? JSON.parse(request.body.params) : {});
+    if (!inferred) throw badRequest("Upload audio, video, image, or PDF files");
+    const type = body.type || inferred;
+    if (body.moduleId === "transcription" && type !== "audio") throw badRequest("Transcription accepts audio and video files");
+    if (body.moduleId === "ocr" && type === "audio") throw badRequest("OCR accepts image and PDF files");
+    const job = await createJob(type, files, parseJobParams(body.params));
     try {
       await enqueueJob(job.id);
     } catch (error) {
@@ -601,7 +611,7 @@ app.get("/api/jobs/:id/files/*file", async (request, response) => {
   const relative = Array.isArray(request.params.file) ? request.params.file.join("/") : request.params.file;
   const file = safeOutputPath(request.params.id, relative);
   await fs.access(file);
-  response.sendFile(file);
+  sendUserFile(response, file, mimeLookup(file) || "application/octet-stream");
 });
 
 app.delete("/api/jobs/:id/files/*file", async (request, response) => {
@@ -638,7 +648,7 @@ app.get("/api/gallery", async (request, response) => {
 app.get("/api/jobs/:id/input/:file", async (request, response) => {
   const file = safeInputPath(request.params.id, request.params.file);
   await fs.access(file);
-  response.sendFile(file);
+  sendUserFile(response, file, mimeLookup(file) || "application/octet-stream");
 });
 
 app.delete("/api/jobs/:id/input/:file", async (request, response) => {
@@ -654,7 +664,10 @@ app.patch("/api/jobs/:id/input/:file", async (request, response) => {
 });
 
 app.get("/api/chats", async (_request, response) => response.json(await listChats()));
-app.post("/api/chats", async (request, response) => response.status(201).json(await createChat(request.body?.linkedJobId)));
+app.post("/api/chats", async (request, response) => {
+  const { linkedJobId } = z.object({ linkedJobId: z.string().min(1).max(200).optional() }).parse(request.body ?? {});
+  response.status(201).json(await createChat(linkedJobId));
+});
 app.get("/api/chats/:id", async (request, response) => response.json(await readChat(request.params.id)));
 app.patch("/api/chats/:id", async (request, response) => {
   const { title } = titleSchema.parse(request.body);
@@ -686,12 +699,7 @@ app.post("/api/chats/:id/attachments", upload.array("files", MAX_ATTACHMENTS_PER
 
 app.get("/api/chats/:id/attachments/:attachmentId", async (request, response) => {
   const { file, mimeType, name } = await chatAttachmentPath(request.params.id, request.params.attachmentId);
-  // Documents are served as plain text so an attached HTML or SVG file never runs on the app's origin.
-  response.type(mimeType.startsWith("image/") || mimeType === "application/pdf" ? mimeType : "text/plain; charset=utf-8");
-  response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("Content-Security-Policy", "sandbox");
-  response.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(name)}`);
-  response.sendFile(file);
+  sendUserFile(response, file, mimeType, name);
 });
 
 app.post("/api/chats/:id/messages", async (request, response) => {
@@ -816,9 +824,21 @@ function hasErrorCode(error: unknown, code: string) {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === code;
 }
 
-const server = app.listen(PORT, "0.0.0.0", async () => {
+function badRequest(message: string) {
+  return Object.assign(new Error(message), { status: 400 });
+}
+
+function parseJobParams(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw badRequest("params must be a JSON object"); }
+  return z.record(z.string(), z.unknown()).parse(parsed);
+}
+
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Sparkfire listening on http://0.0.0.0:${PORT}`);
-  await startWorker();
+  // Without a worker the API still serves files and history; queued jobs wait in Redis for the next start.
+  startWorker().catch((error) => console.error(`[worker] could not start: ${error instanceof Error ? error.message : String(error)}`));
 });
 
 async function shutdown() {
