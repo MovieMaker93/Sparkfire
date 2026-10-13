@@ -243,7 +243,7 @@ Parakeet grows to 1.6–1.8 GiB of GPU memory and up to 1.5 GiB of RAM while it 
 | --- | --- |
 | All services idle | about 29 GiB, plus Saluki's 13–21.5 GiB |
 | Busy (two jobs at a time, the app's default) | about 38 GiB at peak |
-| Starting up | about 39 GiB at peak |
+| Starting up | about 39 GiB at peak, plus Saluki; a fresh start first checks that 64 GiB are free (`--skip-memory-check` to override) |
 | A video job (on top of the above) | +35–39 GiB for Fast at 480p, +41–48 GiB for Fast at 720p or longer, +44–57 GiB for Sharp; the weights stay loaded until 10 minutes without a job |
 | A song (on top of the above) | about +20 GiB at its peak, short or long; about 15 GiB stays loaded until 10 minutes without a song |
 
@@ -260,7 +260,8 @@ Some jobs load tens of GiB only while they work: video (35–57 GiB per job) and
 - **One heavy job at a time, in order.** Ask for a second video while one renders and it shows *Waiting for the GPU* with what is running, then starts by itself. You can stop it while it waits.
 - **Everything else keeps going.** Heavy jobs wait on their own queue, so OCR, transcription, translation, images, mind maps and chat never queue behind a video. They run more slowly while it renders, because they share the GPU.
 - **Workflows too.** A video or music node in a workflow waits for the same lane as one started from its page.
-- **Switching frees memory first.** A heavy service keeps its weights for a while after a job (10 minutes for both), so the next video or song starts warm. When the next heavy job belongs to the other module, a song after a video for example, Sparkfire first tells the previous service to free its weights, instead of loading on top of them. The music service also refuses to load while less than 22 GiB is free, in case something outside Sparkfire took the memory.
+- **Switching frees memory first.** A heavy service keeps its weights for a while after a job (10 minutes for both), so the next video or song starts warm. When the next heavy job belongs to the other module, a song after a video for example, Sparkfire first tells the previous service to free its weights, instead of loading on top of them.
+- **Short of memory, it waits.** Before a job, the video and music services check that the Spark has the memory the job was measured to need: 50 GiB for a Fast video and 59 GiB for a Sharp one from cold, about 16 GiB when the same variant is already loaded, and 22 GiB for a song. When other jobs or something outside Sparkfire hold it, the job shows *Waiting for memory* and tries again until it fits, for up to 30 minutes, instead of running the Spark out of memory.
 
 A song next to a busy stack (images, OCR, speech, translation and chat all working) fits with 39 GiB to spare, but takes about twice as long and slows the others; the measurements are in [docs/validation.md](docs/validation.md).
 

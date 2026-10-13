@@ -154,7 +154,9 @@ class AdapterTests(unittest.TestCase):
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
         comfy = server.Comfy(f"http://127.0.0.1:{httpd.server_address[1]}", poll_interval=0.01)
-        self.service = server.VideoService(comfy, server.BACKENDS["fasth3"], self.work_dir, idle_unload_seconds=600)
+        # Plenty free unless a test says otherwise; the real reader would see the test machine's memory.
+        self.free_gib = 200.0
+        self.service = server.VideoService(comfy, server.BACKENDS["fasth3"], self.work_dir, idle_unload_seconds=600, memory=lambda: self.free_gib)
         self.client = TestClient(server.create_app(self.service, "FastH3"))
 
     def generate(self, **body):
@@ -196,6 +198,34 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(FakeComfy.inputs_seen[0], [image])
         self.assertTrue(graph["conditioning"]["inputs"]["prompt"].startswith(workflows.FIRST_FRAME_REFERENCE))
         self.assertEqual(list((self.work_dir / "input").iterdir()), [])
+
+    def test_refuses_a_cold_job_without_the_memory_it_was_measured_to_need(self):
+        self.free_gib = 40
+        response = self.generate()
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["retry-after"], "60")
+        self.assertIn("40 GiB available, 50 GiB needed", response.json()["detail"])
+        self.assertEqual(FakeComfy.graphs, [])
+        self.assertIsNone(self.service.loaded)
+
+    def test_a_warm_job_needs_only_its_working_memory(self):
+        self.assertEqual(self.generate().status_code, 200)
+        # The 34 GiB of loaded weights are already counted as used: a second Fast job needs 48 - 34 + 2.
+        self.free_gib = 17
+        self.assertEqual(self.generate().status_code, 200)
+        self.free_gib = 15
+        response = self.generate()
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("16 GiB needed", response.json()["detail"])
+
+    def test_a_variant_switch_frees_the_loaded_one_before_it_checks_the_full_need(self):
+        self.assertEqual(self.generate().status_code, 200)
+        self.free_gib = 30
+        response = self.generate(variant="sharp")
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("59 GiB needed", response.json()["detail"])
+        self.assertEqual(len(self.frees()), 1)
+        self.assertIsNone(self.service.loaded)
 
     def test_switching_variants_frees_the_loaded_one_first(self):
         self.assertEqual(self.generate().status_code, 200)

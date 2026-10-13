@@ -44,19 +44,18 @@ export async function executeWorkflow(workflowId: string, job: JobManifest, run:
   const contract = run.moduleId === "text-transform" ? undefined : getModuleContract(run.moduleId);
   if (contract?.gpuLane !== "heavy") return executor(job, run, signal);
   // Every heavy run passes here, from the queue and from workflow nodes alike, so this is the one place to serialise them.
-  const { heavyGpuLane } = await import("../gpu-lane.js");
-  return heavyGpuLane.run(contract.id, () => executor(job, run, signal), {
+  const { heavyGpuLane, retryWhileShortOfMemory } = await import("../gpu-lane.js");
+  const waiting = async (stage: string, detail: string) => {
+    const { updateJob } = await import("../store.js");
+    const { publishJob } = await import("../events.js");
+    publishJob(job.id, await updateJob(job.id, { status: "queued", stage, detail }));
+  };
+  return heavyGpuLane.run(contract.id, () => retryWhileShortOfMemory(() => executor(job, run, signal), {
     signal,
-    onWait: async (holder) => {
-      const { updateJob } = await import("../store.js");
-      const { publishJob } = await import("../events.js");
-      const waiting = await updateJob(job.id, {
-        status: "queued",
-        stage: "Waiting for the GPU",
-        detail: `${getModuleContract(holder)?.title || holder} is running; this starts when it finishes`,
-      });
-      publishJob(job.id, waiting);
-    },
+    onWait: (reason) => waiting("Waiting for memory", reason),
+  }), {
+    signal,
+    onWait: (holder) => waiting("Waiting for the GPU", `${getModuleContract(holder)?.title || holder} is running; this starts when it finishes`),
   });
 }
 

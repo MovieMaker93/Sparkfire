@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { HeavyGpuLane, type LanePeer } from "./gpu-lane.js";
+import { NotEnoughMemoryError } from "./ai.js";
+import { HeavyGpuLane, MEMORY_WAIT, retryWhileShortOfMemory, type LanePeer } from "./gpu-lane.js";
 import type { EndpointConfig, ModuleId } from "./models.js";
 
 const endpoint = (port: number): EndpointConfig => ({ baseUrl: `http://127.0.0.1:${port}/v1`, model: "m", apiKey: "", enabled: true });
@@ -96,5 +97,41 @@ describe("heavy GPU lane", () => {
     await expect(gpu.run(VIDEO, async () => { throw new Error("generation failed"); })).rejects.toThrow("generation failed");
     expect(gpu.busyWith).toBeUndefined();
     await expect(gpu.run(MUSIC, async () => "next")).resolves.toBe("next");
+  });
+});
+
+describe("waiting for memory", () => {
+  const short = () => new NotEnoughMemoryError("Not enough free memory for a Fast video: 40 GiB available, 50 GiB needed.", 0);
+
+  it("asks again while the service is short of memory, and says why it waits", async () => {
+    const work = vi.fn().mockRejectedValueOnce(short()).mockRejectedValueOnce(short()).mockResolvedValue("video");
+    const onWait = vi.fn();
+    await expect(retryWhileShortOfMemory(work, { onWait })).resolves.toBe("video");
+    expect(work).toHaveBeenCalledTimes(3);
+    expect(onWait).toHaveBeenCalledWith("Not enough free memory for a Fast video: 40 GiB available, 50 GiB needed.");
+  });
+
+  it("fails at once on any other error", async () => {
+    const work = vi.fn().mockRejectedValue(new Error("502 Bad Gateway"));
+    await expect(retryWhileShortOfMemory(work)).rejects.toThrow("502 Bad Gateway");
+    expect(work).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops waiting when the run is stopped", async () => {
+    const controller = new AbortController();
+    const work = vi.fn().mockRejectedValue(new NotEnoughMemoryError("short", 60));
+    const waiting = retryWhileShortOfMemory(work, { signal: controller.signal, onWait: () => controller.abort() });
+    await expect(waiting).rejects.toMatchObject({ name: "AbortError" });
+    expect(work).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up once the wait runs past its limit", async () => {
+    const limit = MEMORY_WAIT.maxMs;
+    MEMORY_WAIT.maxMs = 0;
+    try {
+      await expect(retryWhileShortOfMemory(vi.fn().mockRejectedValue(short()))).rejects.toThrow(/Still not enough after 0 minutes of waiting/);
+    } finally {
+      MEMORY_WAIT.maxMs = limit;
+    }
   });
 });

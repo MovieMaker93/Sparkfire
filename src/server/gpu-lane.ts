@@ -1,4 +1,5 @@
-import { unloadModel } from "./ai.js";
+import { setTimeout as delay } from "node:timers/promises";
+import { NotEnoughMemoryError, unloadModel } from "./ai.js";
 import { MODULE_CONTRACTS } from "../shared/module-router.js";
 import type { EndpointConfig, ModuleId } from "./models.js";
 import { readSettings } from "./store.js";
@@ -81,6 +82,30 @@ export class HeavyGpuLane {
         // A service that is down holds no weights; one that refuses still has its own memory check.
         console.warn(`[gpu lane] could not free ${peer.moduleId}: ${error instanceof Error ? error.message : String(error)}`);
       }
+    }
+  }
+}
+
+export const MEMORY_WAIT = { maxMs: 30 * 60_000, maxPollMs: 20_000 };
+
+/**
+ * Runs heavy work and, while its service will not start it for lack of free memory, waits and asks again instead of
+ * failing. The memory is held by something the lane does not order: other jobs, or a process outside Sparkfire.
+ * The run keeps its turn in the lane meanwhile. The work must not change anything before its service accepts.
+ */
+export async function retryWhileShortOfMemory<T>(work: () => Promise<T>, options: { signal?: AbortSignal; onWait?: (reason: string) => unknown } = {}): Promise<T> {
+  const started = Date.now();
+  for (;;) {
+    try {
+      return await work();
+    } catch (error) {
+      if (!(error instanceof NotEnoughMemoryError)) throw error;
+      if (Date.now() - started >= MEMORY_WAIT.maxMs) {
+        throw new Error(`${error.message} Still not enough after ${Math.round(MEMORY_WAIT.maxMs / 60_000)} minutes of waiting.`);
+      }
+      await Promise.resolve(options.onWait?.(error.message)).catch(() => undefined);
+      // As the service asks, but at least every 20 s: the check is cheap, and the memory may free up sooner.
+      await delay(Math.min(error.retryAfterSeconds * 1000, MEMORY_WAIT.maxPollMs), undefined, { signal: options.signal });
     }
   }
 }

@@ -90,7 +90,8 @@ Without a Spark, give the API a stack address so it skips setup (the services th
 - **Queue and progress.** Jobs run on a BullMQ worker inside the API process. Progress reaches the browser
   through server-sent events at `/api/jobs/:id/events`. Modules marked `gpuLane: "heavy"` (video, music) take
   turns through `src/server/gpu-lane.ts` on their own queue, and free each other's weights when
-  the work switches module.
+  the work switches module. Their services refuse a job that would not fit in free memory (503 with
+  `Retry-After`), and the run waits for memory and asks again instead of failing.
 - **Optional modules.** A module whose service may be missing sets `hiddenUntilConfigured` in its contract
   (grounding, which the stack does not run, and music). The API then marks it `hidden` while its endpoint is
   off, and every UI list of tools and actions leaves it out.

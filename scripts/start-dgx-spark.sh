@@ -12,6 +12,7 @@ SKIP_PULL=false
 DEPLOY_APP=true
 REFRESH_IMAGES=false
 FORCE_RECREATE=false
+CHECK_MEMORY=true
 VIDEO_BACKEND="${SPARKFIRE_VIDEO_BACKEND:-fasth3}"
 
 usage() {
@@ -31,6 +32,7 @@ Options:
   --refresh-images         Refresh base images and recreate every service
   --force-recreate         Recreate services after using the selected images
   --models-only            Run the model services and monitor without Sparkfire
+  --skip-memory-check      Start even when less memory is free than a fresh start needs
   --video-backend NAME     fasth3 (default) or none; FastH3's license does not cover the EU, the UK,
                            South Korea or the US, so leave video out there
   -h, --help               Show this help
@@ -86,6 +88,9 @@ while (($#)); do
       ;;
     --models-only)
       DEPLOY_APP=false
+      ;;
+    --skip-memory-check)
+      CHECK_MEMORY=false
       ;;
     --video-backend)
       if (($# < 2)); then printf '%s needs a value\n' "$1" >&2; exit 2; fi
@@ -404,6 +409,26 @@ start_service() {
 }
 
 remove_legacy_containers
+
+# The stack peaks around 60 GiB while its models load: about 39 GiB for the services, plus Saluki's 13 to
+# 21.5 GiB (docs/validation.md). Next to something that already holds most of the Spark, another LLM for
+# instance, it would run the machine out of memory halfway, so a fresh start first checks there is room. With
+# the stack's models already running, their memory counts as used, so the check is skipped.
+STACK_START_GIB=64
+check_memory_for_start() {
+  local running available
+  running="$(docker ps --filter "label=com.docker.compose.project=sparkfire" --format '{{.Names}}' | grep -cE '^sparkfire-(saluki|parakeet|paddleocr-vlm|hy-mt2|image-generation)$' || true)"
+  ((running == 0)) || return 0
+  available="$(awk '/^MemAvailable:/ {printf "%d", $2 / 1048576}' /proc/meminfo)"
+  ((available >= STACK_START_GIB)) && return 0
+  printf '\nOnly %s GiB of memory is free; the stack needs about %s GiB to start.\n' "$available" "$STACK_START_GIB" >&2
+  printf 'Processes holding GPU memory now:\n' >&2
+  nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader >&2 || true
+  printf 'Stop them first, or pass --skip-memory-check.\n' >&2
+  exit 1
+}
+if [[ "$CHECK_MEMORY" == "true" ]]; then check_memory_for_start; fi
+
 printf '\nStarting the models sequentially...\n'
 # Saluki first: it loads in seconds with no peak, and holding its 13 GiB before the others start keeps a restart
 # from leaving it without room.
