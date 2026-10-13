@@ -1,6 +1,8 @@
 # Dependencies and package-manager state
 node_modules/
 .npm/
+# The virtual environment CONTRIBUTING.md sets up for the Python service tests
+.venv/
 
 # Generated builds and test output
 dist-client/

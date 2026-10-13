@@ -400,16 +400,7 @@ Details in [docs/fork.md](docs/fork.md), measured results in [docs/validation.md
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a pull request:
-
-1. Keep module compatibility rules in the shared capability router (`src/shared/module-router.ts`) rather than duplicating them in UI code.
-2. Preserve the file-based storage model and artifact lineage; migrations stay additive and never silently rewrite a user's folders.
-3. Add or update tests for behaviour changes.
-4. Run `npm run typecheck`, `npm test` and `npm run build`.
-5. Do not commit `.env`, `data/`, model credentials or user files.
-6. Title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/) (`feat: …`, `fix: …`); it becomes the squashed commit that release notes are built from.
-
-Coding agents, and humans who like a map, start from [AGENTS.md](AGENTS.md). The README clips are recorded by `scripts/media/`; its README explains how to refresh them after UI changes. The project is pre-1.0, so APIs and stored schemas may still change.
+Issues and pull requests are welcome; [CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up, test and submit a change. In short: open an issue before a larger change, keep the model stack fixed, run `npm run typecheck`, `npm test` and `npm run build`, and title the pull request as a [Conventional Commit](https://www.conventionalcommits.org/). Coding agents, and humans who like a map, start from [AGENTS.md](AGENTS.md). The project is pre-1.0, so APIs and stored schemas may still change.
 
 ## License
 
